@@ -19,16 +19,22 @@ def query_footprint(layer, where=None):
     '''queries the danco footprint database, for the specified layer and optional where clause
     where clause e.g.: "acqdate > '2015-01-01'" '''
     try:
+        danco = "danco.pgc.umn.edu"
         connection = psycopg2.connect(user = creds[0],
                                       password = creds[1],
-                                      host = "danco.pgc.umn.edu",
+                                      host = danco,
                                       database = "footprint")
         
         engine = create_engine('postgresql+psycopg2://disbr007:ArsenalFC10@danco.pgc.umn.edu/footprint')
         
         connection = engine.connect()
+        if connection:
+            print('PostgreSQL connection to {} at {} opened.'.format(layer, danco))
 #        layer = 'dg_imagery_index_stereo_cc20'
-        sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {} where {}".format(layer, where)
+        if where:
+            sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {} where {}".format(layer, where)
+        else:
+            sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(layer)
         df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom')
         return df
     except (Exception, psycopg2.Error) as error :
