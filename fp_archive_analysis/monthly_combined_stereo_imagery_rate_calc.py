@@ -46,7 +46,11 @@ regions_path = r'E:\disbr007\imagery_rates\data\all_regions.shp'
 
 # Read feature classes into geopandas
 intrackDF = query_footprint('dg_imagery_index_stereo_cc20') #gpd.read_file(intrack_gdb_path, driver='OpenFileGDB', layer='dg_imagery_index_stereo_cc20')
-xtrackDF = gpd.read_file(xtrack_gdb_path, crs = {'init': 'espg:4326'}, driver='OpenFileGDB', layer='dg_imagery_index_all_cc20_xtrack_pairs_jan09_prj_WGS')
+xtrackDF = gpd.read_file(
+        xtrack_gdb_path, 
+        crs = {'init': 'espg:4326'}, 
+        driver='OpenFileGDB', 
+        layer='dg_imagery_index_all_cc20_xtrack_pairs_jan09_prj_WGS')
 regionsDF = gpd.read_file(regions_path, driver='ESRI Shapefile')
 
 print('Data loaded into geopandas...')
@@ -89,6 +93,8 @@ xtrackDF = xtrackDF.set_index(['acqdate']) # and region?
 intrackDF.sort_index(inplace=True)
 xtrackDF.sort_index(inplace=True)
 
+
+## MONTHLY AGGREGARTION
 # Create resampled dataframes by region, then year-month, counting unique catalog ids per year and month, suming area
 monthlyIntrack = intrackDF.groupby([pd.Grouper(freq='M'), 'region']).agg({'catalogid': 'nunique', 'sqkm': 'sum'})
 monthlyIntrack['Unique Strips'] = monthlyIntrack['catalogid'] * 2
@@ -102,6 +108,7 @@ monthlyXtrack = xtrackDF.groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_ag
 monthlyXtrack_1k = xtrackDF[xtrackDF['sqkm'] > 999].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
 monthlyXtrack_500 = xtrackDF[(xtrackDF['sqkm'] > 499) & (xtrackDF['sqkm'] < 1000)].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
 monthlyXtrack_250 = xtrackDF[(xtrackDF['sqkm'] > 249) & (xtrackDF['sqkm'] < 500)].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
+monthlyXtrack_0 = xtrackDF[xtrackDF['sqkm'] < 250].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
 
 final_dfs = {
         'intrack': monthlyIntrack,
@@ -109,6 +116,7 @@ final_dfs = {
         'xtrack_1k': monthlyXtrack_1k,
         'xtrack_500': monthlyXtrack_500,
         'xtrack_250': monthlyXtrack_250,
+        'xtrack_0': monthlyXtrack_0
         }
 
 cols_to_total = ['Area (sq. km)', 'Pairs', 'Unique Strips']
@@ -129,10 +137,9 @@ for k, v in final_dfs.items():
     final_dfs[k] = final_dfs[k].unstack(level=1)
     final_dfs[k] = final_dfs[k].reset_index()
     final_dfs[k].rename(index=str, columns=col_rename, inplace=True) # Rename columns
-    print(type(final_dfs[k].index))
     
 # Combined monthly stereo
-monthly_combined_stereo = pd.concat([final_dfs['intrack'], final_dfs['xtrack_1k']]).groupby(['Date'], as_index=False).sum()
+monthly_combined_stereo = pd.concat([final_dfs['intrack'], final_dfs['xtrack']]).groupby(['Date'], as_index=False).sum()
 final_dfs['combined_stereo'] = monthly_combined_stereo # Add combined to dataframe dictionary
 
 for k, v in final_dfs.items():
@@ -148,18 +155,24 @@ for k, v in final_dfs.items():
     
     # Add Month and Year columns for charting
     final_dfs[k].unstack(level=1) # Unstack
-    final_dfs[k]['Month'] = final_dfs[k]['Date'].dt.month ### TRY final_dfs[k].index.dt.month
+#    final_dfs[k]['Date'] = final_dfs[k].index
+    final_dfs[k]['Month'] = final_dfs[k].index.month #final_dfs[k]['Date'].dt.month ### TRY final_dfs[k].index.dt.month
     final_dfs[k]['Month'] = final_dfs[k]['Month'].apply(lambda x: calendar.month_abbr[x])
-    final_dfs[k]['Year'] = final_dfs[k]['Date'].dt.year
+    final_dfs[k]['Year'] = final_dfs[k].index.year #final_dfs[k]['Date'].dt.year
     final_dfs[k]['Node Hours'] = final_dfs[k]['Total Area (sq. km)'].div(16.) # Node Hours Calc
     final_dfs[k] = final_dfs[k].round(0)
     final_dfs[k] = final_dfs[k][[
-            ('Date', ''),('Year', ''),('Month', ''),
+#            ('Date', ''),
+            ('Year', ''),('Month', ''),
             ('Total Area (sq. km)', ''),('Total Pairs', ''),('Total Unique Strips', ''),('Node Hours', ''),
             ('Area (sq. km)', 'Antarctica'),('Area (sq. km)', 'Arctic'),('Area (sq. km)', 'Non-Polar'),
             ('Pairs', 'Antarctica'),('Pairs', 'Arctic'),('Pairs', 'Non-Polar'),
             ('Unique Strips', 'Antarctica'),('Unique Strips', 'Arctic'),('Unique Strips', 'Non-Polar')
             ]]
+
+# Keep only first of each year for plotting cleanly in excel
+for k, v in final_dfs.items():    
+    final_dfs[k]['Year'] = final_dfs[k]['Year'].mask(final_dfs[k]['Year'].shift(1) == final_dfs[k]['Year'])
 
 #del monthlyIntrack, monthlyXtrack, monthly_combined_stereo
 
