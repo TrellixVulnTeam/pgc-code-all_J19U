@@ -44,4 +44,4 @@ def query_footprint(layer, where=None):
         #closing database connection.
             if (connection):
                 connection.close()
-                print("PostgreSQL connection is closed")
+                print("PostgreSQL connection closed.")

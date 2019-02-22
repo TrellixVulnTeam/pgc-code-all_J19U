@@ -136,10 +136,19 @@ monthly_combined_stereo = pd.concat([final_dfs['intrack'], final_dfs['xtrack_1k'
 final_dfs['combined_stereo'] = monthly_combined_stereo # Add combined to dataframe dictionary
 
 for k, v in final_dfs.items():
-#    final_dfs[k].unstack(level=1) # Unstack
+
     final_dfs[k] = add_totals(final_dfs[k], cols_to_total) # Add totals columns
+    
+    # Find earliest and latest date in each dataframe. Fill in missing months
+    start = final_dfs[k].Date.min()
+    end = final_dfs[k].Date.max()
+    idx = pd.date_range(start=start, end=end, freq='M') 
+    final_dfs[k] = final_dfs[k].set_index('Date')
+    final_dfs[k] = final_dfs[k].reindex(idx, fill_value=0)
+    
     # Add Month and Year columns for charting
-    final_dfs[k]['Month'] = final_dfs[k]['Date'].dt.month
+    final_dfs[k].unstack(level=1) # Unstack
+    final_dfs[k]['Month'] = final_dfs[k]['Date'].dt.month ### TRY final_dfs[k].index.dt.month
     final_dfs[k]['Month'] = final_dfs[k]['Month'].apply(lambda x: calendar.month_abbr[x])
     final_dfs[k]['Year'] = final_dfs[k]['Date'].dt.year
     final_dfs[k]['Node Hours'] = final_dfs[k]['Total Area (sq. km)'].div(16.) # Node Hours Calc
@@ -151,8 +160,6 @@ for k, v in final_dfs.items():
             ('Pairs', 'Antarctica'),('Pairs', 'Arctic'),('Pairs', 'Non-Polar'),
             ('Unique Strips', 'Antarctica'),('Unique Strips', 'Arctic'),('Unique Strips', 'Non-Polar')
             ]]
-    
-#    final_dfs[k] = final_dfs[k][columns_order]
 
 #del monthlyIntrack, monthlyXtrack, monthly_combined_stereo
 
@@ -165,30 +172,10 @@ for k, v in final_dfs.items():
 #begin = early_date
 #end = late_date
 
-begin = None
-end = None
+#final_dfs[k] = final_dfs[k][final_dfs[k]['Date'].between(begin,end)]
+#final_dfs[k] = final_dfs[k].loc[final_dfs[k]['Date'] < '2019-01-01'] # Drop data newer than end of 2018 
 
-for k, v in final_dfs.items():
-#    print(final_dfs[k].index)
-    if begin == None:
-        being = finals_df[k].Date.min()
-    else:
-        pass
-    if final_dfs[k].Date.min() < begin:
-        begin = final_dfs[k].Date.min()
-    else:
-        begin = begin
-    if final_dfs[k].Date.max() > end:
-        end = final_dfs[k].Date.max()
-    else:
-        end = end
-#    final_dfs[k] = final_dfs[k][final_dfs[k]['Date'].between(begin,end)]
-#    final_dfs[k] = final_dfs[k].loc[final_dfs[k]['Date'] < '2019-01-01'] # Drop data newer than end of 2018 
-
-idx = pd.date_range(start=begin, end=end)
-for k, v in final_dfs.items():
-    final_dfs[k] = final_dfs[k].set_index('Date')
-    final_dfs[k] = final_dfs[k].reindex(idx, fill_value=0)
+#for k, v in final_dfs.items():
 
 # Write each dataframe to worksheet and pickle
 excel_name = 'imagery_rates_{}.xlsx'.format(date_words)
