@@ -105,10 +105,10 @@ xtrack_aggregation = {
         }
 
 monthlyXtrack = xtrackDF.groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation) # Count unique pairs of ids
-monthlyXtrack_1k = xtrackDF[xtrackDF['sqkm'] > 999].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
-monthlyXtrack_500 = xtrackDF[(xtrackDF['sqkm'] > 499) & (xtrackDF['sqkm'] < 1000)].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
-monthlyXtrack_250 = xtrackDF[(xtrackDF['sqkm'] > 249) & (xtrackDF['sqkm'] < 500)].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
-monthlyXtrack_0 = xtrackDF[xtrackDF['sqkm'] < 250].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
+monthlyXtrack_1k = xtrackDF[xtrackDF['sqkm'] >= 1000.0].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
+monthlyXtrack_500 = xtrackDF[(xtrackDF['sqkm'] >= 500.0) & (xtrackDF['sqkm'] < 1000.0)].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
+monthlyXtrack_250 = xtrackDF[(xtrackDF['sqkm'] >= 250.0) & (xtrackDF['sqkm'] < 500.0)].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
+monthlyXtrack_0 = xtrackDF[xtrackDF['sqkm'] < 250.0].groupby([pd.Grouper(freq='M'), 'region']).agg(xtrack_aggregation)
 
 final_dfs = {
         'intrack': monthlyIntrack,
@@ -124,9 +124,8 @@ cols_to_total = ['Area (sq. km)', 'Pairs', 'Unique Strips']
 col_rename = { 
         'acqdate': 'Date', 
         'catalogid': 'Pairs', # intrack pairs column
-        'sqkm': 'Area (sq. km)',  # intrack area col
+        'sqkm': 'Area (sq. km)',  # intrack and xtrack area col
         'pairname': 'Pairs',  # xtrack pairs column
-        'sqkm': 'Area (sq. km)', # xtrack area column
         'catalogid1': 'Unique Strips', # xtrack unique ids column
         'arctic': 'Arctic', 
         'antarctica': 'Antarctica', 
@@ -144,7 +143,7 @@ final_dfs['combined_stereo'] = monthly_combined_stereo # Add combined to datafra
 
 for k, v in final_dfs.items():
 
-    final_dfs[k] = add_totals(final_dfs[k], cols_to_total) # Add totals columns
+    final_dfs[k] = add_totals(final_dfs[k], cols_to_total) # Add 'Totals' columns
     
     # Find earliest and latest date in each dataframe. Fill in missing months
     start = final_dfs[k].Date.min()
@@ -184,11 +183,8 @@ for k, v in final_dfs.items():
 #late_date = datetime.datetime.strptime(late_str, date_format)
 #begin = early_date
 #end = late_date
-
 #final_dfs[k] = final_dfs[k][final_dfs[k]['Date'].between(begin,end)]
 #final_dfs[k] = final_dfs[k].loc[final_dfs[k]['Date'] < '2019-01-01'] # Drop data newer than end of 2018 
-
-#for k, v in final_dfs.items():
 
 # Write each dataframe to worksheet and pickle
 excel_name = 'imagery_rates_{}.xlsx'.format(date_words)
