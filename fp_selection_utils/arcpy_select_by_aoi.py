@@ -19,14 +19,15 @@ import argparse
 #    return tuple(ids)
 
 def select_footprints(aoi):
-    imagery_index = r'E:\disbr007\UserServicesRequests\pgcImageryIndexV6_2019jan12.gdb\pgcImageryIndexV6_2019jan12'
+    imagery_index = r'E:\disbr007\UserServicesRequests\pgcImageryIndexV6_2019feb04.gdb\pgcImageryIndexV6_2019feb04'
+    idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
     aoi_lyr = arcpy.MakeFeatureLayer_management(aoi)
-    selection = arcpy.SelectLayerByLocation_management(imagery_index, "INTERSECT", aoi_lyr, selection_type="NEW_SELECTION")
+    selection = arcpy.SelectLayerByLocation_management(idx_lyr, "INTERSECT", aoi_lyr, selection_type="NEW_SELECTION")
     return selection
     
 def write_shp(selection, txt_file):
     project_path = os.path.dirname(txt_file)
-    out_shp_path = os.path.join(project_path, 'selected_idsB.shp')
+    out_shp_path = os.path.join(project_path, 'aoi_selection.shp')
     out_shp = arcpy.CopyFeatures_management(selection, out_shp_path)
     print('Shapefile of selected features created at: {}'.format(out_shp_path))
     return out_shp
