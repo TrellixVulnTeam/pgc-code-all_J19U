@@ -7,6 +7,7 @@ Created on Thu Jan 17 12:43:09 2019
 
 import psycopg2
 import geopandas as gpd
+import pandas as pd
 from sqlalchemy import create_engine
 
 creds = []
@@ -35,7 +36,7 @@ def query_footprint(layer, where=None):
             sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {} where {}".format(layer, where)
         else:
             sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(layer)
-        df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom')
+        df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
         return df
     except (Exception, psycopg2.Error) as error :
         print ("Error while connecting to PostgreSQL", error)
@@ -45,3 +46,17 @@ def query_footprint(layer, where=None):
             if (connection):
                 connection.close()
                 print("PostgreSQL connection closed.")
+
+def stereo_noh():
+    '''returns a dataframe with all intrack stereo not on hand as individual rows, rather
+    than as pairs'''
+    stereo_noh_left = 'dg_imagery_index_stereo_notonhand_left_cc20'
+    stereo_noh_right = 'dg_imagery_index_stereo_notonhand_right_cc20'
+    
+    noh_left = query_footprint(stereo_noh_left)
+    noh_right = query_footprint(stereo_noh_right)
+    
+    noh_right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
+    
+    noh = pd.concat([noh_left, noh_right], sort=True)
+    return noh
