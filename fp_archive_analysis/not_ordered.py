@@ -7,6 +7,7 @@ Created on Mon Mar  4 11:40:27 2019
 
 import geopandas as gpd
 import pandas as pd
+import calendar, datetime, sys, os
 from query_danco import stereo_noh, query_footprint
 
 # Load data
@@ -66,4 +67,19 @@ monthly_xtrack_0 = xtrack_noh[xtrack_noh['sqkm'] < 250.0].groupby(pd.Grouper(fre
 monthly_intrack_noh = intrack_noh.groupby(pd.Grouper(freq='M')).agg({'catalogid': 'nunique'})
 
 # Output to excel
+final_dfs = {
+        'intrack_noh': monthly_intrack_noh,
+        'xtrack_noh': monthly_intrack_noh,
+        'xtrack_1k': monthly_xtrack_1k,
+        'xtrack_500': monthly_xtrack_500,
+        'xtrack_250': monthly_xtrack_250,
+        'xtrack_0': monthly_xtrack_0}
 
+out_path = r'C:\Users\disbr007\imagery\not_onhand\not_onhand.xlsx'
+excel_writer = pd.ExcelWriter(out_path)
+for name, df in final_dfs.items():
+    final_dfs[name]['Month'] = final_dfs[name].index.month
+    final_dfs[name]['Month'] = final_dfs[name]['Month'].apply(lambda x: calendar.month_abbr[x])
+    final_dfs[name]['Year'] = final_dfs[name].index.year
+    df.to_excel(excel_writer, name, index=True)
+excel_writer.save()
