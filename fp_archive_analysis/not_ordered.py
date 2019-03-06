@@ -75,11 +75,28 @@ final_dfs = {
         'xtrack_250': monthly_xtrack_250,
         'xtrack_0': monthly_xtrack_0}
 
+col_rename = { 
+        'acqdate': 'Date', 
+        'catalogid': 'Strips', # intrack strips column
+        'sqkm': 'Area (sq. km)',  # intrack and xtrack area col
+        'pairname': 'Pairs',  # xtrack pairs column
+        'catalogid1': 'Unique Strips', # xtrack unique ids column
+        'arctic': 'Arctic', 
+        'antarctica': 'Antarctica', 
+        'nonpolar': 'Non-Polar'
+        }
+
+
 out_path = r'C:\Users\disbr007\imagery\not_onhand\not_onhand.xlsx'
 excel_writer = pd.ExcelWriter(out_path)
 for name, df in final_dfs.items():
     final_dfs[name]['Month'] = final_dfs[name].index.month
     final_dfs[name]['Month'] = final_dfs[name]['Month'].apply(lambda x: calendar.month_abbr[x])
     final_dfs[name]['Year'] = final_dfs[name].index.year
+    final_dfs[name].rename(index=str, columns=col_rename, inplace=True)
+    if final_dfs[name] == 'intrack_noh':
+        pass
+    else:
+        final_dfs[name]['Node Hours'] = final_dfs[name]['Area (sq. km)'].div(16.)
     df.to_excel(excel_writer, name, index=True)
 excel_writer.save()
