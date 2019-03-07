@@ -62,8 +62,16 @@ all_oh = list(set(all_oh))
 
 stereo_noh = stereo_noh()
 
+
 s_noh_ids = list(stereo_noh['catalogid'])
 
-s_noh_remove = [x for x in s_noh_ids if x not in all_oh]
-list(set(s_noh_ids).difference(all_oh))
+s_noh_remove = list(set(s_noh_ids).difference(all_oh))
+
+
+txt_out_path = r'C:\Users\disbr007\imagery_orders\not_onhand\stereo_ids_not_onhand.txt'
+with open(txt_out_path, 'w') as f:
+    for x in s_noh_remove:
+        f.write('{}\n'.format(x))
+
+
 
