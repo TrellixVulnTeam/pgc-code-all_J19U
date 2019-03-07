@@ -59,9 +59,12 @@ print('nasa loaded')
 
 all_oh = all_ordered + index_ids + nasa_ids
 all_oh = list(set(all_oh))
+all_oh_out = r'C:\Users\disbr007\imagery_orders\not_onhand\all_ids_onhand.txt'
+with open(all_oh_out, 'w') as all_out:
+    for x in all_out:
+        all_out.write('{}\n'.format(x))
 
 stereo_noh = stereo_noh()
-
 
 s_noh_ids = list(stereo_noh['catalogid'])
 
