@@ -16,7 +16,7 @@ with open(r"C:\Users\disbr007\scripts\cred.txt", 'r') as cred:
     for line in content:
         creds.append(str(line).strip())
 
-def query_footprint(layer, where=None):
+def query_footprint(layer, where=None, table=False):
     '''queries the danco footprint database, for the specified layer and optional where clause
     where clause e.g.: "acqdate > '2015-01-01'" '''
     try:
@@ -34,9 +34,13 @@ def query_footprint(layer, where=None):
 #        layer = 'dg_imagery_index_stereo_cc20'
         if where:
             sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {} where {}".format(layer, where)
+            df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
+        elif table == True:
+            sql = "SELECT * FROM {}".format(layer)
+            df = pd.read_sql_query(sql, con=engine)
         else:
             sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(layer)
-        df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
+            df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
         return df
     except (Exception, psycopg2.Error) as error :
         print ("Error while connecting to PostgreSQL", error)
