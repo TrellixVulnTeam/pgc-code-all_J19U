@@ -3,6 +3,9 @@
 Created on Fri Mar  1 16:04:59 2019
 
 @author: disbr007
+Updates a local shapefile of stereo not on hand by combining danco layers:
+    stereo_notonhand left_cc20
+    stereo_notonhand_right_cc20
 """
 
 import geopandas as gpd

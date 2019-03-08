@@ -3,6 +3,7 @@
 Created on Mon Mar  4 11:40:27 2019
 
 @author: disbr007
+Determine the number of unique cross track catalog ids not ordered, by month, overlap area, sensor
 """
 
 import geopandas as gpd

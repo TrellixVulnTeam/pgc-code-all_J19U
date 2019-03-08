@@ -11,7 +11,7 @@ def ids_to_list(ids_path):
         ids = []
         lines = f.readlines()
         for line in lines:
-            ids.append(line)
+            ids.append(line.strip())
             
 def date_words():
     '''get todays date and convert to '2019jan07' style for filenaming'''

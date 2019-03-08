@@ -32,6 +32,7 @@ def query_footprint(layer, where=None, table=False):
         if connection:
             print('PostgreSQL connection to {} at {} opened.'.format(layer, danco))
 #        layer = 'dg_imagery_index_stereo_cc20'
+        ##TODO: FIX LOGIC HERE - SHOULD BE ABLE TO DO A TBL AND WHERE
         if where:
             sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {} where {}".format(layer, where)
             df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
