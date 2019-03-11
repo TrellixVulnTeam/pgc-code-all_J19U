@@ -13,10 +13,9 @@ import seaborn as sns
 pickle_path = r'C:\Users\disbr007\imagery\not_onhand\xtrack.pkl'
 df = pd.read_pickle(pickle_path)
 
-#fig, ax = plt.subplots()
+fig, ax = plt.subplots()
 #
 ##df.plot(ax=axes, subplots=True)
 #df.plot(y=('Unique_Strips', False, 'WV01'), ax=ax)
 
-sns.set()
-sns.pairplot(df, hue='day')
+df.unstack().plot(ax=ax, subplots=True)

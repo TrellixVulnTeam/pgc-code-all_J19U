@@ -12,7 +12,7 @@ import numpy as np
 import sys
 
 sys.path.insert(0, r'C:\code\misc_utils')
-import id_parse_utils
+import id_parse_utils 
 
 ## Xtrack data prep
 # Load crosstrack database
@@ -20,12 +20,17 @@ xtrack_path = r"C:\Users\disbr007\imagery\dg_cross_track_2019jan09_deliv.gdb"
 xtrack = gpd.read_file(xtrack_path, driver='OpenFileGDB', layer=1)
 print('xtrack db loaded into geopandas')
 
+xtrack['ovlp_cat'] = pd.cut(xtrack.sqkm, [0, 250, 500, 1000, 999999], labels=['0-249', '250-500', '500-1000', '1000+'])
+xtrack['ovlp_cat_fine'] = pd.cut(xtrack.sqkm, [x for x in range(0, 10250, 250)])
+
 # Split into '1' and '2' xtrack dataframes - keep overlap area ids in both
 # Drop geometry and other unncessary columns
-xtrack1_cols = ['catalogid1', 'acqdate1', 'sqkm']
-xtrack2_cols = ['catalogid2', 'acqdate2', 'sqkm']
+xtrack1_cols = ['catalogid1', 'acqdate1', 'sqkm', 'ovlp_cat', 'ovlp_cat_fine']
+xtrack2_cols = ['catalogid2', 'acqdate2', 'sqkm', 'ovlp_cat', 'ovlp_cat_fine']
+
 xtrack1 = xtrack[xtrack1_cols]
 xtrack2 = xtrack[xtrack2_cols]
+xtrack2['sqkm'] = 0.0
 del xtrack
 
 # Stack '1' and '2' xtrack dataframes
@@ -58,7 +63,6 @@ platform_code = {
 # Use first three characters of catalogid to determine platform
 xtrack['platform'] = xtrack['catalogid'].str.slice(0,3).map(platform_code)
 
-
 ## Determine 'onhand' (PGC, NASA, ordered)
 onhand_ids_path = r'C:/Users/disbr007/imagery_orders/not_onhand/onhand_ids.txt'
 oh_ids = []
@@ -67,21 +71,25 @@ with open(onhand_ids_path, 'r') as f:
     for line in content:
         oh_ids.append(line.strip())
 
-## Remove onhand ids from xtrack ids
-#xtrack_noh = xtrack[~xtrack.catalogid.isin(oh_ids)]
-#xtrack_noh = xtrack_noh.set_index(pd.to_datetime(xtrack_noh['acqdate']))
-
 # Determine xtrack onhand
 #xtrack_oh = xtrack[xtrack.catalogid.isin(oh_ids)]
 xtrack['onhand'] = xtrack['catalogid'].isin(oh_ids)
 xtrack = xtrack.set_index(pd.to_datetime(xtrack['acqdate']))
 
-## Monthly grouping
+
+## GROUPING / RESAMPLING
 aggregation = {
         'catalogid': 'nunique',
         'sqkm': 'sum'
         }
-monthly_xtrack = xtrack.groupby([pd.Grouper(freq='M'), 'platform', 'onhand']).agg(aggregation)
+# Group by area overlap
+histo_xtrack = xtrack.groupby(['ovlp_cat', 'onhand']).agg(aggregation)
+histo_xtrack_fine = xtrack.groupby(['ovlp_cat_fine', 'onhand']).agg(aggregation)
+histo_xtrack = histo_xtrack.unstack(level=1)
+histo_xtrack_fine = histo_xtrack_fine.unstack(level=1)
+
+## Monthly grouping
+monthly_xtrack = xtrack.groupby([pd.Grouper(freq='M'), 'platform', 'onhand', 'ovlp_cat']).agg(aggregation)
 monthly_xtrack = monthly_xtrack.unstack(level=-1) # Unstack 'onhand' column
 monthly_xtrack = monthly_xtrack.unstack(level=-1) # Unstack platform column
 
@@ -95,4 +103,7 @@ monthly_xtrack.rename(index=str, columns=col_rename, inplace=True)
 excel_path = r'C:\Users\disbr007\imagery\not_onhand\xtrack.xlsx'
 excel_writer = pd.ExcelWriter(excel_path)
 monthly_xtrack.to_excel(excel_writer, index=True)
+histo_xtrack.to_excel(excel_writer, index=True, sheet_name='histo')
+histo_xtrack_fine.to_excel(excel_writer, index=True, sheet_name='histo_fine')
 excel_writer.save()
+pd.to_pickle(monthly_xtrack, r'C:\Users\disbr007\imagery\not_onhand\xtrack.pkl')
