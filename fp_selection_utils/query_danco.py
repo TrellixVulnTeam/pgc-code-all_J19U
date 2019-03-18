@@ -11,46 +11,54 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 creds = []
-with open(r"C:\Users\disbr007\scripts\cred.txt", 'r') as cred:
+with open(r"C:\code\cred.txt", 'r') as cred:
     content = cred.readlines()
     for line in content:
         creds.append(str(line).strip())
 
-def query_footprint(layer, where=None, table=False):
-    '''queries the danco footprint database, for the specified layer and optional where clause
-    where clause e.g.: "acqdate > '2015-01-01'" '''
+def query_footprint(layer, table=False, where=None):
+    '''
+    queries the danco footprint database, for the specified layer and optional where clause
+    
+    layer: danco layer to query - e.g.: 'dg_imagery_index_stereo_cc20'
+    where: sql where clause     - e.g.: "acqdate > '2015-01-01'"
+    '''
     try:
         danco = "danco.pgc.umn.edu"
         connection = psycopg2.connect(user = creds[0],
                                       password = creds[1],
                                       host = danco,
                                       database = "footprint")
-        
         engine = create_engine('postgresql+psycopg2://disbr007:ArsenalFC10@danco.pgc.umn.edu/footprint')
-        
         connection = engine.connect()
+
         if connection:
             print('PostgreSQL connection to {} at {} opened.'.format(layer, danco))
-#        layer = 'dg_imagery_index_stereo_cc20'
-        ##TODO: FIX LOGIC HERE - SHOULD BE ABLE TO DO A TBL AND WHERE
-        if where:
-            sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {} where {}".format(layer, where)
-            df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
-        elif table == True:
-            sql = "SELECT * FROM {}".format(layer)
-            df = pd.read_sql_query(sql, con=engine)
-        else:
-            sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(layer)
-            df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
-        return df
+            # If table, do not select geometry
+            if table == True:
+                sql = "SELECT * FROM {}".format(layer)
+            else:
+                sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}"
+            
+            # Add where clause if necessary
+            if where:
+                sql_where = " where {}".format(layer, where)
+                sql = sql + sql_where
+                
+            # Create pandas df for tables, geopandas df for feature classes
+            if table == True:
+                df = pd.read_sql_query(sql, con=engine)
+            else:
+                df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
+            return df
     except (Exception, psycopg2.Error) as error :
         print ("Error while connecting to PostgreSQL", error)
     
     finally:
-        #closing database connection.
-            if (connection):
-                connection.close()
-                print("PostgreSQL connection closed.")
+        # Close database connection.
+        if (connection):
+            connection.close()
+            print("PostgreSQL connection closed.")
 
 def stereo_noh():
     '''returns a dataframe with all intrack stereo not on hand as individual rows, rather

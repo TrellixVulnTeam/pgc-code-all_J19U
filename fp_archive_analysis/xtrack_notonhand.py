@@ -22,10 +22,10 @@ pgc_path = 'pgc_imagery_catalogids_stereo' # layer name for query_danco fxn - la
 nasa_path = r"Y:\private\imagery\satellite\_footprints\ADAPT_catalog\20190219\nga_inventory20190219.gdb"
 ordered_path = r"C:\Users\disbr007\imagery\not_onhand\all_ids_onhand.txt"
 
-# Read data into geopandas
+# Read data into geopandas/pandas
 xtrack = gpd.read_file(xtrack_path, driver='OpenFileGDB', layer=1)
-pgc = query_footprint(pgc_path)
-nasa = gpd.read_file(nasa_path, driver='OpenFileGDB', layer=1)
+pgc = query_footprint(pgc_path, table=True)
+nasa = gpd.read_file(nasa_path, driver='OpenFileGDB', layer='nga_inventory20190219')
 
 # Create list of all onhand ids
 # Create list of ordered ids - all IDs ever ordered -> from IMA
