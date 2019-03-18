@@ -13,19 +13,35 @@ ordered: Danny makes a txt of all catalogids that have ever been ordered
 """
 
 import geopandas as gpd
-
+import pandas as pd
 from query_danco import query_footprint
 
 # Paths to data
 xtrack_path = r'C:/Users/disbr007/imagery/dg_cross_track_2019jan09_deliv.gdb'
 pgc_path = 'pgc_imagery_catalogids_stereo' # layer name for query_danco fxn - layer with all P1BS ids
-nasa_path = r"Y:\private\imagery\satellite\_footprints\ADAPT_catalog\20190219\nga_inventory20190219.gdb"
+#nasa_path = r"C:\Users\disbr007\imagery\nga_inventory20190219.gdb" # Feature class
+nasa_path = r"C:\Users\disbr007\imagery\nasa_adapt_nga_inventory_20190219.txt" # exported table in arc as text
 ordered_path = r"C:\Users\disbr007\imagery\not_onhand\all_ids_onhand.txt"
 
 # Read data into geopandas/pandas
-xtrack = gpd.read_file(xtrack_path, driver='OpenFileGDB', layer=1)
+xtrack = gpd.read_file(xtrack_path, driver='OpenFileGDB', layer='dg_imagery_index_all_cc20_xtrack_pairs_jan09_prj_WGS', crs = {'init': 'espg:4326'})
+print('xtrack loaded into gpd...')
 pgc = query_footprint(pgc_path, table=True)
-nasa = gpd.read_file(nasa_path, driver='OpenFileGDB', layer='nga_inventory20190219')
+print('pgc loaded into gpd...')
+#nasa = gpd.read_file(nasa_path, driver='OpenFileGDB', layer='nga_inventory20190219')
+
+# Read nasa in chunks
+counter = 0
+chunksize = 10**5
+nasa_ids = []
+for chunk in pd.read_csv(nasa_path, chunksize=chunksize):
+    ids = list(chunk['CATALOG_ID'])
+    for e in ids:
+        nasa_ids.append(e)
+    counter += chunksize
+    if counter % 10**6 == 0:
+        print(counter)
+print('NASA ids read into list..')
 
 # Create list of all onhand ids
 # Create list of ordered ids - all IDs ever ordered -> from IMA
@@ -36,16 +52,20 @@ with open(ordered_path, 'r') as f:
         ordered.append(line.strip())
         
 # List of all pgc onhand ids
-pgc_ids = list(pgc['catalogid'])
+pgc_ids = list(pgc['catalog_id'])
 
 # List of all NASA onhand ids
-nasa_ids = list(nasa['catalogid'])
+#nasa_ids = list(nasa['catalogid'])
 
 # Create master list of 'onhand' ids
 onhand = ordered + pgc_ids + nasa_ids
+set_onhand = list(set(onhand))
 
 # Create column in xtrack df for onhand/notonhand
-xtrack['onhand'] = (xtrack['catalogid1'].isin(onhand) & xtrack['catalogid2'].isin(onhand))
-
+xtrack['onhand'] = (xtrack['catalogid1'].isin(set_onhand) & xtrack['catalogid2'].isin(set_onhand))
+xtrack['onhand'] = xtrack['onhand'].astype('int') # convert to int - bool unsupported for writing
 # Export xtrack as shapefile / featureclass
-
+print('writing to shapefile...')
+out_path = r'C:\Users\disbr007\imagery\xtrack_onhand'
+xtrack.to_file(out_path, driver='ESRI Shapefile')
+print('done')

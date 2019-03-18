@@ -57,7 +57,7 @@ def read_data(filepath):
                 '104': 'WV03',
                 '104A': 'WV03-SWIR',
                 '105': 'GE01',
-                '200': 'IK01'
+                '106': 'IK01'
                 }
         df['platform'] = df['catalogid'].str.slice(0,3).map(platform_code) # add platform columm to id only lists - TODO: does not account for SWIR..
     elif file_type == 'dbf':
@@ -153,8 +153,9 @@ def create_sheets(filepath, output_suffix):
     write_master(dataframe, project_path, project_base, output_suffix)
     return all_platforms_dict
 
-#input_file = r"E:\disbr007\imagery_orders\test\catalogs_to_reorder.txt" # for debugging
-#out_suffix = 'disk_reorder'
+input_file = r"E:\disbr007\imagery_orders\PGC_order_2019march18_disk reorder_nonIK01\nga_279_catids.txt" # for debugging
+out_suffix = 'disk_reorder'
+create_sheets(input_file, out_suffix)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
