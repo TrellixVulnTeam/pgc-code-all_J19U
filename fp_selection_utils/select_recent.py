@@ -3,6 +3,9 @@
 Created on Wed Apr  3 10:14:18 2019
 
 @author: disbr007
+
+Select most recent features from an input layer over each point in a point layer AOI
+
 """
 
 import geopandas as gpd
@@ -15,7 +18,34 @@ def merge_gdf(gdf1, gdf2):
     gdf = gpd.GeoDataFrame(pd.concat([gdf1, gdf2], ignore_index=True), crs=gdf1.crs)
     return gdf
 
+def select_location(in_lyr, target):
+    '''
+    select features in 'in_lyr' that intersect 'target'
+    in_lyr: geodataframe to select from
+    target: geodataframe to base selection on
+    '''
+    # Define colums to drop from target
+    drop_cols = list(target)
+    drop_cols.remove('geometry')
+    drop_cols.append('index_right')
+    
+    selection = gpd.sjoin(in_lyr, target, how='inner', op='intersects')
+    selection.drop(drop_cols, axis=1, inplace=True)
+    return selection
+
 def select_recent(in_lyr, target, date_col='acqdate', cloud='cloudcover', catid='catalogid'):
+    '''
+    select most recent feature from in_lyr that intersects each feature in target
+    in_lyr: geodataframe to select from
+    target: geodataframe to base selection on
+    (the following args defaults to dg_footprint params)
+    date_col: column that holds date information
+    cloud: column that holds cloud cover
+    catid: catalogid column
+    '''
+    # Do inital selection on all features in target to limit second searchs
+    initial_selection = select_location(in_lyr, target)
+    
     # Create empty gdf to hold selection
     cols = list(in_lyr)
     sel = gpd.GeoDataFrame(columns=cols)
@@ -29,7 +59,7 @@ def select_recent(in_lyr, target, date_col='acqdate', cloud='cloudcover', catid=
         
     for i in range(len(target)): # loop each feature/row in target
         feat = target.loc[[i]] # current feature
-        sel4feat = gpd.sjoin(in_lyr, feat, how='inner', op='intersects') # select by location
+        sel4feat = gpd.sjoin(initial_selection, feat, how='inner', op='intersects') # select by location
         sel4feat.drop(drop_cols, axis=1, inplace=True) # remove unnecc cols    
         latest = sel4feat[date_col].max() # get most recent date
         sel4feat = sel4feat[sel4feat[date_col] == latest] # keep only most recent selection
@@ -65,25 +95,22 @@ stereo_oh = query_footprint('dg_imagery_index_stereo_onhand_cc20 selection')
 stereo_cols = list(stereo_oh)
 crs = stereo_oh.crs
 
-# Do initial select by location on all pts to limit the per point search
-def select_location(in_lyr, target):
-    # Define colums to drop from target
-    drop_cols = list(target)
-    drop_cols.remove('geometry')
-    drop_cols.append('index_right')
-    
-    
-    selection = gpd.sjoin(in_lyr, target, how='inner', op='intersects')
-    
-    
-    
-stereo_oh_pts = gpd.sjoin(stereo_oh, renn_pts, how='inner', op='intersects')
-drop_cols = list(pts)
-drop_cols.remove('geometry')
-drop_cols.append('index_right')
-stereo_oh_pts.drop(drop_cols, axis=1, inplace=True)
+## Do initial select by location on all pts to limit the per point search
+#initial_select = select_location(stereo_oh, renn_pts)
 
-sel_dems = select_recent(stereo_oh_pts, renn_pts)
+# Find most recent for reach feature
+sel_dems_pts = select_recent(stereo_oh, renn_pts, catid='pairname')
+sel_dems_trav = select_recent(stereo_oh, renn_trav, catid='pairname')
+
+sel_dems_pts.to_file(os.path.join(working_dir, 'sel_dems_test_pts.shp'), driver=driver)
+sel_dems_trav.to_file(os.path.join(working_dir, 'sel_dems_test_trav.shp'), driver=driver)
+
+
+#stereo_oh_pts = gpd.sjoin(stereo_oh, renn_pts, how='inner', op='intersects')
+#drop_cols = list(pts)
+#drop_cols.remove('geometry')
+#drop_cols.append('index_right')
+#stereo_oh_pts.drop(drop_cols, axis=1, inplace=True)
 
 #sel_dems = gpd.GeoDataFrame(columns=stereo_cols)
 #sel_ids = []
@@ -110,5 +137,3 @@ sel_dems = select_recent(stereo_oh_pts, renn_pts)
 #
 #sel_dems.set_geometry('geom', inplace=True)
 #sel_dems.crs = crs
-sel_dems.to_file(os.path.join(working_dir, 'sel_dems_test.shp'), driver=driver)
-    
