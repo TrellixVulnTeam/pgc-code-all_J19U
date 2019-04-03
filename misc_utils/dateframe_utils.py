@@ -24,7 +24,7 @@ def fill_dates(df, freq, date_col=None, date_index=False):
         df = df.reindex(date_range, fill_value=0)
         
 def create_month_col(df, date_col):
-    '''takes a dataframe and it's date column and returns a column with the month abbreviation'''
+    '''takes a dataframe and it's date column and creates a column with the month abbreviation'''
     df['Month'] = df[date_col].month
     df['Month'] = df['Month'].apply(lambda x: calendar.month_abbr[x])
     

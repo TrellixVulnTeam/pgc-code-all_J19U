@@ -65,14 +65,16 @@ def read_data(filepath):
     else:
         df = None
         print('Error reading data into dataframe: {}'.format(filepath))
-    print('Total IDs found: {}'.format(len(df.index)))
+    print('IDs found: {}'.format(len(df.index)))
     return df
 
 def clean_dataframe(dataframe):
     '''remove unnecessary columns, SWIR, duplicates'''
     cols_of_int = ['catalogid','platform']
+    print('Removing duplicate ids...')
     dataframe = dataframe[cols_of_int].drop_duplicates(subset=cols_of_int) # Remove duplicate IDs
-    dataframe = dataframe.drop_duplicates(subset=['catalogid', 'platform'], keep=False)
+    dataframe = dataframe.drop_duplicates(subset=['catalogid', 'platform'], keep=False) # Can this line or the one above it be removed? Same thing right?
+    print('Removing SWIR ids...')
     dataframe = dataframe[~dataframe.catalogid.str.contains("104A")] # Drop SWIR - begins with 104A
     dataframe.sort_values(by=['catalogid'], inplace=True)
     return dataframe
@@ -153,9 +155,9 @@ def create_sheets(filepath, output_suffix):
     write_master(dataframe, project_path, project_base, output_suffix)
     return all_platforms_dict
 
-input_file = r"E:\disbr007\imagery_orders\PGC_order_2019march18_disk reorder_nonIK01\nga_279_catids.txt" # for debugging
-out_suffix = 'disk_reorder'
-create_sheets(input_file, out_suffix)
+#input_file = r"C:\Users\disbr007\imagery_orders\crosstrack_1k_wv03\xtrack_noh_1k_wv03_2019march21.txt" # for debugging
+#out_suffix = 'crosstrack_1k_wv03'
+#create_sheets(input_file, out_suffix)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

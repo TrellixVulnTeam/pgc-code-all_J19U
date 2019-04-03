@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Spyder Editor
-
 Calculates number of unique ids for xtrack and intrack imagery by month. Also calcs area and yield (xtrack only)
 """
 
@@ -13,11 +11,6 @@ import datetime
 import sys
 sys.path.insert(0, r'C:\code\fp_selection_utils')
 from query_danco import query_footprint
-
-def df_limit_date_range(df, start, stop):
-    '''limits a df to date range'''
-    df = df.loc[start:stop]
-    return df
 
 def add_totals(df, cols_list):
     '''Adds a column to a dataframe summing regions into total'''

@@ -38,7 +38,7 @@ def query_footprint(layer, table=False, where=None):
             if table == True:
                 sql = "SELECT * FROM {}".format(layer)
             else:
-                sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}"
+                sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(layer)
             
             # Add where clause if necessary
             if where:
@@ -73,3 +73,4 @@ def stereo_noh():
     
     noh = pd.concat([noh_left, noh_right], sort=True)
     return noh
+

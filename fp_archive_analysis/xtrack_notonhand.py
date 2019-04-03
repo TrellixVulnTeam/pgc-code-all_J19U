@@ -12,8 +12,10 @@ at NASA: ADAPT footprint - Y:\private\imagery\satellite\_footprints\ADAPT_catalo
 ordered: Danny makes a txt of all catalogids that have ever been ordered
 """
 
+import os
 import geopandas as gpd
 import pandas as pd
+
 from query_danco import query_footprint
 
 # Paths to data
@@ -61,11 +63,20 @@ pgc_ids = list(pgc['catalog_id'])
 onhand = ordered + pgc_ids + nasa_ids
 set_onhand = list(set(onhand))
 
-# Create column in xtrack df for onhand/notonhand
-xtrack['onhand'] = (xtrack['catalogid1'].isin(set_onhand) & xtrack['catalogid2'].isin(set_onhand))
-xtrack['onhand'] = xtrack['onhand'].astype('int') # convert to int - bool unsupported for writing
+# Create columns in xtrack df for onhand/notonhand for each id and for both
+xtrack['id1_onhand'] = xtrack['catalogid1'].isin(set_onhand) # id1 is in on hand ids list
+xtrack['id2_onhand'] = xtrack['catalogid2'].isin(set_onhand) # id2 is in on hand ids list
+xtrack.loc[(xtrack['id1_onhand'] & xtrack['id2_onhand']), 'onhand'] = True # both ids are on hand
+xtrack[['onhand']] = xtrack[['onhand']].fillna(False) # Turn NaN values to false
+# Convert True, False values to int for exporting to shapefile - shp doesn't support Boolean
+cols2conv = ['id1_onhand', 'id2_onhand', 'onhand']
+for col in cols2conv:
+    xtrack[col] = xtrack[col].astype(int)
+
+
 # Export xtrack as shapefile / featureclass
 print('writing to shapefile...')
 out_path = r'C:\Users\disbr007\imagery\xtrack_onhand'
 xtrack.to_file(out_path, driver='ESRI Shapefile')
+xtrack.to_pickle(os.path.join(out_path, 'xtrack.pkl'))
 print('done')
