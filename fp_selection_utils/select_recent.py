@@ -4,12 +4,15 @@ Created on Wed Apr  3 10:14:18 2019
 
 @author: disbr007
 
-Select most recent features from an input layer over each point in a point layer AOI
+Select most recent features from an input layer over each point in a point or
+line layer AOI
+Adding support for polygons
 
 """
 
 import geopandas as gpd
 import pandas as pd
+import numpy as np
 import os
 
 from query_danco import query_footprint
@@ -22,16 +25,39 @@ def select_location(in_lyr, target):
     '''
     select features in 'in_lyr' that intersect 'target'
     in_lyr: geodataframe to select from
-    target: geodataframe to base selection on
+    target: geodataframe to base selection on - point geometry
     '''
     # Define colums to drop from target
     drop_cols = list(target)
-    drop_cols.remove('geometry')
+    if 'geometry' in drop_cols:
+        drop_cols.remove('geometry')
     drop_cols.append('index_right')
     
     selection = gpd.sjoin(in_lyr, target, how='inner', op='intersects')
-    selection.drop(drop_cols, axis=1, inplace=True)
+    for col in drop_cols:
+        if col in list(selection):
+            selection.drop([col], axis=1, inplace=True)
     return selection
+
+def line2pts(poly, interval, write_path=False):
+    '''
+    takes a geodataframe that has line geometry and returns points along the 
+    line at the specified interval, where interval is a fraction of the line length
+    poly: geodataframe with line geometry
+    interval: fraction of length of line to create points at
+    '''
+    nodes = gpd.GeoDataFrame(columns=['pts'])
+    for i in np.arange(0.0, 1.0, interval):
+        node = gpd.GeoDataFrame(columns=['pts'])
+        pt = poly.geometry.interpolate(i, normalized=True)
+        node['pts'] = pt
+        nodes = merge_gdf(nodes, node)
+    
+    nodes.set_geometry('pts', inplace=True)
+    nodes.crs = poly.crs
+    if write_path:
+        nodes.to_file(write_path, driver=driver)
+    return nodes
 
 def select_recent(in_lyr, target, date_col='acqdate', cloud='cloudcover', catid='catalogid'):
     '''
@@ -43,7 +69,7 @@ def select_recent(in_lyr, target, date_col='acqdate', cloud='cloudcover', catid=
     cloud: column that holds cloud cover
     catid: catalogid column
     '''
-    # Do inital selection on all features in target to limit second searchs
+    # Do inital selection on all features in target to limit second searches
     initial_selection = select_location(in_lyr, target)
     
     # Create empty gdf to hold selection
@@ -54,13 +80,16 @@ def select_recent(in_lyr, target, date_col='acqdate', cloud='cloudcover', catid=
     
     # Define cols not to keep from target
     drop_cols = list(target)
-    drop_cols.remove('geometry') # keep geometry in selection
+    if 'geometry' in drop_cols:
+        drop_cols.remove('geometry') # keep geometry in selection
     drop_cols.append('index_right') # remove added index col
         
     for i in range(len(target)): # loop each feature/row in target
         feat = target.loc[[i]] # current feature
         sel4feat = gpd.sjoin(initial_selection, feat, how='inner', op='intersects') # select by location
-        sel4feat.drop(drop_cols, axis=1, inplace=True) # remove unnecc cols    
+        for col in drop_cols:
+            if col in list(sel4feat):
+                sel4feat.drop([col], axis=1, inplace=True) # remove unnecc cols    
         latest = sel4feat[date_col].max() # get most recent date
         sel4feat = sel4feat[sel4feat[date_col] == latest] # keep only most recent selection
         # if the date is the same for multiple selections, use other criteria
@@ -95,14 +124,14 @@ stereo_oh = query_footprint('dg_imagery_index_stereo_onhand_cc20 selection')
 stereo_cols = list(stereo_oh)
 crs = stereo_oh.crs
 
-## Do initial select by location on all pts to limit the per point search
-#initial_select = select_location(stereo_oh, renn_pts)
+# Get points for line layers
+renn_trav_pts = line2pts(renn_trav, 0.05, write_path=os.path.join(working_dir, 'nodes.shp'))
 
-# Find most recent for reach feature
-sel_dems_pts = select_recent(stereo_oh, renn_pts, catid='pairname')
-sel_dems_trav = select_recent(stereo_oh, renn_trav, catid='pairname')
+# Find most recent for each feature
+#sel_dems_pts = select_recent(stereo_oh, renn_pts, catid='pairname')
+sel_dems_trav = select_recent(stereo_oh, renn_trav_pts, catid='pairname')
 
-sel_dems_pts.to_file(os.path.join(working_dir, 'sel_dems_test_pts.shp'), driver=driver)
+#sel_dems_pts.to_file(os.path.join(working_dir, 'sel_dems_test_pts.shp'), driver=driver)
 sel_dems_trav.to_file(os.path.join(working_dir, 'sel_dems_test_trav.shp'), driver=driver)
 
 
