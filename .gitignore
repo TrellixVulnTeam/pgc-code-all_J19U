@@ -121,6 +121,9 @@ dmypy.json
 
 ### Python Patch ###
 .venv/
-# Files
+# Files and folders
+ignore
 cred.txt
-# End of https://www.gitignore.io/api/python
+claire_repos
+# End of https://www.gitignore.io/api/pythonclarie_repos/
+clarie_repos

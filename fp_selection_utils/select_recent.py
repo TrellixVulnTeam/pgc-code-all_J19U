@@ -84,6 +84,8 @@ def select_recent(in_lyr, target, date_col='acqdate', cloud='cloudcover', catid=
         drop_cols.remove('geometry') # keep geometry in selection
     drop_cols.append('index_right') # remove added index col
         
+    # Select most recent
+    target.reset_index(inplace=True)
     for i in range(len(target)): # loop each feature/row in target
         feat = target.loc[[i]] # current feature
         sel4feat = gpd.sjoin(initial_selection, feat, how='inner', op='intersects') # select by location
@@ -103,38 +105,57 @@ def select_recent(in_lyr, target, date_col='acqdate', cloud='cloudcover', catid=
             sel_ids.append(sel_id)
             sel = merge_gdf(sel, sel4feat)
     
-    sel.set_geometry('geom', inplace=True)
+    # Set geometry column
+    cols = list(sel)
+    if 'geom' in cols:
+        sel.set_geometry('geom', inplace=True)
+    elif 'geometry' in cols:
+        sel.set_geometry('geometry', inplace=True)
     return sel
     
 
 project_path = r'E:\disbr007\UserServicesRequests\Projects\1518_pfs'
-working_dir = os.path.join(project_path, '3690_rennermalm_dems', 'project_files')
+working_dir = os.path.join(project_path, '3692_harper_imagery', 'project_files')
 
 trav_path = os.path.join(project_path, 'pfs_crrel_traverse_routes_2019.shp')
 pts_path = os.path.join(project_path, 'pfs_crrel_field_points_2019.shp')
 
 driver = 'ESRI Shapefile'
+# Read AOIs
 pts = gpd.read_file(pts_path, driver=driver)
 trav = gpd.read_file(trav_path, driver=driver)
 
-renn_pts = pts[pts.Team == 'Rennermalm']
-renn_trav = trav[trav.Team == 'Rennermalm']
+# Select only relevent points and travs
+#renn_pts = pts[pts.Team == 'Rennermalm']
+#renn_trav = trav[trav.Team == 'Rennermalm']
+pts = pts[pts.Team == 'Harper']
+trav = trav[trav.Team == 'Harper']
 
-stereo_oh = query_footprint('dg_imagery_index_stereo_onhand_cc20 selection')
-stereo_cols = list(stereo_oh)
-crs = stereo_oh.crs
+# Get DEM source layers
+source = query_footprint('dg_imagery_index_stereo_onhand_cc20 selection')
+source_cols = list(source)
+crs = source.crs
 
-# Get points for line layers
-renn_trav_pts = line2pts(renn_trav, 0.05, write_path=os.path.join(working_dir, 'nodes.shp'))
+# Get imagery source layers
+#img_idx_path = r'E:\disbr007\UserServicesRequests\Projects\1518_pfs\idx_travs_2017_present.shp'
+#source = gpd.read_file(img_idx_path) 
+
+# Create points for line layers at specified interval along line
+#renn_trav_pts = line2pts(renn_trav, 0.05, write_path=os.path.join(working_dir, 'nodes.shp'))
+trav_pts = line2pts(trav, 0.05, write_path=os.path.join(working_dir, 'trav_pts.shp'))
 
 # Find most recent for each feature
 #sel_dems_pts = select_recent(stereo_oh, renn_pts, catid='pairname')
-sel_dems_trav = select_recent(stereo_oh, renn_trav_pts, catid='pairname')
+#sel_dems_trav = select_recent(stereo_oh, renn_trav_pts, catid='pairname')
+selection = select_recent(source, trav_pts) #, catid='CATALOG_ID', date_col='ACQ_TIME', cloud='CLOUDCOVER')
 
+# Write selection to shapefile
 #sel_dems_pts.to_file(os.path.join(working_dir, 'sel_dems_test_pts.shp'), driver=driver)
-sel_dems_trav.to_file(os.path.join(working_dir, 'sel_dems_test_trav.shp'), driver=driver)
+#sel_dems_trav.to_file(os.path.join(working_dir, 'sel_dems_test_trav.shp'), driver=driver)
+selection.to_file(os.path.join(working_dir, 'travs_dems_selection.shp'), driver=driver)
 
 
+### ORIGINAL SCRIPT BELOW FOR REFERNCE ###
 #stereo_oh_pts = gpd.sjoin(stereo_oh, renn_pts, how='inner', op='intersects')
 #drop_cols = list(pts)
 #drop_cols.remove('geometry')

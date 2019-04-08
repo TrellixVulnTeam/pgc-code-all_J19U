@@ -5,14 +5,20 @@ Created on Mon Feb  4 12:54:01 2019
 @author: disbr007
 """
 
-def ids_to_list(ids_path):
-    '''read txt/csv of just ids, convert to list'''
-    with open(ids_path, 'r') as f:
-        ids = []
-        lines = f.readlines()
-        for line in lines:
+def read_ids(txt_file):
+    '''reads ids, one per line, from a text file and returns a list of ids'''
+    ids = []
+    with open(txt_file, 'r') as f:
+        content = f.readlines()
+        for line in content:
             ids.append(line.strip())
-            
+    return ids
+
+def write_ids(ids, out_path):
+    with open(out_path, 'w') as f:
+        for each_id in ids:
+            f.write('{}\n'.format(each_id))
+
 def date_words():
     '''get todays date and convert to '2019jan07' style for filenaming'''
     import datetime
