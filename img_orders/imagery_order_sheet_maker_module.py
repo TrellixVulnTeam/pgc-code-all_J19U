@@ -11,35 +11,47 @@ import os
 import datetime
 import sys
 import argparse
+sys.path.insert(0, r'C:\code\misc_utils')
+from misc import date2words
 
 def type_parser(filepath):
-    '''takes a file path in and determines whether it is a dbf, excel, txt, csv'''
-    ext = os.path.splitext(filepath)[1]
-    if ext == '.csv':
-        with open(filepath, 'r') as f:
-            content = f.readlines()
-            for row in content[0]:
-                if len(row) == 1:
-                    return 'id_only_txt' # txt or csv with just ids
-                elif len(row) > 1:
-                    return 'csv' # csv with columns
-                else:
-                    print('Error reading number of rows in csv.')
-    elif ext == '.txt':
-        return 'id_only_txt' 
-    elif ext in ('.xls', '.xlsx'):
-        return 'excel'
-    elif ext == '.dbf':
-        return 'dbf'
+    '''
+    takes a file path (or dataframe) in and determines whether it is a dbf, 
+    excel, txt, csv (or df)
+    '''
+    if type(filepath) == str:
+        ext = os.path.splitext(filepath)[1]
+        if ext == '.csv':
+            with open(filepath, 'r') as f:
+                content = f.readlines()
+                for row in content[0]:
+                    if len(row) == 1:
+                        return 'id_only_txt' # txt or csv with just ids
+                    elif len(row) > 1:
+                        return 'csv' # csv with columns
+                    else:
+                        print('Error reading number of rows in csv.')
+        elif ext == '.txt':
+            return 'id_only_txt' 
+        elif ext in ('.xls', '.xlsx'):
+            return 'excel'
+        elif ext == '.dbf':
+            return 'dbf'
+    elif isinstance(filepath, gpd.GeoDataFrame):
+        return 'df'
+    else:
+        print('Unrecognized file type.')
+    
+    
+#def date_words():
+#    '''get todays date and convert to '2019jan07' style for filenaming'''
+#    now = datetime.datetime.now() - datetime.timedelta(days=1)
+#    year = now.strftime('%Y')
+#    month = now.strftime('%b').lower()
+#    day = now.strftime('%d')
+#    date = r'{}{}{}'.format(year, month, day)
+#    return date
 
-def date_words():
-    '''get todays date and convert to '2019jan07' style for filenaming'''
-    now = datetime.datetime.now() - datetime.timedelta(days=1)
-    year = now.strftime('%Y')
-    month = now.strftime('%b').lower()
-    day = now.strftime('%d')
-    date = r'{}{}{}'.format(year, month, day)
-    return date
 
 def read_data(filepath):
     '''takes a file path in, determines type and reads data into dataframe accordingly'''
@@ -59,14 +71,18 @@ def read_data(filepath):
                 '105': 'GE01',
                 '106': 'IK01'
                 }
-        df['platform'] = df['catalogid'].str.slice(0,3).map(platform_code) # add platform columm to id only lists - TODO: does not account for SWIR..
+        
+        df['platform'] = df['catalogid'].str.slice(0,3).map(platform_code).fillna('unk') # add platform columm to id only lists - TODO: does not account for SWIR..
     elif file_type == 'dbf':
         df = gpd.read_file(filepath)
+    elif file_type == 'df':
+        df = filepath
     else:
         df = None
         print('Error reading data into dataframe: {}'.format(filepath))
     print('IDs found: {}'.format(len(df.index)))
     return df
+
 
 def clean_dataframe(dataframe):
     '''remove unnecessary columns, SWIR, duplicates'''
@@ -78,6 +94,7 @@ def clean_dataframe(dataframe):
     dataframe = dataframe[~dataframe.catalogid.str.contains("104A")] # Drop SWIR - begins with 104A
     dataframe.sort_values(by=['catalogid'], inplace=True)
     return dataframe
+
 
 def list_chopper(platform_df, outpath, outnamebase, output_suffix):
     '''Takes a dataframe representing a platform and creates spreadsheets of 'n' ids where n is determined
@@ -91,6 +108,7 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix):
             'GE01': 1000,
             'QB02': 1000,
             'IK01': 1000,
+            'unk': 1000,
             }
     n = platform_sheet_size[platform] # Max length of each sheet 
     platform_list = [platform_df[i:i+n] for i in range(0, platform_df.shape[0], n)] # Break this platform's dataframe into dfs of size det. above
@@ -98,7 +116,7 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix):
     platform_dict = {} # to store the dataframes for this platform
     for i, df in enumerate(platform_list): # loop through this platforms dataframes (e.g. WV01 - 0:1000, WV01 - 1001:2000, WV01 - 2001:2200)
         platform_dict[r'{}_part{}of{}'.format(platform, (int(i)+1), total_length)] = len(df) # Add entry to dict - e.g. key = 'WV01_part1of2', val = 1000
-        out_name = '{}{}_{}_{}_{}of{}.xlsx'.format(outnamebase, date_words(), output_suffix, platform, (int(i)+1), total_length) # name of output sheet
+        out_name = '{}{}_{}_{}_{}of{}.xlsx'.format(outnamebase, date2words(today=True), output_suffix, platform, (int(i)+1), total_length) # name of output sheet
         out_xl = os.path.join(outpath, out_name) # path of output sheet
         writer = pd.ExcelWriter(out_xl, engine='xlsxwriter')
         df.to_excel(writer, columns=['catalogid'], header=False, index=False, sheet_name='Sheet1')
@@ -109,17 +127,19 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix):
         writer.save()
     return platform_dict
 
+
 def write_master(dataframe, outpath, outnamebase, output_suffix):
     '''write all ids to master sheet for reference, to text file for entering into IMA'''
     # Write master excel
-    master_name = os.path.join(outpath, '{}{}_{}master.xlsx'.format(outnamebase, date_words(), output_suffix))
+    master_name = os.path.join(outpath, '{}{}_{}master.xlsx'.format(outnamebase, date2words(today=True), output_suffix))
     master_writer = pd.ExcelWriter(master_name, engine='xlsxwriter')
     dataframe.to_excel(master_writer, columns=['catalogid'], header=False, index=False, sheet_name='Sheet1')
     master_writer.save()
     # Write text file
-    txt_path = os.path.join(outpath, '{}{}{}master.txt'.format(outnamebase, date_words(), output_suffix))
+    txt_path = os.path.join(outpath, '{}{}{}master.txt'.format(outnamebase, date2words(today=True), output_suffix))
     dataframe.sort_index(inplace=True)
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
+
 
 def create_sheets(filepath, output_suffix):
     '''create sheets based on platforms present in list, including one formatted for entering into gsheets'''
@@ -140,8 +160,9 @@ def create_sheets(filepath, output_suffix):
         all_platforms_dict[pf]['df'] = df # store dataframe for each platform in its dict
         all_platforms_dict[pf]['g_sheet'] = list_chopper(df, project_path, project_base, output_suffix) # split dataframe into excel sheets
         print('{} IDs found: {}'.format(pf, len(df.index)))
+    
     # Write sheet to copy to GSheet
-    gsheet_path = os.path.join(project_path, '{}{}_{}_gsheet.xlsx'.format(project_base, date_words(), output_suffix))
+    gsheet_path = os.path.join(project_path, '{}{}_{}_gsheet.xlsx'.format(project_base, date2words(today=True), output_suffix))
     gsheet_dict = {}
     for k in all_platforms_dict:
         gsheet_dict[k] = all_platforms_dict[k]['g_sheet']
@@ -155,10 +176,12 @@ def create_sheets(filepath, output_suffix):
     write_master(dataframe, project_path, project_base, output_suffix)
     return all_platforms_dict
 
-#input_file = r"C:\Users\disbr007\imagery_orders\crosstrack_1k_wv03\xtrack_noh_1k_wv03_2019march21.txt" # for debugging
-#out_suffix = 'crosstrack_1k_wv03'
-#create_sheets(input_file, out_suffix)
 
+input_file = r"E:\disbr007\imagery_orders\test\catalogs_to_reorder.txt" # for debugging
+out_suffix = 'test_order_chop'
+create_sheets(input_file, out_suffix)
+
+'''
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", type=str, help="File containing ids. Supported types: csv, dbf, xls, xlsx, txt")
@@ -169,3 +192,4 @@ if __name__ == '__main__':
     print("Creating sheets...\n")
     create_sheets(input_file, out_suffix)
     print('\nComplete.')
+'''

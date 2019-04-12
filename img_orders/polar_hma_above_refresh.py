@@ -8,7 +8,7 @@ Created on Fri Apr 12 09:10:58 2019
 import query_danco
 import geopandas as gpd
 import argparse, os
-
+from imagery_order_sheet_maker_module import create_sheets
 
 def refresh_region_lut(refresh_type='polar_hma_above'):
     '''
@@ -29,7 +29,7 @@ def refresh_region_lut(refresh_type='polar_hma_above'):
     return regions
     
 
-def refresh(last_refresh, roi):
+def refresh(last_refresh, refresh_type):
     '''
     select ids for imagery order
     '''
@@ -51,32 +51,55 @@ def refresh(last_refresh, roi):
     
     ### Identify only those in the region of interest
     # Get regions of interest based on type of refresh
-    roi = refresh_region_lut('polar_hma_above')
+    roi = refresh_region_lut(refresh_type)
     # Select region of interest
     noh_recent_roi = noh_recent[noh_recent.region.isin(roi)]
     return noh_recent_roi
 
+
 def write_selection(df, last_refresh, refresh_type, out_path):
     # Directory to write shp and order to
-    write_dir = r'{}_{}'.format(last_refresh, refresh_type)
+    write_dir = r'PGC_order_{}_{}'.format(last_refresh, refresh_type)
     if not os.path.isdir(write_dir):
         os.mkdir(write_dir)
     # Name of shapefile to write
     write_name = '{}.shp'.format(write_dir)
     # Location to write shapefile to
-    write_path = os.path.join(r'E:\disbr007\imagery_orders', write_dir, write_name)
+    write_path = os.path.join(out_path, write_dir, write_name)
     # Write the shapefile
     df.to_file(write_path, driver='ESRI Shapefile')
     return write_path
-    
 
 # Specify date of last refresh and refresh type
 last_refresh = '2019-02-20'
 refresh_type = 'polar_hma_above'
+write_path = r'E:\disbr007\imagery_orders'
 
-roi = refresh_region_lut('polar_hma_above')
-selection = refresh(last_refresh=last_refresh, roi=roi, out_path=write_path)
+selection = refresh(last_refresh=last_refresh, refresh_type='polar_hma_above')
+write_selection(selection, last_refresh=last_refresh, refresh_type=refresh_type, out_path=write_path)
+
+
+'''
+if __name__ == '__main__':
+    # Parse args
+    parser = argparse.ArgumentParser()
+    parser.add_argument("last_refresh", type=str, help="Date of last refresh: yyyy-mm-dd")
+    parser.add_argument("refresh_type", type=str, 
+                        help="Type of refresh, supported types: 'polar_hma_above', 'nonpolar', 'global'")
+    parser.add_argument("out_path", type=str, help="Path to write sheets and selection shape to")
+    args = parser.parse_args()
+    last_refresh = args.last_refresh
+    refresh_type = args.refresh_type
+    out_path = args.out_path
+    
+    # Do it
+    selection = refresh(last_refresh=last_refresh, refresh_type=refresh_type)
+    write_selection(selection, last_refresh=last_refresh, refresh_type=refresh_type, out_path=out_path)
+    
 
 
 
 
+
+
+'''
