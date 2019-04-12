@@ -11,12 +11,14 @@ import sys, os
 sys.path.insert(0, r'C:\code\misc_utils')
 from id_parse_utils import read_ids, write_ids
 
-project_path =  r"E:\disbr007\UserServicesRequests\Projects\1518_pfs\3693_harper_dems"
+project_path =  r"E:\disbr007\UserServicesRequests\Projects\1521_spergel\3699\project_files"
 
-processed_path = r"V:\pgc\data\elev\dem\setsm\ArcticDEM\region\pairs_complete_greenland_20190403.txt"
+#processed_path = r"V:\pgc\data\elev\dem\setsm\ArcticDEM\region\pairs_complete_greenland_20190403.txt" # Greenland
+#processed_path = r"V:\pgc\data\elev\dem\setsm\REMA\region\pairs_complete_all_8m_20190412.txt" # REMA 8m
+processed_path = r"V:\pgc\data\elev\dem\setsm\REMA\region\pairs_complete_all_2m_20190412.txt" # REMA 2m
 processed = read_ids(processed_path)
 
-dems_path = os.path.join(project_path, "3693_harper_traverse_dems.shp")
+dems_path = os.path.join(project_path, "DEM_possibilities.shp")
 
 dems = gpd.read_file(dems_path, driver='ESRI Shapefile')
 

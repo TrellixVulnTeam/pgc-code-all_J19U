@@ -17,7 +17,7 @@ from misc import date2words
 def type_parser(filepath):
     '''
     takes a file path (or dataframe) in and determines whether it is a dbf, 
-    excel, txt, csv (or df)
+    excel, txt, csv (or df), ADD SUPPORT FOR SHP****
     '''
     if type(filepath) == str:
         ext = os.path.splitext(filepath)[1]
@@ -141,11 +141,15 @@ def write_master(dataframe, outpath, outnamebase, output_suffix):
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
 
 
-def create_sheets(filepath, output_suffix):
+def create_sheets(filepath, output_suffix, out_path=None):
     '''create sheets based on platforms present in list, including one formatted for entering into gsheets'''
-    project_path = os.path.dirname(filepath)
+    if type(filepath) == str: 
+        project_path = os.path.dirname(filepath)
+        dataframe = read_data(filepath)
+    elif isinstance(filepath, gpd.GeoDataFrame):
+        dataframe = filepath
+        project_path = out_path
     project_base = r'PGC_order_'
-    dataframe = read_data(filepath)
     dataframe = clean_dataframe(dataframe)
     #Create a nested dictionary for each platform
     all_platforms = dataframe.platform.unique().tolist() # list all platforms present in list
@@ -177,11 +181,11 @@ def create_sheets(filepath, output_suffix):
     return all_platforms_dict
 
 
-input_file = r"E:\disbr007\imagery_orders\test\catalogs_to_reorder.txt" # for debugging
-out_suffix = 'test_order_chop'
-create_sheets(input_file, out_suffix)
+#input_file = r"E:\disbr007\imagery_orders\test\catalogs_to_reorder.txt" # for debugging
+#out_suffix = 'test_order_chop'
+#create_sheets(input_file, out_suffix)
 
-'''
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", type=str, help="File containing ids. Supported types: csv, dbf, xls, xlsx, txt")
@@ -192,4 +196,3 @@ if __name__ == '__main__':
     print("Creating sheets...\n")
     create_sheets(input_file, out_suffix)
     print('\nComplete.')
-'''

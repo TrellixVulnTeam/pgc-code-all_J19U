@@ -9,6 +9,7 @@ import query_danco
 import geopandas as gpd
 import argparse, os
 from imagery_order_sheet_maker_module import create_sheets
+from misc import date2words
 
 def refresh_region_lut(refresh_type='polar_hma_above'):
     '''
@@ -57,29 +58,36 @@ def refresh(last_refresh, refresh_type):
     return noh_recent_roi
 
 
-def write_selection(df, last_refresh, refresh_type, out_path):
+def project_dir(out_path, refresh_type):
     # Directory to write shp and order to
-    write_dir = r'PGC_order_{}_{}'.format(last_refresh, refresh_type)
-    if not os.path.isdir(write_dir):
-        os.mkdir(write_dir)
+    date_words = date2words(today=True)
+    dir_name = r'PGC_order_{}_{}_refresh'.format(date_words, refresh_type)
+    dir_path = os.path.join(out_path, dir_name)
+    return dir_path, dir_name
+    
+
+def write_selection(df, last_refresh, refresh_type, dir_path, dir_name):
+    if not os.path.isdir(dir_path):
+        os.mkdir(dir_path)
     # Name of shapefile to write
-    write_name = '{}.shp'.format(write_dir)
+    write_name = '{}.shp'.format(dir_name)
     # Location to write shapefile to
-    write_path = os.path.join(out_path, write_dir, write_name)
+    shp_path = os.path.join(dir_path, write_name)
     # Write the shapefile
-    df.to_file(write_path, driver='ESRI Shapefile')
-    return write_path
+    df.to_file(shp_path, driver='ESRI Shapefile')
+    return shp_path
 
-# Specify date of last refresh and refresh type
-last_refresh = '2019-02-20'
-refresh_type = 'polar_hma_above'
-write_path = r'E:\disbr007\imagery_orders'
+## Specify date of last refresh and refresh type
+#last_refresh = '2019-02-20'
+#refresh_type = 'polar_hma_above'
+#output = r'E:\disbr007\imagery_orders'
+#
+#prj_dir, prj_name = project_dir(output, refresh_type)
+#selection = refresh(last_refresh=last_refresh, refresh_type='polar_hma_above')
+#write_selection(selection, last_refresh=last_refresh, refresh_type=refresh_type, dir_path=prj_dir, dir_name=prj_name)
+#create_sheets(selection, date2words(today=True), prj_dir)
 
-selection = refresh(last_refresh=last_refresh, refresh_type='polar_hma_above')
-write_selection(selection, last_refresh=last_refresh, refresh_type=refresh_type, out_path=write_path)
 
-
-'''
 if __name__ == '__main__':
     # Parse args
     parser = argparse.ArgumentParser()
@@ -96,10 +104,3 @@ if __name__ == '__main__':
     selection = refresh(last_refresh=last_refresh, refresh_type=refresh_type)
     write_selection(selection, last_refresh=last_refresh, refresh_type=refresh_type, out_path=out_path)
     
-
-
-
-
-
-
-'''

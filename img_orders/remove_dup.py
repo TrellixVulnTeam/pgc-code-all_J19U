@@ -8,7 +8,8 @@ Remove duplicate IDs from shapefile
 
 import pandas as pd
 import geopandas as gpd
-import os, sys
+import os, sys, time
+from tqdm import tqdm
 
 sys.path.insert(0, r'C:\code\misc_utils')
 from id_parse_utils import read_ids
@@ -44,15 +45,12 @@ def remove_dups(shp, ordered, catid='catalogid', outpath=None):
     no_dups = [x for x in source_ids not in ordered_ids]
     
     return no_dups, dups
+
     
-selection = r'E:\disbr007\imagery_orders\PGC_order_2019apr10_polar_hma_above_refresh\selection.shp'
+selection = r"E:\disbr007\imagery_orders\PGC_order_2019apr11_polar_hma_above_refresh\PGC_order_2019apr11_polar_hma_above_refresh.shp"
 ordered = r'E:\disbr007\imagery_orders\ordered'
 
-#no_dups, dups = remove_dups(selection, ordered)
-
 shp = selection
-
-
 driver = 'ESRI Shapefile'
 
 # Get source ids
@@ -69,8 +67,10 @@ for file in files:
     for x in file_ids:
         x = x.split(',')[0]
         ordered_ids.append(x)
-    print('Previously ordered IDs: {}'.format(len(ordered_ids)))
+    print('Reading ordered IDs from file: {}'.format(len(ordered_ids)))
         
 # Remove DUPs
-dups = [x for x in source_ids if x in ordered_ids]
-no_dups = [x for x in source_ids if x not in ordered_ids]
+source_ids.sort()
+ordered_ids.sort()
+dups = [x for x in tqdm(source_ids) if x in ordered_ids]
+no_dups = [x for x in tqdm(source_ids) if x not in ordered_ids]

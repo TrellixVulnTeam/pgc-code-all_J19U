@@ -16,7 +16,7 @@ def date2words(today=False, date=None):
     if today == True:
         date = datetime.now() - timedelta(days=1)
     else:
-        date = date
+        date = datetime.strptime(date, '%Y-%m-%d')
     year = date.strftime('%Y')
     month = date.strftime('%b').lower()
     day = date.strftime('%d')
