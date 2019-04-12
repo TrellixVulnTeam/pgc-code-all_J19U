@@ -29,7 +29,7 @@ def query_footprint(layer, table=False, where=None):
                                       password = creds[1],
                                       host = danco,
                                       database = "footprint")
-        engine = create_engine('postgresql+psycopg2://disbr007:ArsenalFC10@danco.pgc.umn.edu/footprint')
+        engine = create_engine('postgresql+psycopg2://disbr007:ArsenalFC10@danco.pgc.umn.edu/footprint') # uses creds
         connection = engine.connect()
 
         if connection:
@@ -42,7 +42,7 @@ def query_footprint(layer, table=False, where=None):
             
             # Add where clause if necessary
             if where:
-                sql_where = " where {}".format(layer, where)
+                sql_where = " where {}".format(where)
                 sql = sql + sql_where
                 
             # Create pandas df for tables, geopandas df for feature classes

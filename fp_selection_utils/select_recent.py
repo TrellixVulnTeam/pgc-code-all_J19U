@@ -115,7 +115,7 @@ def select_recent(in_lyr, target, date_col='acqdate', cloud='cloudcover', catid=
     
 
 project_path = r'E:\disbr007\UserServicesRequests\Projects\1518_pfs'
-working_dir = os.path.join(project_path, '3692_harper_imagery', 'project_files')
+working_dir = os.path.join(project_path, '3694_gulley_imagery', 'project_files')
 
 trav_path = os.path.join(project_path, 'pfs_crrel_traverse_routes_2019.shp')
 pts_path = os.path.join(project_path, 'pfs_crrel_field_points_2019.shp')
@@ -128,31 +128,31 @@ trav = gpd.read_file(trav_path, driver=driver)
 # Select only relevent points and travs
 #renn_pts = pts[pts.Team == 'Rennermalm']
 #renn_trav = trav[trav.Team == 'Rennermalm']
-pts = pts[pts.Team == 'Harper']
-trav = trav[trav.Team == 'Harper']
+pts = pts[pts.Team == 'Gulley']
+#trav = trav[trav.Team == 'Harper']
 
 # Get DEM source layers
-source = query_footprint('dg_imagery_index_stereo_onhand_cc20 selection')
-source_cols = list(source)
-crs = source.crs
+#source = query_footprint('dg_imagery_index_stereo_onhand_cc20 selection')
+#source_cols = list(source)
+#crs = source.crs
 
 # Get imagery source layers
-#img_idx_path = r'E:\disbr007\UserServicesRequests\Projects\1518_pfs\idx_travs_2017_present.shp'
-#source = gpd.read_file(img_idx_path) 
+img_idx_path = r'E:\disbr007\UserServicesRequests\Projects\1518_pfs\idx_pts_2017_present.shp'
+source = gpd.read_file(img_idx_path)
 
 # Create points for line layers at specified interval along line
 #renn_trav_pts = line2pts(renn_trav, 0.05, write_path=os.path.join(working_dir, 'nodes.shp'))
-trav_pts = line2pts(trav, 0.05, write_path=os.path.join(working_dir, 'trav_pts.shp'))
+#trav_pts = line2pts(trav, 0.05, write_path=os.path.join(working_dir, 'trav_pts.shp'))
 
 # Find most recent for each feature
 #sel_dems_pts = select_recent(stereo_oh, renn_pts, catid='pairname')
 #sel_dems_trav = select_recent(stereo_oh, renn_trav_pts, catid='pairname')
-selection = select_recent(source, trav_pts) #, catid='CATALOG_ID', date_col='ACQ_TIME', cloud='CLOUDCOVER')
+selection = select_recent(source, pts, catid='CATALOG_ID', date_col='ACQ_TIME', cloud='CLOUDCOVER')
 
 # Write selection to shapefile
 #sel_dems_pts.to_file(os.path.join(working_dir, 'sel_dems_test_pts.shp'), driver=driver)
 #sel_dems_trav.to_file(os.path.join(working_dir, 'sel_dems_test_trav.shp'), driver=driver)
-selection.to_file(os.path.join(working_dir, 'travs_dems_selection.shp'), driver=driver)
+selection.to_file(os.path.join(working_dir, 'gulley_imagery_selection.shp'), driver=driver)
 
 
 ### ORIGINAL SCRIPT BELOW FOR REFERNCE ###
