@@ -9,31 +9,53 @@ xtrack not on hand ordering
 
 import geopandas as gpd
 import pandas as pd
+from query_danco import query_footprint
 
-xtrack_shp = r'C:\Users\disbr007\imagery\xtrack_onhand\xtrack_onhand.shp'
-xtrack = gpd.read_file(xtrack_shp, driver='ESRI Shapefile')
+def xtrack_not_onhand():
+    xtrack = query_footprint('dg_imagery_index_xtrack_cc20')
+    oh = query_footprint('dg_imagery_index_all_onhand_cc20')
+    xtrack_noh = xtrack[~xtrack.catalogid1.isin(oh.catalogid)]
+    return xtrack_noh
 
-xtrack1k = xtrack[xtrack['sqkm'] >= 1000.0]
+def identify_platforms(df, catid='catalogid'):
+    platform_codes = {
+                '101': 'QB02',
+                '102': 'WV01',
+                '103': 'WV02',
+                '104': 'WV03',
+                '104A': 'WV03-SWIR',
+                '105': 'GE01',
+                '106': 'IK01'
+                }
 
-xtrack1k_noh1 = xtrack1k[xtrack1k['id1_onhand'] == 0]
-xtrack1k_noh2 = xtrack1k[xtrack1k['id2_onhand'] == 0]
+    df['platform'] = df[catid].str.slice(0,3).map(platform_codes).fillna('unk')
+    return df
 
-xtrack1k_noh = []
-for e in list(xtrack1k_noh1.catalogid1):
-    xtrack1k_noh.append(e)
-    
-for e in list(xtrack1k_noh2.catalogid2):
-    xtrack1k_noh.append(e)
+def select_platform(df, platform, min_area=None, max_area=None):
+    platform_df = df[df.platform == platform]
+    if min_area and max_area:
+        platform_df = df[df.sqkm >= min_area & df.sqkm <= max_area]
+    elif min_area:
+        platform_df = df[df.sqkm >= min_area]
+    elif max_area:
+        platform_df = df[df.sqkm <= max_area]
+    else:
+        pass
+    return platform_df
 
-xtrack1k_noh_wv3 = [x for x in xtrack1k_noh if x.startswith('104')]
+xtrack_noh = xtrack_not_onhand()
+identify_platforms(xtrack_noh, catid='catalogid1')
+wv01_noh = select_platform(xtrack_noh, 'WV01', min_area=1000, max_area=None)
 
-out_txt = r'C:\Users\disbr007\imagery\xtrack_onhand\xtrack_noh_1k_wv03_2019march21.txt'
-with open(out_txt, 'w') as f:
-    for item in xtrack1k_noh_wv3:
-        f.write('{}\n'.format(item))
+lam_EA = '+proj=aea +lat_1=29.5 +lat_2=42.5'
+xtrack_noh = xtrack_noh.to_crs(lam_EA)
 
-written_ids = []
-with open(out_txt, 'r') as f:
-    content = f.readlines()
-    for i in content:
-        written_ids.append(i)
+print(xtrack_noh.area.min())
+print(xtrack_noh.area.max())
+
+platforms = xtrack_noh.platform.unique()
+noh_by_platform = {}
+for platform in platforms:
+    noh_by_platform[platform] = xtrack_noh[xtrack_noh.platform == platform]
+
+
