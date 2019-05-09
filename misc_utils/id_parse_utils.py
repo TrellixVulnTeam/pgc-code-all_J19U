@@ -16,6 +16,7 @@ def read_ids(txt_file):
 
 def write_ids(ids, out_path):
     with open(out_path, 'w') as f:
+        f.write('catalogids\n')
         for each_id in ids:
             f.write('{}\n'.format(each_id))
 

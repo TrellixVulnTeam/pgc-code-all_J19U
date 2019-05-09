@@ -23,8 +23,17 @@ def fill_dates(df, freq, date_col=None, date_index=False):
         date_range = pd.date_range(start=start, end=end, freq=freq)
         df = df.reindex(date_range, fill_value=0)
         
-def create_month_col(df, date_col):
+def create_month_col(df, date_col, abbrev=False):
     '''takes a dataframe and it's date column and creates a column with the month abbreviation'''
-    df['Month'] = df[date_col].month
-    df['Month'] = df['Month'].apply(lambda x: calendar.month_abbr[x])
+    df[date_col] = pd.to_datetime(df[date_col])
+#    print(df[date_col])
+#    print(df.dtypes)
+    df['Month'] = df[date_col].dt.month
+    if abbrev == True:
+        df['Month'] = df['Month'].apply(lambda x: calendar.month_abbr[x])
+        
+def create_year_col(df, date_col):
+    df[date_col] = pd.to_datetime(df[date_col])
+    df['Year'] = df[date_col].dt.year
+    
     

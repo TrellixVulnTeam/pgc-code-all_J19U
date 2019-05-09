@@ -38,6 +38,7 @@ def type_parser(filepath):
         elif ext == '.dbf':
             return 'dbf'
     elif isinstance(filepath, gpd.GeoDataFrame):
+        
         return 'df'
     else:
         print('Unrecognized file type.')
@@ -77,6 +78,8 @@ def read_data(filepath):
         df = gpd.read_file(filepath)
     elif file_type == 'df':
         df = filepath
+        # Rename 'catalogid1' column to 'catalogid' in the case of crosstrack database
+        df.rename({'catalogid1': 'catalogid'})
     else:
         df = None
         print('Error reading data into dataframe: {}'.format(filepath))
@@ -144,7 +147,10 @@ def write_master(dataframe, outpath, outnamebase, output_suffix):
 def create_sheets(filepath, output_suffix, out_path=None):
     '''create sheets based on platforms present in list, including one formatted for entering into gsheets'''
     if type(filepath) == str: 
-        project_path = os.path.dirname(filepath)
+        if out_path:
+            project_path = out_path
+        else:
+            project_path = os.path.dirname(filepath)
         dataframe = read_data(filepath)
     elif isinstance(filepath, gpd.GeoDataFrame):
         dataframe = filepath

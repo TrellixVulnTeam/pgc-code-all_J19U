@@ -9,7 +9,11 @@ xtrack not on hand ordering
 
 import geopandas as gpd
 import pandas as pd
+from fiona.crs import from_epsg, from_string
+import copy
+
 from query_danco import query_footprint
+
 
 def xtrack_not_onhand():
     xtrack = query_footprint('dg_imagery_index_xtrack_cc20')
@@ -45,13 +49,27 @@ def select_platform(df, platform, min_area=None, max_area=None):
 
 xtrack_noh = xtrack_not_onhand()
 identify_platforms(xtrack_noh, catid='catalogid1')
-wv01_noh = select_platform(xtrack_noh, 'WV01', min_area=1000, max_area=None)
 
+#wv01_noh = select_platform(xtrack_noh, 'WV01', min_area=1000, max_area=None)
+
+#regions_path = r"E:\disbr007\imagery_orders\all_regions.shp"
+#regions = gpd.read_file(regions_path, driver='ESRI_Shapefile')
+#
+#xtrack_noh['centroid'] = xtrack_noh.centroid
+#xtrack_noh.set_geometry('centroid', inplace=True)
+## Locate region of centroid
+#xtrack_noh = gpd.sjoin(xtrack_noh, regions, how='left', op='within')
+#xtrack_noh.drop('centroid', axis=1, inplace=True)
+#xtrack_noh.set_geometry('geom', inplace=True)
+
+prj_test = copy.deepcopy(xtrack_noh)
 lam_EA = '+proj=aea +lat_1=29.5 +lat_2=42.5'
-xtrack_noh = xtrack_noh.to_crs(lam_EA)
+prj_test.geometry = prj_test.geometry.to_crs(lam_EA)
+prj_test.crs = from_string(lam_EA)
 
 print(xtrack_noh.area.min())
 print(xtrack_noh.area.max())
+print(xtrack_noh.area.mean())
 
 platforms = xtrack_noh.platform.unique()
 noh_by_platform = {}

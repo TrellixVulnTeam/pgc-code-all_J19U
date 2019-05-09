@@ -20,19 +20,28 @@ def read_ids(txt_file):
 
 def select_footprints_by_attribute(ids):
     sql = """ "CATALOG_ID" IN {} """.format(ids)
-    imagery_index = r'E:\disbr007\UserServicesRequests\pgcImageryIndexV6_2019jan12.gdb\pgcImageryIndexV6_2019jan12'
+    imagery_index = r"E:\disbr007\pgc_index\pgcImageryIndexV6_2019mar19.gdb\pgcImageryIndexV6_2019mar19"
     selection = arcpy.SelectLayerByAttribute_management(imagery_index, "NEW_SELECTION", sql)
+    count = arcpy.GetCount_management(selection)
+    print('Features selected: {}'.format(count))
     return selection
 
 def select_footprints_by_location(aoi):
-    imagery_index = r'E:\disbr007\UserServicesRequests\pgcImageryIndexV6_2019jan12.gdb\pgcImageryIndexV6_2019jan12'
+    imagery_index = r"E:\disbr007\pgc_index\pgcImageryIndexV6_2019mar19.gdb\pgcImageryIndexV6_2019mar19"
     aoi_lyr = arcpy.MakeFeatureLayer_management(aoi)
     selection = arcpy.SelectLayerByLocation_management(imagery_index, "INTERSECT", aoi_lyr, selection_type="NEW_SELECTION")
     return selection
     
-def write_shp(selection, txt_file):
-    project_path = os.path.dirname(txt_file)
-    out_shp_path = os.path.join(project_path, 'selected_ids.shp')
+def write_shp(selection, selector):
+    ## Get out path
+    # If the selector is an absolute path, use the path provided
+    if os.path.isabs(selector):
+        project_path = os.path.dirname(selector)
+    # If selector is relative path, use the current directory
+    else:
+        project_path = os.getcwd()
+    # Path to write shapefile to
+    out_shp_path = os.path.join(project_path, 'selection.shp')    
     out_shp = arcpy.CopyFeatures_management(selection, out_shp_path)
     print('Shapefile of selected features created at: {}'.format(out_shp_path))
     return out_shp

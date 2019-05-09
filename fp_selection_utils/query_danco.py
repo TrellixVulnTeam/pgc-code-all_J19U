@@ -19,7 +19,7 @@ with open(r"C:\code\cred.txt", 'r') as cred:
 def query_footprint(layer, table=False, where=None):
     '''
     queries the danco footprint database, for the specified layer and optional where clause
-    
+    returns a dataframe of match
     layer: danco layer to query - e.g.: 'dg_imagery_index_stereo_cc20'
     where: sql where clause     - e.g.: "acqdate > '2015-01-01'"
     '''

@@ -3,6 +3,7 @@
 Created on Fri Apr 12 09:10:58 2019
 
 @author: disbr007
+Creates a shapefile that is a refresh in the region selected from 
 """
 
 import query_danco
@@ -11,18 +12,18 @@ import argparse, os
 from imagery_order_sheet_maker_module import create_sheets
 from misc import date2words
 
-def refresh_region_lut(refresh_type='polar_hma_above'):
+def refresh_region_lut(refresh_region='polar_hma_above'):
     '''
     take in a refresh type and return relevent regions
     refresh_type: string, supported types ['polar_hma_above', 'nonpolar', 'global']
     '''
     supported_refreshes = ['polar_hma_above', 'nonpolar', 'global']
-    if refresh_type in supported_refreshes:
-        if refresh_type == 'polar_hma_above':
+    if refresh_region in supported_refreshes:
+        if refresh_region == 'polar_hma_above':
             regions = ['antarctica', 'arctic']
-        elif refresh_type == 'nonpolar':
+        elif refresh_region == 'nonpolar':
             regions = ['nonpolar']
-        elif refresh_type == 'global':
+        elif refresh_region == 'global':
             regions = ['antarctica', 'arctic', 'nonpolar']
     else:
         print('Refresh type unrecognized, supported refreshes include {}'.format(supported_refreshes))
