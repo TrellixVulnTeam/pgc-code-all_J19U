@@ -29,7 +29,7 @@ def query_footprint(layer, table=False, where=None):
                                       password = creds[1],
                                       host = danco,
                                       database = "footprint")
-#        engine = create_engine('postgresql+psycopg2://disbr007:ArsenalFC10@danco.pgc.umn.edu/footprint') # use creds
+
         engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/footprint'.format(creds[0], creds[1])) # untested, use above if not working
         connection = engine.connect()
 
@@ -61,17 +61,26 @@ def query_footprint(layer, table=False, where=None):
             connection.close()
             print("PostgreSQL connection closed.")
 
-def stereo_noh():
+def stereo_noh(where=None):
     '''returns a dataframe with all intrack stereo not on hand as individual rows, rather
     than as pairs'''
     stereo_noh_left = 'dg_imagery_index_stereo_notonhand_left_cc20'
     stereo_noh_right = 'dg_imagery_index_stereo_notonhand_right_cc20'
     
-    noh_left = query_footprint(stereo_noh_left)
-    noh_right = query_footprint(stereo_noh_right)
+    noh_left = query_footprint(stereo_noh_left, where=where)
+    noh_right = query_footprint(stereo_noh_right, where=where)
     
     noh_right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
     
     noh = pd.concat([noh_left, noh_right], sort=True)
     return noh
 
+
+def mono_noh(where=None):
+    # Get all not on hand
+    all_noh = query_footprint('dg_imagery_index_all_notonhand_cc20', where=where)
+    print(len(all_noh))
+    # Get all stereopairs
+    all_pairs = list(all_noh.stereopair)
+    mono_noh = all_noh[(~all_noh.catalogid.isin(all_pairs)) & (all_noh[all_noh.stereopair == 'NONE'])]
+    return mono_noh

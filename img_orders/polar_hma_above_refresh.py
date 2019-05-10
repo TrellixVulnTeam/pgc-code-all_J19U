@@ -10,7 +10,7 @@ import query_danco
 import geopandas as gpd
 import argparse, os
 from imagery_order_sheet_maker_module import create_sheets
-from misc import date2words
+from id_parse_utils import date_words
 
 def refresh_region_lut(refresh_region='polar_hma_above'):
     '''
@@ -20,28 +20,40 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
     supported_refreshes = ['polar_hma_above', 'nonpolar', 'global']
     if refresh_region in supported_refreshes:
         if refresh_region == 'polar_hma_above':
-            regions = ['antarctica', 'arctic']
+            regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'ABoVE Nonpolar', 'HMA']
         elif refresh_region == 'nonpolar':
-            regions = ['nonpolar']
+            regions = ['Nonpolar']
         elif refresh_region == 'global':
-            regions = ['antarctica', 'arctic', 'nonpolar']
+            regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'HMA', 'Nonpolar', 'ABoVE Nonpolar', 'Nonpolar Ice']
     else:
-        print('Refresh type unrecognized, supported refreshes include {}'.format(supported_refreshes))
+        print('Refresh region unrecognized, supported refresh regions include {}'.format(supported_refreshes))
         regions = None
     return regions
     
 
-def refresh(last_refresh, refresh_type):
+def refresh(last_refresh, refresh_region, refresh_imagery):
     '''
     select ids for imagery order
     '''
+    
+    where = "acqdate > '{}'".format(last_refresh)
+    
     # Load regions shp
-    regions_path = r"E:\disbr007\imagery_orders"
+    regions_path = r"E:\disbr007\imagery_orders\all_regions.shp"
     regions = gpd.read_file(regions_path, driver='ESRI_Shapefile')
     
     # Load not on hand footprint -> since last refresh
-    noh_recent = query_danco.query_footprint('dg_imagery_index_all_notonhand_cc20', where="acqdate > '{}'".format(last_refresh))
-    
+    supported_refresh_imagery = ['mono_stereo', 'mono', 'stereo']
+    if refresh_imagery in supported_refresh_imagery:
+        if refresh_imagery == 'mono_stereo':
+            noh_recent = query_danco.query_footprint('dg_imagery_index_all_notonhand_cc20', where=where)
+        if refresh_imagery == 'mono':
+            pass # Update this -> catalogid not in stereopair field anywhere, and stereopair == NONE
+        if refresh_imagery == 'stereo':
+            noh_recent = query_danco.stereo_noh(where=where)
+    else:
+        print('Refresh imagery type unrecognized, supported refresh imagery options include: {}'.format(supported_refresh_imagery))
+   
     ### Spatial join to identify region
     # Calculate centroid
     noh_recent['centroid'] = noh_recent.centroid
@@ -53,27 +65,31 @@ def refresh(last_refresh, refresh_type):
     
     ### Identify only those in the region of interest
     # Get regions of interest based on type of refresh
-    roi = refresh_region_lut(refresh_type)
+    roi = refresh_region_lut(refresh_region)
     # Select region of interest
-    noh_recent_roi = noh_recent[noh_recent.region.isin(roi)]
+    noh_recent_roi = noh_recent[noh_recent.loc_name.isin(roi)]
     return noh_recent_roi
 
 
-def project_dir(out_path, refresh_type):
+def project_dir(out_path, refresh_region):
     # Directory to write shp and order to
-    date_words = date2words(today=True)
-    dir_name = r'PGC_order_{}_{}_refresh'.format(date_words, refresh_type)
+    date_in_words = date_words()
+    dir_name = r'PGC_order_{}_{}_refresh'.format(date_in_words, refresh_region)
     dir_path = os.path.join(out_path, dir_name)
     return dir_path, dir_name
     
 
-def write_selection(df, last_refresh, refresh_type, dir_path, dir_name):
-    if not os.path.isdir(dir_path):
-        os.mkdir(dir_path)
+def write_selection(df, last_refresh, refresh_region, out_path):
+    if not os.path.isdir(out_path):
+        os.mkdir(out_path)
+
+    dir_name = os.path.basename(out_path)
     # Name of shapefile to write
     write_name = '{}.shp'.format(dir_name)
+    
     # Location to write shapefile to
-    shp_path = os.path.join(dir_path, write_name)
+    shp_path = os.path.join(out_path, write_name)
+    
     # Write the shapefile
     df.to_file(shp_path, driver='ESRI Shapefile')
     return shp_path
@@ -92,16 +108,21 @@ def write_selection(df, last_refresh, refresh_type, dir_path, dir_name):
 if __name__ == '__main__':
     # Parse args
     parser = argparse.ArgumentParser()
-    parser.add_argument("last_refresh", type=str, help="Date of last refresh: yyyy-mm-dd")
-    parser.add_argument("refresh_type", type=str, 
+    parser.add_argument("last_refresh", type=str, 
+                        help="Date of last refresh: yyyy-mm-dd")
+    parser.add_argument("refresh_region", type=str, 
                         help="Type of refresh, supported types: 'polar_hma_above', 'nonpolar', 'global'")
-    parser.add_argument("out_path", type=str, help="Path to write sheets and selection shape to")
+    parser.add_argument("refresh_imagery", type=str, 
+                        help="Type of imagery to refresh, supported types: 'mono_stereo', 'mono', 'stereo'")
+    parser.add_argument("out_path", type=str, 
+                        help="Path to write sheets and selection shape to")
     args = parser.parse_args()
     last_refresh = args.last_refresh
-    refresh_type = args.refresh_type
+    refresh_region = args.refresh_region
+    refresh_imagery = args.refresh_imagery
     out_path = args.out_path
     
     # Do it
-    selection = refresh(last_refresh=last_refresh, refresh_type=refresh_type)
-    write_selection(selection, last_refresh=last_refresh, refresh_type=refresh_type, out_path=out_path)
+    selection = refresh(last_refresh=last_refresh, refresh_region=refresh_region, refresh_imagery=refresh_imagery)
+    write_selection(selection, last_refresh=last_refresh, refresh_region=refresh_region, out_path=out_path)
     

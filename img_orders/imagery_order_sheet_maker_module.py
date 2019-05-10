@@ -12,7 +12,7 @@ import datetime
 import sys
 import argparse
 sys.path.insert(0, r'C:\code\misc_utils')
-from misc import date2words
+from id_parse_utils import date_words
 
 def type_parser(filepath):
     '''
@@ -44,16 +44,6 @@ def type_parser(filepath):
         print('Unrecognized file type.')
     
     
-#def date_words():
-#    '''get todays date and convert to '2019jan07' style for filenaming'''
-#    now = datetime.datetime.now() - datetime.timedelta(days=1)
-#    year = now.strftime('%Y')
-#    month = now.strftime('%b').lower()
-#    day = now.strftime('%d')
-#    date = r'{}{}{}'.format(year, month, day)
-#    return date
-
-
 def read_data(filepath):
     '''takes a file path in, determines type and reads data into dataframe accordingly'''
     file_type = type_parser(filepath)
@@ -119,7 +109,7 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix):
     platform_dict = {} # to store the dataframes for this platform
     for i, df in enumerate(platform_list): # loop through this platforms dataframes (e.g. WV01 - 0:1000, WV01 - 1001:2000, WV01 - 2001:2200)
         platform_dict[r'{}_part{}of{}'.format(platform, (int(i)+1), total_length)] = len(df) # Add entry to dict - e.g. key = 'WV01_part1of2', val = 1000
-        out_name = '{}{}_{}_{}_{}of{}.xlsx'.format(outnamebase, date2words(today=True), output_suffix, platform, (int(i)+1), total_length) # name of output sheet
+        out_name = '{}{}_{}_{}_{}of{}.xlsx'.format(outnamebase, date_words(), output_suffix, platform, (int(i)+1), total_length) # name of output sheet
         out_xl = os.path.join(outpath, out_name) # path of output sheet
         writer = pd.ExcelWriter(out_xl, engine='xlsxwriter')
         df.to_excel(writer, columns=['catalogid'], header=False, index=False, sheet_name='Sheet1')
@@ -134,12 +124,12 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix):
 def write_master(dataframe, outpath, outnamebase, output_suffix):
     '''write all ids to master sheet for reference, to text file for entering into IMA'''
     # Write master excel
-    master_name = os.path.join(outpath, '{}{}_{}master.xlsx'.format(outnamebase, date2words(today=True), output_suffix))
+    master_name = os.path.join(outpath, '{}{}_{}master.xlsx'.format(outnamebase, date_words(), output_suffix))
     master_writer = pd.ExcelWriter(master_name, engine='xlsxwriter')
     dataframe.to_excel(master_writer, columns=['catalogid'], header=False, index=False, sheet_name='Sheet1')
     master_writer.save()
     # Write text file
-    txt_path = os.path.join(outpath, '{}{}{}master.txt'.format(outnamebase, date2words(today=True), output_suffix))
+    txt_path = os.path.join(outpath, '{}{}{}master.txt'.format(outnamebase, date_words(), output_suffix))
     dataframe.sort_index(inplace=True)
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
 
@@ -172,7 +162,7 @@ def create_sheets(filepath, output_suffix, out_path=None):
         print('{} IDs found: {}'.format(pf, len(df.index)))
     
     # Write sheet to copy to GSheet
-    gsheet_path = os.path.join(project_path, '{}{}_{}_gsheet.xlsx'.format(project_base, date2words(today=True), output_suffix))
+    gsheet_path = os.path.join(project_path, '{}{}_{}_gsheet.xlsx'.format(project_base, date_words(), output_suffix))
     gsheet_dict = {}
     for k in all_platforms_dict:
         gsheet_dict[k] = all_platforms_dict[k]['g_sheet']
