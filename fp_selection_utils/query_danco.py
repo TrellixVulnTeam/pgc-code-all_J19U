@@ -8,7 +8,7 @@ Created on Thu Jan 17 12:43:09 2019
 import psycopg2
 import geopandas as gpd
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, MetaData
 
 creds = []
 with open(r"C:\code\cred.txt", 'r') as cred:
@@ -60,6 +60,43 @@ def query_footprint(layer, table=False, where=None):
         if (connection):
             connection.close()
             print("PostgreSQL connection closed.")
+
+
+def list_danco_footprint():
+    '''
+    ** NOT FUNCTIONAL YET - cannot manage to get a list of layer names back**
+    queries the danco footprint database, returns all layer names in list
+    '''
+    try:
+        danco = "danco.pgc.umn.edu"
+        connection = psycopg2.connect(user = creds[0],
+                                      password = creds[1],
+                                      host = danco,
+                                      database = "footprint")
+
+        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/footprint'.format(creds[0], creds[1])) # untested, use above if not working
+        connection = engine.connect()
+
+        if connection:
+            print('PostgreSQL connection to {} opened.'.format(danco))
+            tables = []
+            inspector = inspect(engine)
+            print(type(inspector))
+
+            schemas = inspector.get_schema_names()
+            table_names = inspector.get_table_names(schema="disbr007")
+            view_names = inspector.get_view_names(schema="disbr007")
+            print(table_names, view_names)
+    except (Exception, psycopg2.Error) as error :
+        print ("Error while connecting to PostgreSQL", error)
+    
+    finally:
+        return tables
+        # Close database connection.
+        if (connection):
+            connection.close()
+            print("PostgreSQL connection closed.")
+
 
 def stereo_noh(where=None):
     '''returns a dataframe with all intrack stereo not on hand as individual rows, rather

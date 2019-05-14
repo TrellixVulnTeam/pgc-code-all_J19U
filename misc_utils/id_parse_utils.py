@@ -20,12 +20,15 @@ def write_ids(ids, out_path):
         for each_id in ids:
             f.write('{}\n'.format(each_id))
 
-def date_words():
+def date_words(date=None, today=False):
     '''get todays date and convert to '2019jan07' style for filenaming'''
-    import datetime
-    now = datetime.datetime.now() - datetime.timedelta(days=1)
-    year = now.strftime('%Y')
-    month = now.strftime('%b').lower()
-    day = now.strftime('%d')
+    from datetime import datetime, timedelta
+    if today == True:
+        date = datetime.now() - timedelta(days=1)
+    else:
+        date = datetime.strptime(date, '%Y-%m-%d')
+    year = date.strftime('%Y')
+    month = date.strftime('%b').lower()
+    day = date.strftime('%d')
     date = r'{}{}{}'.format(year, month, day)
     return date
