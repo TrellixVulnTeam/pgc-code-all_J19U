@@ -30,7 +30,7 @@ def query_footprint(layer, table=False, where=None):
                                       host = danco,
                                       database = "footprint")
 
-        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/footprint'.format(creds[0], creds[1])) # untested, use above if not working
+        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/footprint'.format(creds[0], creds[1]))
         connection = engine.connect()
 
         if connection:
@@ -74,7 +74,7 @@ def list_danco_footprint():
                                       host = danco,
                                       database = "footprint")
 
-        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/footprint'.format(creds[0], creds[1])) # untested, use above if not working
+        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/footprint'.format(creds[0], creds[1]))
         connection = engine.connect()
 
         if connection:
@@ -98,18 +98,33 @@ def list_danco_footprint():
             print("PostgreSQL connection closed.")
 
 
-def stereo_noh(where=None):
+def stereo_noh(where=None, cc20=True):
     '''returns a dataframe with all intrack stereo not on hand as individual rows, rather
     than as pairs'''
-    stereo_noh_left = 'dg_imagery_index_stereo_notonhand_left_cc20'
-    stereo_noh_right = 'dg_imagery_index_stereo_notonhand_right_cc20'
+    if cc20:
+        # Use the prebuilt cc20 not on hand layers
+        stereo_noh_left = 'dg_imagery_index_stereo_notonhand_left_cc20'
+        stereo_noh_right = 'dg_imagery_index_stereo_notonhand_right_cc20'
+        
+        noh_left = query_footprint(stereo_noh_left, where=where)
+        noh_right = query_footprint(stereo_noh_right, where=where)
+        noh_right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
     
-    noh_left = query_footprint(stereo_noh_left, where=where)
-    noh_right = query_footprint(stereo_noh_right, where=where)
-    
-    noh_right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
-    
+    else:
+        # Use all stereo layer, remove ids on hand
+        left = query_footprint('dg_imagery_index_stereo', where=where)
+        right = left.drop(columns=['catalogid'])
+        right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
+                
+        pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
+        pgc_ids = list(pgc_archive.catalog_id)
+        del pgc_archive
+                
+        noh_left = left[~left.catalogid.isin(pgc_ids)]
+        noh_right = right[~right.catalogid.isin(pgc_ids)]
+            
     noh = pd.concat([noh_left, noh_right], sort=True)
+    del noh_left, noh_right
     return noh
 
 

@@ -33,11 +33,11 @@ def main():
     logger.addHandler(lsh)
     
     arcpy.env.workspace = gdb
-        
+    
     #### Derive subdatasets and P1BS versions
     # Datasets: source, dst, expression
     dss = []
-    lats = list(range(-100, 140, 20))
+    lats = list(range(-95, 100, 5))
     for i, lat in enumerate(lats[1:-1]):
         min_lat = lats[i]
         min_lat_name = str(min_lat).replace('-', 'neg')
@@ -56,11 +56,11 @@ def main():
 if __name__ == '__main__':
     main()
 
-dss = []
-lats = list(range(-100, 140, 20))
-for i, lat in enumerate(lats[1:-1]):
-    min_lat = lats[i]
-    min_lat_name = str(min_lat).replace('-', 'neg')
-    max_lat = lats[i+1]
-    max_lat_name = str(max_lat).replace('-', 'neg')
-    dss.append((lyr, '{}_{}_{}'.format(lyr, min_lat_name, max_lat_name), """CENT_LAT > {} AND CENT_LAT <= {}""".format(min_lat, max_lat)))
+# dss = []
+# lats = list(range(-100, 140, 20))
+# for i, lat in enumerate(lats[1:-1]):
+#     min_lat = lats[i]
+#     min_lat_name = str(min_lat).replace('-', 'neg')
+#     max_lat = lats[i+1]
+#     max_lat_name = str(max_lat).replace('-', 'neg')
+#     dss.append((lyr, '{}_{}_{}'.format(lyr, min_lat_name, max_lat_name), """CENT_LAT > {} AND CENT_LAT <= {}""".format(min_lat, max_lat)))

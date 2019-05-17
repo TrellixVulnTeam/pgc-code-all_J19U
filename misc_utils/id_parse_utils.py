@@ -5,13 +5,19 @@ Created on Mon Feb  4 12:54:01 2019
 @author: disbr007
 """
 
-def read_ids(txt_file):
+def read_ids(txt_file, sep=None):
     '''reads ids, one per line, from a text file and returns a list of ids'''
     ids = []
     with open(txt_file, 'r') as f:
         content = f.readlines()
         for line in content:
-            ids.append(line.strip())
+            if sep:
+                # Assumes id is first
+                the_id = line.split(sep)[0]
+                the_id = the_id.strip()
+            else:
+                the_id = line.strip()
+            ids.append(the_id)
     return ids
 
 def write_ids(ids, out_path):
