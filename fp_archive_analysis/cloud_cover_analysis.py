@@ -14,12 +14,11 @@ import matplotlib.pyplot as plt
 #import matplotlib.ticker as ticker
 from matplotlib.ticker import FuncFormatter
 
-
 import math, os, sys
 
 sys.path.insert(0,'C:\code\misc_utils')
 from id_parse_utils import write_ids
-from query_danco import query_footprint, stereo_noh
+from query_danco import query_footprint, stereo_noh, all_IK01
 
 
 def number_formatter(x, pos):
@@ -61,47 +60,50 @@ def region_loc(y1):
 
 
 ## Parameters for loading data and plotting
-min_cc = -1
-max_cc = 20
+lat_field = 'ul_lat' # ('y1', 'ul_lat')
+cc_field = 'clouds'
+min_cc = 0
+max_cc = 50
 step = 1
-where = "cloudcover > {} AND cloudcover <= {}".format(min_cc, max_cc)
+where = "{0} >= {1} AND {0} <= {2}".format(cc_field, min_cc, max_cc)
+#where = "clouds >= 0 AND clouds <= 50" # IKONOS where
 
 ## Load data
 print('Loading DG archive...')
-dg_archive = stereo_noh(where=where, cc20=False)
+#dg_archive = stereo_noh(where=where, cc20=False)
+dg_archive = all_IK01(where=where, onhand=False)
 
 # Identify region roughly - by latitude (-60; -60 - 60; +60)
-dg_archive['region'] = dg_archive.y1.apply(region_loc)
+dg_archive['region'] = dg_archive[lat_field].apply(region_loc)
 
 
-'''
 ## Create shapefile 
 print('Writing shapefile...')
 driver = 'ESRI Shapefile'
 out_path = 'E:\disbr007\imagery_archive_analysis\cloudcover'
 out_name = 'dg_archive_stereo'
-dg_archive.to_file(os.path.join(out_path, '{}_cc{}_{}.shp'.format(out_name, min_cc, max_cc)), driver=driver)
+dg_archive.to_file(os.path.join(out_path, 'IK01_{}_cc{}_{}.shp'.format(out_name, min_cc, max_cc)), driver=driver)
 
 
 ## Plotting
 print('Plotting...')
-bins = [x for x in range(min_cc+step, max_cc+step+step, step)]
+bins = [x for x in range(min_cc, max_cc+step+step, step)]
 
 with plt.style.context('seaborn-darkgrid', after_reset=True):
     #fig, (ax1, ax2) = plt.subplots(figsize=(10,5),nrows=1, ncols=2, sharey=True)
     fig, ax1 = plt.subplots(figsize=(9,5),nrows=1, ncols=1)
     #fig.suptitle('DG Archive Analysis: Cloudcover', fontsize=16)
     
-    ax1.hist([dg_archive[(dg_archive['y1'] > low) & (dg_archive['y1'] <= high)].cloudcover for low, high in [(-90, -60), (-60, 60), (60, 90)]], 
+    ax1.hist([dg_archive[(dg_archive[lat_field] > low) & (dg_archive[lat_field] <= high)][cc_field] for low, high in [(-90, -60), (-60, 60), (60, 90)]], 
                   label=['Antarctic', 'Nonpolar', 'Arctic'], stacked=True, rwidth=1.0, bins=bins, align='left', edgecolor='white')
     
-    platforms = sorted(list(dg_archive.platform.unique()))
-    #ax2.hist([dg_archive[dg_archive.platform==platform].cloudcover for platform in platforms], label=platforms, stacked=True, rwidth=1.0, bins=bins)
+#    platforms = sorted(list(dg_archive.platform.unique()))
+    #ax2.hist([dg_archive[dg_archive.platform==platform][cc_field] for platform in platforms], label=platforms, stacked=True, rwidth=1.0, bins=bins)
     
     #for ax in (ax1, ax2):
     for ax in [ax1]:
         # Add annotation for each bar
-        counts, the_bins = np.histogram(dg_archive.cloudcover, bins=bins)
+        counts, the_bins = np.histogram(dg_archive[cc_field], bins=bins)
         for b, count in zip(the_bins, counts):
             ax.annotate('{}'.format(human_format(count)), xy=(b, count), xytext=(0,2), textcoords='offset points', 
                     ha='center', va='bottom', fontsize=7)
@@ -115,7 +117,7 @@ with plt.style.context('seaborn-darkgrid', after_reset=True):
         ystep = 10**(order_magnitude((end-start)))
         ax.yaxis.set_ticks(np.arange(start, end+ystep, ystep))
         
-        ax.xaxis.set_ticks(np.arange(min_cc+step, max_cc+step, step))
+        ax.xaxis.set_ticks(np.arange(min_cc, max_cc+step, step))
         start, end = ax.get_xlim()
         ax.set_xlim(xmin=min_cc, xmax=max_cc+step)
         ax.set(xlabel='Cloudcover %')
@@ -127,11 +129,10 @@ with plt.style.context('seaborn-darkgrid', after_reset=True):
     ax1.set(ylabel='Number of IDs')
     ax1.set_title('Cloudcover by Region')  
     #ax2.set_title('Cloudcover by Platform')
-    plt.gcf().text(0.01, 0.02, 'Analysis of stereo archive not on hand at PGC', 
+    plt.gcf().text(0.01, 0.02, 'Analysis of archive not on hand at PGC', 
            ha='left', 
            va='center', 
            fontstyle='italic',
            fontsize='small')
     plt.tight_layout()
     fig.show()
-'''

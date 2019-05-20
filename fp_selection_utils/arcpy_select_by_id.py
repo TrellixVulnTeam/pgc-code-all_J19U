@@ -32,7 +32,7 @@ def select_footprints_by_location(aoi):
     selection = arcpy.SelectLayerByLocation_management(imagery_index, "INTERSECT", aoi_lyr, selection_type="NEW_SELECTION")
     return selection
     
-def write_shp(selection, selector):
+def write_shp(selection, selector, out_name):
     ## Get out path
     # If the selector is an absolute path, use the path provided
     if os.path.isabs(selector):
@@ -41,7 +41,7 @@ def write_shp(selection, selector):
     else:
         project_path = os.getcwd()
     # Path to write shapefile to
-    out_shp_path = os.path.join(project_path, 'selection.shp')    
+    out_shp_path = os.path.join(project_path, '{}.shp'.format(out_name))    
     out_shp = arcpy.CopyFeatures_management(selection, out_shp_path)
     print('Shapefile of selected features created at: {}'.format(out_shp_path))
     return out_shp
@@ -51,8 +51,11 @@ if __name__ == '__main__':
     parser.add_argument('selector', type=str, 
                         help='''The file to use to select features. This can be a shp file, which results in a 
                         SelectByLocation, or a .txt file containing one catalog ID per line.''')
+    parser.add_argument('out_name', type=str,
+                        help='''The name of the shapefile to be written with the selection''')
     args = parser.parse_args()
     selector = args.selector
+    out_name = args.out_name
     ext = os.path.splitext(selector)[1]
     if ext == '.txt':
         ids = read_ids(selector)
@@ -62,5 +65,5 @@ if __name__ == '__main__':
     else:
         err = 'Selector filetype not recognized: {}'.format(selector)
         sys.exit(err)
-    write_shp(selection, selector)
+    write_shp(selection, selector, out_name)
 

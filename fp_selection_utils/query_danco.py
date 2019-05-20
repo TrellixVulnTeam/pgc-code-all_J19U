@@ -8,6 +8,7 @@ Created on Thu Jan 17 12:43:09 2019
 import psycopg2
 import geopandas as gpd
 import pandas as pd
+import sys
 from sqlalchemy import create_engine, inspect, MetaData
 
 creds = []
@@ -96,7 +97,7 @@ def list_danco_footprint():
         if (connection):
             connection.close()
             print("PostgreSQL connection closed.")
-
+    
 
 def stereo_noh(where=None, cc20=True):
     '''returns a dataframe with all intrack stereo not on hand as individual rows, rather
@@ -128,11 +129,96 @@ def stereo_noh(where=None, cc20=True):
     return noh
 
 
-def mono_noh(where=None):
+def mono_noh(where=None, cc20=True):
+    '''
+    returns a dataframe of just mono imagery not on hand (stereo removed)
+    where:    sql query
+    cc20:     restrict to cc20 only
+    '''
     # Get all not on hand
     all_noh = query_footprint('dg_imagery_index_all_notonhand_cc20', where=where)
-    print(len(all_noh))
     # Get all stereopairs
     all_pairs = list(all_noh.stereopair)
     mono_noh = all_noh[(~all_noh.catalogid.isin(all_pairs)) & (all_noh[all_noh.stereopair == 'NONE'])]
     return mono_noh
+
+
+def all_noh(where=None, cc20=True):
+    '''
+    returns a dataframe or optionally a list of all ids not on hand (stereo + mono)
+    where:    sql query
+    cc20:     restrict to cc20
+    '''
+    # Get all on hand ids
+    pgc_archive = query_footprint(layer='pgc_imagery_catalogids', table=True)
+    pgc_ids = tuple(pgc_archive.catalog_id)
+    del pgc_archive
+    
+    # Get all not on hand: ids in database not in pgc archive
+    noh_where = "catalogid NOT IN {}".format(pgc_ids)
+    all_noh = query_footprint('index_dg', where=noh_where)
+    return all_noh
+
+
+def all_IK01(where=None, onhand=None):
+    '''
+    returns a dataframe of IKONOS imagery footprints
+    where:    sql query
+    onhand:   if True return only on hand, if False only not on hand, defaults to both
+    '''
+
+    def archive_id_lut(sensor):
+
+        # Look up table names on danco
+        luts = {
+                'GE01': 'index_dg_catalogid_to_ge_archiveid_ge01',
+                'IK01': 'index_dg_catalogid_to_ge_archiveid_ik'
+                }
+        
+        # Verify sensor
+        if sensor in luts:
+            pass
+        else:
+            print('{} look up table not found. Sensor must be in {}'.format(sensor, luts.keys()))
+        
+        lu_df = query_footprint(layer=luts[sensor], table=True)
+        lu_dict = dict(zip(lu_df.crssimageid, lu_df.catalog_identifier))
+    
+        return lu_dict    
+    
+    if where:
+        where += " AND source_abr = 'IK-2'"
+    else:
+        where = "source_abr = 'IK-2'"
+    
+    if onhand == True or onhand == False:
+        # Get all on hand ids
+        pgc_archive = query_footprint(layer='pgc_imagery_catalogids', table=True)
+        pgc_ids = tuple(pgc_archive.catalog_id)
+        del pgc_archive
+        
+        IK01 = query_footprint('index_ge', where=where)
+#        lut = archive_id_lut('IK01')
+#        IK01['catalogid'] = IK01['strip_id'].map(lut)
+        
+        if onhand == True:
+            df = IK01[IK01.strip_id.isin(pgc_ids)]
+            del IK01
+        else:
+            # onhand == False
+            df = IK01[~IK01.strip_id.isin(pgc_ids)]
+            del IK01
+    else:
+        df = query_footprint('index_ge', where=where)
+    
+    return df
+    
+    
+
+
+
+
+
+
+
+
