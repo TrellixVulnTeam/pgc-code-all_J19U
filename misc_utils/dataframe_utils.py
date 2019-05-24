@@ -42,6 +42,11 @@ def create_year_col(df, date_col):
     df['Year'] = df[date_col].dt.year
 
 
+def convert_datetime_to_string(df):
+    '''converts any datetime column in df to a string'''
+    df[df.select_dtypes(['datetime']).columns] = df[df.select_dtypes(['datetime']).columns].astype(str)
+
+
 def dbf2DF(dbfile, upper=True): #Reads in DBF files and returns Pandas DF
     '''
     reads a dbf file into a pandas dataframe

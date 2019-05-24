@@ -5,6 +5,9 @@ Created on Mon Feb  4 12:54:01 2019
 @author: disbr007
 """
 
+import pandas as pd
+import numpy as np
+
 def read_ids(txt_file, sep=None):
     '''reads ids, one per line, from a text file and returns a list of ids'''
     ids = []
@@ -101,8 +104,9 @@ def date_words(date=None, today=False):
 
 
 def archive_id_lut(sensor):
-
+    from query_danco import query_footprint
     # Look up table names on danco
+    print('Creating look-up table from danco table...')
     luts = {
             'GE01': 'index_dg_catalogid_to_ge_archiveid_ge01',
             'IK01': 'index_dg_catalogid_to_ge_archiveid_ik'
@@ -117,15 +121,59 @@ def archive_id_lut(sensor):
     lu_df = query_footprint(layer=luts[sensor], table=True)
     lu_dict = dict(zip(lu_df.crssimageid, lu_df.catalog_identifier))
 
-    return lu_dict    
-    
+    return lu_dict
 
+
+def ge_ids2dg_ids(ids):
+    '''
+    takes a list of old GE ids and converts them to DG
+    '''
+    ## Assess what is in the list of ids
+    print('Total ids in list: {}'.format(len(ids)))
+    num_dg_style = len([x for x in ids if len(x) == 16])
+    num_ge_style = len([x for x in ids if len(x) != 16])
     
+    print('DG style ids: {}'.format(num_dg_style)) # DG style if 16 char (true?)
+    print('Old style ids: {}'.format(num_ge_style))
     
+    # Set up lists to store ids
+    converted_ids = [] # ids to write out (DG style)
+    convertable_ids = [] # ids that were converted (old style)
+    not_conv_ids = [] # Ids that were not converted
     
+    # Get list of all old ids for counting how many ids get converted
+    sensors = ['IK01', 'GE01']
+    for sensor in sensors:
+        print('Converting {} ids...'.format(sensor))
+        lu_dict = archive_id_lut(sensor)
+        
+        # Read ids into dataframe
+        id_df = pd.DataFrame(ids, columns=['catalogid'])
+        
+        # Convert old ids that are in the look-up to DG style
+        id_df['out_ids'] = id_df['catalogid'].map(lu_dict)
+        
+        # Transfer ids that are already DG style to new column     
+        id_df.loc[id_df.catalogid.str.len() == 16, 'out_ids'] = id_df.catalogid
+        
+        # Add all converted, new style IDs to list
+        for the_id in list(id_df.out_ids[~id_df.out_ids.isnull()]):
+            converted_ids.append(the_id)
+        
+        # Create list of old style that were changed -> for removing from not converable (due to loop)
+        for the_id in list(id_df.catalogid[~id_df.out_ids.isnull()]):
+            convertable_ids.append(the_id)
+        
+        # List all not converted ids
+        for the_id in list(id_df.catalogid[id_df.out_ids.isnull()]):
+            not_conv_ids.append(the_id)
     
+    converted_ids = list(set(converted_ids))
+    not_conv_ids = list(set(not_conv_ids) - set(convertable_ids))
     
-    
-    
-    
-    
+    print('Converted or already DG style ids: {}'.format(len(converted_ids)))
+    print('Not convertable ids: {}'.format(len(not_conv_ids)))
+
+    return converted_ids, not_conv_ids
+
+

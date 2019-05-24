@@ -84,14 +84,25 @@ def read_data(filepath):
 
 
 def clean_dataframe(dataframe):
-    '''remove unnecessary columns, SWIR, duplicates'''
+    '''
+    remove unnecessary columns, SWIR, duplicates. rename GE columns
+    '''
+    # Convert GE column names and values to DG style
+    ge_cols_to_dg = {
+            'image_id': 'catalogid',
+            'source_abr': 'platform'
+            }
+    dataframe.rename(columns=ge_cols_to_dg, inplace=True)
+    dataframe.platform.replace({'IK-2': 'IK01'}, inplace=True)
+    
+    # Remove unneccessary columns
     cols_of_int = ['catalogid','platform']
-    print('Removing duplicate ids...')
+    print('Removing any duplicate ids...')
     dataframe = dataframe[cols_of_int].drop_duplicates(subset=cols_of_int) # Remove duplicate IDs
     dataframe = dataframe.drop_duplicates(subset=['catalogid', 'platform'], keep=False) # Can this line or the one above it be removed? Same thing right?
-    print('Removing SWIR ids...')
+    print('Removing any SWIR ids...')
     dataframe = dataframe[~dataframe.catalogid.str.contains("104A")] # Drop SWIR - begins with 104A
-    dataframe.sort_values(by=['catalogid'], inplace=True)
+#    dataframe.sort_values(by=['catalogid'], inplace=True)
     return dataframe
 
 
@@ -106,7 +117,7 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix):
             'WV03': 1000, # change to 400 if Paul asks for smaller WV03 lists
             'GE01': 1000,
             'QB02': 1000,
-            'IK01': 1000,
+            'IK01': 20000,
             'unk': 1000,
             }
     n = platform_sheet_size[platform] # Max length of each sheet 
@@ -130,12 +141,12 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix):
 def write_master(dataframe, outpath, outnamebase, output_suffix):
     '''write all ids to master sheet for reference, to text file for entering into IMA'''
     # Write master excel
-    master_name = os.path.join(outpath, '{}{}_{}master.xlsx'.format(outnamebase, date_words(today=True), output_suffix))
+    master_name = os.path.join(outpath, '{}{}_{}_master.xlsx'.format(outnamebase, date_words(today=True), output_suffix))
     master_writer = pd.ExcelWriter(master_name, engine='xlsxwriter')
     dataframe.to_excel(master_writer, columns=['catalogid'], header=False, index=False, sheet_name='Sheet1')
     master_writer.save()
     # Write text file
-    txt_path = os.path.join(outpath, '{}{}{}master.txt'.format(outnamebase, date_words(today=True), output_suffix))
+    txt_path = os.path.join(outpath, '{}{}{}_master.txt'.format(outnamebase, date_words(today=True), output_suffix))
     dataframe.sort_index(inplace=True)
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
 
@@ -192,9 +203,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", type=str, help="File containing ids. Supported types: csv, dbf, xls, xlsx, txt")
     parser.add_argument("out_name", type=str, help="Output sheets suffix. E.g. 'PGC_order_2019_[out_name]_WV01_1of2'")
+    parser.add_argument("--out_path", type=str, help="Directory to write sheets to.")
+    
     args = parser.parse_args()
+    
     input_file = args.input_file
     out_suffix = args.out_name
+    out_path = args.out_path
+        
     print("Creating sheets...\n")
-    create_sheets(input_file, out_suffix)
+    create_sheets(input_file, out_suffix, out_path)
     print('\nComplete.')

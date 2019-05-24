@@ -60,29 +60,29 @@ def region_loc(y1):
 
 
 ## Parameters for loading data and plotting
-lat_field = 'ul_lat' # ('y1', 'ul_lat')
-cc_field = 'clouds'
-min_cc = 0
-max_cc = 50
+lat_field = 'y1' # ('y1', 'ul_lat')
+cc_field = 'cloudcover'
+min_cc = 21
+max_cc = 30
 step = 1
 where = "{0} >= {1} AND {0} <= {2}".format(cc_field, min_cc, max_cc)
 #where = "clouds >= 0 AND clouds <= 50" # IKONOS where
 
 ## Load data
 print('Loading DG archive...')
-#dg_archive = stereo_noh(where=where, cc20=False)
-dg_archive = all_IK01(where=where, onhand=False)
+dg_archive = stereo_noh(where=where, cc20=False)
+#dg_archive = all_IK01(where=where, onhand=False)
 
 # Identify region roughly - by latitude (-60; -60 - 60; +60)
 dg_archive['region'] = dg_archive[lat_field].apply(region_loc)
 
 
-## Create shapefile 
+# Create shapefile 
 print('Writing shapefile...')
 driver = 'ESRI Shapefile'
 out_path = 'E:\disbr007\imagery_archive_analysis\cloudcover'
 out_name = 'dg_archive_stereo'
-dg_archive.to_file(os.path.join(out_path, 'IK01_{}_cc{}_{}.shp'.format(out_name, min_cc, max_cc)), driver=driver)
+dg_archive.to_file(os.path.join(out_path, 'dg_archive_{}_cc{}_{}.shp'.format(out_name, min_cc, max_cc)), driver=driver)
 
 
 ## Plotting
@@ -95,7 +95,7 @@ with plt.style.context('seaborn-darkgrid', after_reset=True):
     #fig.suptitle('DG Archive Analysis: Cloudcover', fontsize=16)
     
     ax1.hist([dg_archive[(dg_archive[lat_field] > low) & (dg_archive[lat_field] <= high)][cc_field] for low, high in [(-90, -60), (-60, 60), (60, 90)]], 
-                  label=['Antarctic', 'Nonpolar', 'Arctic'], stacked=True, rwidth=1.0, bins=bins, align='left', edgecolor='white')
+                  label=['Antarctic', 'Nonpolar', 'Arctic'], stacked=True, rwidth=1.0, bins=bins, align='left', edgecolor='white', orientation='horizontal')
     
 #    platforms = sorted(list(dg_archive.platform.unique()))
     #ax2.hist([dg_archive[dg_archive.platform==platform][cc_field] for platform in platforms], label=platforms, stacked=True, rwidth=1.0, bins=bins)
@@ -108,26 +108,51 @@ with plt.style.context('seaborn-darkgrid', after_reset=True):
             ax.annotate('{}'.format(human_format(count)), xy=(b, count), xytext=(0,2), textcoords='offset points', 
                     ha='center', va='bottom', fontsize=7)
         
-        ## Format y axes to precision and units appropriate
+        # **VERTICAL**
+#        ## Format y axes to precision and units appropriate
+#        formatter = FuncFormatter(number_formatter) # create formatter (eg. 1.0M)
+#        ax.yaxis.set_major_formatter(formatter) # apply formatter
+#        
+#        ## Set y, x axis tick intervals, limits, labels
+#        start, end = ax.get_ylim()
+#        ystep = 10**(order_magnitude((end-start)))
+#        ax.yaxis.set_ticks(np.arange(start, end+ystep, ystep))
+#        
+#        ax.xaxis.set_ticks(np.arange(min_cc, max_cc+step, step))
+#        start, end = ax.get_xlim()
+#        ax.set_xlim(xmin=min_cc, xmax=max_cc+step)
+#        ax.set(xlabel='Cloudcover %')
+#
+#        ax.legend()
+#        handles, labels = ax.get_legend_handles_labels()
+#        ax.legend(handles[::-1], labels[::-1])
+        
+        # **HORIZONTAL**
+                ## Format y axes to precision and units appropriate
         formatter = FuncFormatter(number_formatter) # create formatter (eg. 1.0M)
-        ax.yaxis.set_major_formatter(formatter) # apply formatter
+        ax.xaxis.set_major_formatter(formatter) # apply formatter
         
         ## Set y, x axis tick intervals, limits, labels
-        start, end = ax.get_ylim()
-        ystep = 10**(order_magnitude((end-start)))
-        ax.yaxis.set_ticks(np.arange(start, end+ystep, ystep))
-        
-        ax.xaxis.set_ticks(np.arange(min_cc, max_cc+step, step))
         start, end = ax.get_xlim()
-        ax.set_xlim(xmin=min_cc, xmax=max_cc+step)
-        ax.set(xlabel='Cloudcover %')
+        ystep = 10**(order_magnitude((end-start)))
+        ax.xaxis.set_ticks(np.arange(start, end+ystep, ystep))
+        
+        ax.yaxis.set_ticks(np.arange(min_cc, max_cc+step, step))
+        start, end = ax.get_ylim()
+        ax.set_ylim(ymin=min_cc, ymax=max_cc+step)
+        ax.set(ylabel='Cloudcover %')
 
         ax.legend()
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles[::-1], labels[::-1])
-        
-    ax1.set(ylabel='Number of IDs')
+    
+    # **VERTICAL**    
+#    ax1.set(ylabel='Number of IDs')
     ax1.set_title('Cloudcover by Region')  
+    # **HORIZONTAL**
+    ax1.set(xlabel='Number of IDs')
+
+    
     #ax2.set_title('Cloudcover by Platform')
     plt.gcf().text(0.01, 0.02, 'Analysis of archive not on hand at PGC', 
            ha='left', 

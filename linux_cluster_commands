@@ -1,0 +1,6 @@
+python /mnt/agic/storage00/agic/private/agic_common/scripts/pgctools3/fc.py /path/to/your/file.shp /path/to/your/output_dir --try-link
+
+python /mnt/agic/storage00/agic/private/agic_common/scripts/imagery_utils/pgc_ortho.py --wd /local -p 4326 -d /mnt/agic/storage00/agic/
+private/elevation/dem/SRTM/srtm_NGA_do_not_distribute/mosaics/Sichuan/SRTM3_Sichuan_4326.tif -c ns -t UInt16 raw/ ortho/ --pbs
+
+python pgc_scripts/imagery_utils/pgc_ortho.py --wd /local -p 3413 -d /mnt/agic/storage00/agic/private/elevation/dem/GDEM_Svalbard/svalbard_gdem_100m.tif -c ns -t UInt16 raw/ ortho/ --pbs
