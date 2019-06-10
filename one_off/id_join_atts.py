@@ -1,5 +1,24 @@
 # -*- coding: utf-8 -*-
 """
+Created on Fri May 24 14:52:24 2019
+
+@author: disbr007
+"""
+
+import geopandas as gpd
+import pandas as pd
+import matplotlib.pyplot as plt
+from query_danco import query_footprint
+
+#index_ge = query_footprint(layer='index_ge', where="clouds <= 50")
+
+conv_df = pd.merge(df2, index_ge, how='left', left_on='catalogid', right_on='order_id')
+conv_df.drop_duplicates(subset=['out_ids'], inplace=True)
+conv_df.sort_values('clouds', inplace=True)
+write_ids(list(conv_df.out_ids), r'E:\disbr007\imagery_orders\PGC_order_2019may20_IK01_archive_cc0_50\converted.txt')
+
+# -*- coding: utf-8 -*-
+"""
 Created on Fri May 10 09:04:28 2019
 
 @author: disbr007
@@ -60,29 +79,22 @@ def region_loc(y1):
 
 
 ## Parameters for loading data and plotting
-lat_field = 'y1' # ('y1', 'ul_lat')
-cc_field = 'cloudcover'
+lat_field = 'ul_lat' # ('y1', 'ul_lat')
+cc_field = 'clouds'
 min_cc = 0
-max_cc = 20
+max_cc = 50
 step = 1
 where = "{0} >= {1} AND {0} <= {2}".format(cc_field, min_cc, max_cc)
 #where = "clouds >= 0 AND clouds <= 50" # IKONOS where
 
 ## Load data
 print('Loading DG archive...')
-dg_archive = stereo_noh(where=where, cc20=False)
+#dg_archive = stereo_noh(where=where, cc20=False)
+dg_archive = conv_df
 #dg_archive = all_IK01(where=where, onhand=False)
 
 # Identify region roughly - by latitude (-60; -60 - 60; +60)
 dg_archive['region'] = dg_archive[lat_field].apply(region_loc)
-
-
-# Create shapefile 
-print('Writing shapefile...')
-driver = 'ESRI Shapefile'
-out_path = 'E:\disbr007\imagery_archive_analysis\cloudcover'
-out_name = 'dg_archive_stereo_noh'
-dg_archive.to_file(os.path.join(out_path, 'dg_archive_{}_cc{}_{}.shp'.format(out_name, min_cc, max_cc)), driver=driver)
 
 
 ## Plotting
@@ -95,7 +107,7 @@ with plt.style.context('seaborn-darkgrid', after_reset=True):
     #fig.suptitle('DG Archive Analysis: Cloudcover', fontsize=16)
     
     ax1.hist([dg_archive[(dg_archive[lat_field] > low) & (dg_archive[lat_field] <= high)][cc_field] for low, high in [(-90, -60), (-60, 60), (60, 90)]], 
-                  label=['Antarctic', 'Nonpolar', 'Arctic'], stacked=True, rwidth=1.0, bins=bins, align='left', edgecolor='white', orientation='horizontal')
+                  label=['Antarctic', 'Nonpolar', 'Arctic'], stacked=True, rwidth=1.0, bins=bins, align='left', edgecolor='white', cumulative=True)
     
 #    platforms = sorted(list(dg_archive.platform.unique()))
     #ax2.hist([dg_archive[dg_archive.platform==platform][cc_field] for platform in platforms], label=platforms, stacked=True, rwidth=1.0, bins=bins)
@@ -104,54 +116,56 @@ with plt.style.context('seaborn-darkgrid', after_reset=True):
     for ax in [ax1]:
         # Add annotation for each bar
         counts, the_bins = np.histogram(dg_archive[cc_field], bins=bins)
+        running_count = 0
         for b, count in zip(the_bins, counts):
-            ax.annotate('{}'.format(human_format(count)), xy=(b, count), xytext=(0,2), textcoords='offset points', 
+            running_count += count
+            ax.annotate('{}'.format(human_format(running_count)), xy=(b, running_count), xytext=(0,2), textcoords='offset points', 
                     ha='center', va='bottom', fontsize=7)
+            
         
-        # **VERTICAL**
-#        ## Format y axes to precision and units appropriate
-#        formatter = FuncFormatter(number_formatter) # create formatter (eg. 1.0M)
-#        ax.yaxis.set_major_formatter(formatter) # apply formatter
-#        
-#        ## Set y, x axis tick intervals, limits, labels
-#        start, end = ax.get_ylim()
-#        ystep = 10**(order_magnitude((end-start)))
-#        ax.yaxis.set_ticks(np.arange(start, end+ystep, ystep))
-#        
-#        ax.xaxis.set_ticks(np.arange(min_cc, max_cc+step, step))
-#        start, end = ax.get_xlim()
-#        ax.set_xlim(xmin=min_cc, xmax=max_cc+step)
-#        ax.set(xlabel='Cloudcover %')
-#
-#        ax.legend()
-#        handles, labels = ax.get_legend_handles_labels()
-#        ax.legend(handles[::-1], labels[::-1])
-        
-        # **HORIZONTAL**
-                ## Format y axes to precision and units appropriate
+#       # **VERTICAL**
+        ## Format y axes to precision and units appropriate
         formatter = FuncFormatter(number_formatter) # create formatter (eg. 1.0M)
-        ax.xaxis.set_major_formatter(formatter) # apply formatter
+        ax.yaxis.set_major_formatter(formatter) # apply formatter
         
         ## Set y, x axis tick intervals, limits, labels
-        start, end = ax.get_xlim()
-        ystep = 10**(order_magnitude((end-start)))
-        ax.xaxis.set_ticks(np.arange(start, end+ystep, ystep))
-        
-        ax.yaxis.set_ticks(np.arange(min_cc, max_cc+step, step))
         start, end = ax.get_ylim()
-        ax.set_ylim(ymin=min_cc, ymax=max_cc+step)
-        ax.set(ylabel='Cloudcover %')
+        ystep = 10**(order_magnitude((end-start)))
+        ax.yaxis.set_ticks(np.arange(start, end+ystep, ystep))
+        
+        ax.xaxis.set_ticks(np.arange(min_cc, max_cc+step, step))
+        start, end = ax.get_xlim()
+        ax.set_xlim(xmin=min_cc, xmax=max_cc+step)
+        ax.set(xlabel='Cloudcover %')
 
         ax.legend()
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles[::-1], labels[::-1])
+        
+#        # **HORIZONTAL**
+#                ## Format y axes to precision and units appropriate
+#        formatter = FuncFormatter(number_formatter) # create formatter (eg. 1.0M)
+#        ax.xaxis.set_major_formatter(formatter) # apply formatter
+#        
+#        ## Set y, x axis tick intervals, limits, labels
+#        start, end = ax.get_xlim()
+#        ystep = 10**(order_magnitude((end-start)))
+#        ax.xaxis.set_ticks(np.arange(start, end+ystep, ystep))
+#        
+#        ax.yaxis.set_ticks(np.arange(min_cc, max_cc+step, step))
+#        start, end = ax.get_ylim()
+#        ax.set_ylim(ymin=min_cc, ymax=max_cc+step)
+#        ax.set(ylabel='Cloudcover %')
+#
+#        ax.legend()
+#        handles, labels = ax.get_legend_handles_labels()
+#        ax.legend(handles[::-1], labels[::-1])
     
     # **VERTICAL**    
-#    ax1.set(ylabel='Number of IDs')
+    ax1.set(ylabel='Number of IDs')
     ax1.set_title('Cloudcover by Region')  
-
     # **HORIZONTAL**
-    ax1.set(xlabel='Number of IDs')
+#    ax1.set(xlabel='Number of IDs')
 
     
     #ax2.set_title('Cloudcover by Platform')

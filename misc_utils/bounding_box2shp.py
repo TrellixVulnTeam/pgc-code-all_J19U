@@ -21,11 +21,7 @@ def points2bb(corner1, corner2, out_path):
         corner = (corner_y, corner_x)
         corners.append(corner)
     
-#    print(corners)
-#    print(corners[0], corners[1])
-#    print(type(corners[0][0]), type(corners[0][1]))
-    # Get four points at corners
-#    corners = [corner1, corner2]
+
     min_x = corners[0][0] # Get a min and max to start
     min_y = corners[0][1]
     max_x = corners[0][0]

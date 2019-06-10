@@ -36,7 +36,7 @@ def refresh(last_refresh, refresh_region, refresh_imagery):
     select ids for imagery order
     '''
     
-    where = "acqdate > '{}'".format(last_refresh)
+    where = "acqdate >= '{}'".format(last_refresh)
     
     # Load regions shp
     regions_path = r"E:\disbr007\imagery_orders\all_regions.shp"
@@ -94,16 +94,6 @@ def write_selection(df, last_refresh, refresh_region, out_path):
     df.to_file(shp_path, driver='ESRI Shapefile')
     return shp_path
 
-## Specify date of last refresh and refresh type
-#last_refresh = '2019-02-20'
-#refresh_type = 'polar_hma_above'
-#output = r'E:\disbr007\imagery_orders'
-#
-#prj_dir, prj_name = project_dir(output, refresh_type)
-#selection = refresh(last_refresh=last_refresh, refresh_type='polar_hma_above')
-#write_selection(selection, last_refresh=last_refresh, refresh_type=refresh_type, dir_path=prj_dir, dir_name=prj_name)
-#create_sheets(selection, date2words(today=True), prj_dir)
-
 
 if __name__ == '__main__':
     # Parse args
@@ -114,7 +104,7 @@ if __name__ == '__main__':
                         help="Type of refresh, supported types: 'polar_hma_above', 'nonpolar', 'global'")
     parser.add_argument("refresh_imagery", type=str, 
                         help="Type of imagery to refresh, supported types: 'mono_stereo', 'mono', 'stereo'")
-    parser.add_argument("out_path", type=str, 
+    parser.add_argument("out_path", type=str, nargs='?', default=os.getcwd(),
                         help="Path to write sheets and selection shape to")
     args = parser.parse_args()
     last_refresh = args.last_refresh

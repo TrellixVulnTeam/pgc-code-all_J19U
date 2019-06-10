@@ -3,7 +3,7 @@
 Created on Mon Jan 28 13:11:20 2019
 
 @author: disbr007
-Select imagery to cover an AOI while reducing overlap
+Select imagery to cover an AOI completely while minimizing overlap/redundacy
 """
 
 import geopandas as gpd

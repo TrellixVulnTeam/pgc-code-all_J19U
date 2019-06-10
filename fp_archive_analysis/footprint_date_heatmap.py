@@ -43,6 +43,7 @@ def select_by_feat(in_lyr, target, target_name='Site Name', date_col='acqdate', 
     in_lyr: geodataframe to select from
     target: geodataframe to base selection on
     (the following args defaults to dg_footprint params)
+    target_name: column from target dataset to keep
     date_col: column that holds date information
     cloud: column that holds cloud cover
     catid: catalogid column
@@ -78,7 +79,7 @@ def select_by_feat(in_lyr, target, target_name='Site Name', date_col='acqdate', 
         # Remove unnec. columns
         for col in list(sel4feat):
             if col not in cols:
-                sel4feat.drop([col], axis=1, inplace=True) # remove unnecc cols    
+                sel4feat.drop([col], axis=1, inplace=True) # remove unnecc cols
         
         # Ensure no DUPs
         sel_id = sel4feat[catid].iloc[0] # get catalog id of selection
