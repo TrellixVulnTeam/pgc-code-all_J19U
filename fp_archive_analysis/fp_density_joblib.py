@@ -40,7 +40,7 @@ def run_subprocess(command):
 ## Set up logging
 logger = logging.getLogger()
 
-formatter = '%(asctime)s -- %(levelname)s: %(message)s'
+formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
 logging.basicConfig(filename=r'E:\disbr007\scratch\fp_density.log', 
                     filemode='w', 
                     format='%(asctime)s -- %(levelname)s: %(message)s', 

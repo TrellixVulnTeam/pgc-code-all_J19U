@@ -17,7 +17,7 @@ with open(r"C:\code\cred.txt", 'r') as cred:
     for line in content:
         creds.append(str(line).strip())
 
-def query_footprint(layer, table=False, where=None):
+def query_footprint(layer, table=False, where=None, columns=None):
     '''
     queries the danco footprint database, for the specified layer and optional where clause
     returns a dataframe of match
@@ -36,11 +36,18 @@ def query_footprint(layer, table=False, where=None):
 
         if connection:
             print('PostgreSQL connection to {} at {} opened.'.format(layer, danco))
+            # If specific columns are requested, created comma sep string of those columns to pass in sql
+            if columns:
+                cols_str = ', '.join(columns)
+            else:
+                cols_str = '*' # select all columns
+            
             # If table, do not select geometry
             if table == True:
-                sql = "SELECT * FROM {}".format(layer)
+#                sql = "SELECT * FROM {}".format(layer) # can delete, saved during 'column' debugging
+                sql = "SELECT {} FROM {}".format(cols_str, layer)
             else:
-                sql = "SELECT *, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(layer)
+                sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)
             
             # Add where clause if necessary
             if where:
@@ -53,6 +60,7 @@ def query_footprint(layer, table=False, where=None):
             else:
                 df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
             return df
+
     except (Exception, psycopg2.Error) as error :
         print ("Error while connecting to PostgreSQL", error)
     
@@ -67,6 +75,10 @@ def list_danco_footprint():
     '''
     ** NOT FUNCTIONAL YET - cannot manage to get a list of layer names back**
     queries the danco footprint database, returns all layer names in list
+    TO TRY: 
+        SELECT *
+        FROM layer.INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = N'Customers'
     '''
     try:
         danco = "danco.pgc.umn.edu"
