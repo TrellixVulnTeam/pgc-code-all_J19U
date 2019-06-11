@@ -13,7 +13,7 @@ import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from matplotlib.ticker import FuncFormatter 
+from matplotlib.ticker import FuncFormatter, MultipleLocator
 
 import os, calendar, datetime, sys, logging, collections
 
@@ -151,12 +151,14 @@ dfs2plot = collections.OrderedDict(sorted(dfs2plot.items(), key=lambda kv: kv[0]
 
 
 ## Plot aggregated columns
-matplotlib.style.use('seaborn-darkgrid')
+#matplotlib.style.use('seaborn-darkgrid')
+matplotlib.style.use('ggplot')
+
 
 ## Create plot and axes
 nrows = 3
 ncols = 6
-fig, axes = plt.subplots(nrows=nrows, ncols=ncols, sharex=True, sharey=False)
+fig, axes = plt.subplots(nrows=nrows, ncols=ncols, sharex=True, sharey='row')
 
 row_ct = 0
 col_ct = 0
@@ -170,8 +172,10 @@ for col in cols:
     for name, df in dfs2plot.items():
         ax = axes[row_ct][col_ct]
         row_axes.append(ax)
-        df.plot.area(y=col, ax=ax, title='{}'.format(name), grid=True, legend=False)
-        ax.set(ylabel=col)
+        df.plot.area(y=col, ax=ax, grid=True, legend=False, color='black', alpha=0.5)
+        if row_ct == 0:
+            ax.set(title=name)
+        ax.set(ylabel=col, xlabel='')
         col_ct += 1
         
         if df[col].min() < col_min:
@@ -185,14 +189,13 @@ for col in cols:
             formatter = FuncFormatter(y_fmt)
             ax.yaxis.set_major_formatter(formatter)
             ax.set_xlim('2007-01-01', '2019-06-01')
-
+            plt.setp(ax.xaxis.get_majorticklabels(), 'rotation', 90)
+            
     del row_axes
 
     col_ct = 0
     row_ct +=1
-
-
-
+   
 
 #fig.tight_layout()
 #fig.suptitle('Stereo Archive')
