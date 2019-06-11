@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter 
 
-import os, calendar, datetime, sys, logging
+import os, calendar, datetime, sys, logging, collections
 
 from query_danco import query_footprint
 from utm_area_calc import utm_area_calc
@@ -44,7 +44,7 @@ def y_fmt(y, pos):
             else:
                 if signf == 1:
                     if str(val).split(".")[1] == "0":
-                       return '{val:d} {suffix}'.format(val=int(round(val)), suffix=suffix[i]) 
+                       return '{val:d}{suffix}'.format(val=int(round(val)), suffix=suffix[i]) 
                 tx = "{"+"val:.{signf}f".format(signf = signf) +"} {suffix}"
                 return tx.format(val=val, suffix=suffix[i])
     return y
@@ -98,18 +98,22 @@ xtrack = pd.read_pickle(r'E:\disbr007\pgc_index\dg_imagery_index_xtrackcc20_2019
 xtrack.rename(columns={
         'catalogid1': 'catalogid',
         'catalogid2': 'stereopair',
-        'acqdate1': 'acqdate'}, inplace=True)
+        'acqdate1': 'acqdate'},
+        inplace=True)
 
 
 ## Put dfs into dictionary to loop over
+in_name = 'Intrack'
+x_name = 'Xtrack'
 dfs = {}
-dfs['Intrack'] = {'source': intrack}
-dfs['Xtrack'] = {'source': xtrack}
+dfs[in_name] = intrack
+dfs[x_name] = xtrack
 
+dfs2plot = {}
 
 for name, stereo_type in dfs.items():
-    logging.info(name)
-    df = stereo_type['source']
+    logging.info('Aggregating {}...'.format(name))
+    df = stereo_type
     
     ## Add region by centroid y (latitude)
     df['cent_y'] = df.centroid.y
@@ -125,76 +129,80 @@ for name, stereo_type in dfs.items():
            'catalogid': 'count',
            'sqkm_utm': 'sum'
            }
-    dfs[name]['agg'] = df.groupby([pd.Grouper(freq='M'), 'region']).agg(agg)
-    dfs[name]['agg'].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
+    dfs2plot[name] = df.groupby([pd.Grouper(freq='M')]).agg(agg)
+    dfs2plot[name].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
+    
+    if name == x_name:
+        for n in (250, 500, 1000):
+            dfs2plot['Xtrack {}'.format(n)] = df[df['sqkm_utm'] >= n].groupby([pd.Grouper(freq='M')]).agg(agg)
+            dfs2plot['Xtrack {}'.format(n)].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
+#        dfs2plot['xtrack_500'] = df[df['sqkm_utm'] > 500 % df['sqkm_utm'] < 1000].groupby([pd.Grouper(freq='M')]).agg(agg)
+#        dfs2plot['xtrack_500'].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
+ 
+
+dfs2plot['Intrack + Xtrack 1k'] = dfs2plot[in_name].add(dfs2plot['Xtrack_1000'], fill_value=0)
+
+# Add Node Hours
+for name, df in dfs2plot.items():
+    df['Node Hours'] = df['Area'] / 16.0
+
+# Create ordered dictionary by key
+dfs2plot = collections.OrderedDict(sorted(dfs2plot.items(), key=lambda kv: kv[0]))
 
 
 ## Plot aggregated columns
 matplotlib.style.use('seaborn-darkgrid')
 
-## Plotting params
-date_range = ('2007-01-01', '2019-06-11')
-xticks = range(2007, 2020, 2)
-xlabel = 'Collection Date (Aggregated by Month)'
-
 ## Create plot and axes
-fig, all_axes = plt.subplots(nrows=2, ncols=2)
-axes = all_axes.ravel()
-fig.suptitle('Stereo Archive')
-ax_ct = -1 # Ax counter
+nrows = 3
+ncols = 6
+fig, axes = plt.subplots(nrows=nrows, ncols=ncols, sharex=True, sharey=False)
 
-for name, stereo_type in dfs.items():
-    # Increase ax counter to move to next subplot
-    ax_ct += 1
-    
-    # Unstack index
-    df = dfs[name]['agg'].unstack()
-    
-    ## Area plot
-    df.plot.area(y=[('Area', 'Arctic'), ('Area', 'Non Polar'), ('Area', 'Antarctica')],
-                    ax=axes[ax_ct],
-                    title='Area',
-                    grid=True,
-                    xlim=date_range,
-                    xticks=xticks
-                    )
-    axes[ax_ct].set(xlabel=xlabel, ylabel='Area (sq. km)')
-    
-    ## IDs plot
-    ax_ct += 1
-    df.plot.area(y=[('Pairs', 'Arctic'), ('Pairs', 'Non Polar'), ('Pairs', 'Antarctica')],
-                    ax=[ax_ct],
-                    title='Pairs',
-                    grid=True,
-                    xlim=date_range,
-                    xticks=xticks
-                    )
-    axes[ax_ct].set(xlabel=xlabel, ylabel='Pairs')
+row_ct = 0
+col_ct = 0
 
-    # Format common ax operations
-    # Mdates
-    years = mdates.YearLocator()
-    months = mdates.MonthLocator()
-    yearsFmt = mdates.DateFormatter('%Y')
-    
-    for a in axes:
-        # Set up date ticks
-#        a.xaxis.set_major_locator(years)
-#        a.xaxis.set_major_formatter(yearsFmt)
-#        a.xaxis.set_minor_locator(months)
-        a.xaxis.set_major_locator(plt.MaxNLocator(8))
-        a.yaxis.set_major_locator(plt.MaxNLocator(10))
-        a.format_xdata = mdates.DateFormatter('%Y')
-        formatter = FuncFormatter(y_fmt)
-        a.yaxis.set_major_formatter(formatter)
-        # Legend Control
-        handles, labels = a.get_legend_handles_labels()
-        labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0], reverse=True))
-        a.legend(handles, labels)
 
-plt.tight_layout()
-fig.autofmt_xdate()
-fig.show()
+cols = ['Pairs', 'Area', 'Node Hours']
+for col in cols:
+    row_axes = []
+    col_min = np.inf
+    col_max = -np.inf
+    for name, df in dfs2plot.items():
+        ax = axes[row_ct][col_ct]
+        row_axes.append(ax)
+        df.plot.area(y=col, ax=ax, title='{}'.format(name), grid=True, legend=False)
+        ax.set(ylabel=col)
+        col_ct += 1
+        
+        if df[col].min() < col_min:
+            col_min = df[col].min()
+        if df[col].max() > col_max:
+            col_max = df[col].max()
+            
+        for ax in row_axes:
+            col_step = (col_max - col_min) / 10
+            ax.set_ylim(col_min, col_max+col_step)
+            formatter = FuncFormatter(y_fmt)
+            ax.yaxis.set_major_formatter(formatter)
+            ax.set_xlim('2007-01-01', '2019-06-01')
+
+    del row_axes
+
+    col_ct = 0
+    row_ct +=1
+
+
+
+
+#fig.tight_layout()
+#fig.suptitle('Stereo Archive')
+
+
+
+
+
+
+
 
 
 
