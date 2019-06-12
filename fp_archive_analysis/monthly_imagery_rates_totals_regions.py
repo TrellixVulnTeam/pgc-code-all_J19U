@@ -194,7 +194,7 @@ for col in cols:
         if row_ct == 0:
             ax.set(title=name)
         if col == 'Node Hours':
-            ax.set(ylabel=r'{} (${} km^2$ per hour)'.format(col, int(km_per_hour)), xlabel='')
+            ax.set(ylabel='{} \n(${} km^2$ per hour)'.format(col, int(km_per_hour)), xlabel='')
         else:
             ax.set(ylabel=col, xlabel='')
         
@@ -216,13 +216,13 @@ for col in cols:
 
 # Get legend info from last ax, use for a single figure legend    
 handles, labels = ax.get_legend_handles_labels()
-#    fig.tight_layout()
+fig.legend(handles, labels, loc='lower center', ncol=3)
 fig.suptitle('Stereo Archive Monthly Rates', size=14)
-plt.gcf().text(0.01, 0.02, '*Monthly stereo rates', 
-       ha='left', 
-       va='center', 
-       fontstyle='italic', 
-       fontsize='small')
+#plt.gcf().text(0.01, 0.02, '*Monthly stereo rates', 
+#       ha='left', 
+#       va='center', 
+#       fontstyle='italic', 
+#       fontsize='small')
 plt.savefig(r'E:\disbr007\imagery_archive_analysis\imagery_rates\monthly_stereo_rates_region.jpg')
 
 
