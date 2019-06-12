@@ -20,8 +20,12 @@ import os, calendar, datetime, sys, logging, collections
 from query_danco import query_footprint
 from utm_area_calc import utm_area_calc
 
-
+#def main():
 def locate_region(x):
+    '''
+    Returns a region name based on latitude. Used with df.apply and centroid latitudes
+    x: centroid latitude as float
+    '''
     if x < -60.0:
         return 'Antarctica'
     elif x > 60.0:
@@ -31,6 +35,11 @@ def locate_region(x):
     
     
 def y_fmt(y, pos):
+    '''
+    Formatter for y axis of plots. Returns the number with appropriate suffix
+    y: value
+    pos: *Not needed?
+    '''
     decades = [1e9, 1e6, 1e3, 1e0, 1e-3, 1e-6, 1e-9 ]
     suffix  = ["G", "M", "k", "" , "m" , "u", "n"  ]
     if y == 0:
@@ -69,18 +78,20 @@ if not logger.handlers:
     logger.addHandler(ch)
 
 
-## Load data
+## LOAD DATA ##
 # Specify columns to load for intrack and xtrack
 in_cols = ['catalogid', 'stereopair', 'acqdate', 'cloudcover', 'platform', 'sqkm_utm']
 x_cols = ['catalogid1', 'catalogid2', 'acqdate1', 'perc_ovlp']
 
-# Read footprints from Danco
+# Read footprints from Danco using only specified column
 logging.info('Loading intrack stereo...')
 intrack = query_footprint(layer='dg_imagery_index_stereo_cc20', 
                           where="""acqdate < '2019-06-01'""", 
                           columns=in_cols)
 
 logging.info('Loading xtrack stereo...')
+# Use this query_footprint and following utm_area_calc to reload xtrack from Danco, else use load
+# from pickle to use saved xtrack layer
 #xtrack = query_footprint(layer='dg_imagery_index_xtrack_cc20', 
 #                         where="""acqdate1 < '2019-06-01'""", 
 #                         columns=x_cols)
@@ -102,13 +113,15 @@ xtrack.rename(columns={
         inplace=True)
 
 
-## Put dfs into dictionary to loop over
+## AGGREGATION BY MONTH AND REGION ##
+# Put dfs into dictionary to loop over
 in_name = 'Intrack'
 x_name = 'Xtrack'
 dfs = {}
 dfs[in_name] = intrack
 dfs[x_name] = xtrack
 
+# Create dict to store only dataframes to plot (aggregated by month)
 dfs2plot = {}
 
 for name, stereo_type in dfs.items():
@@ -118,8 +131,7 @@ for name, stereo_type in dfs.items():
     ## Add region by centroid y (latitude)
     df['cent_y'] = df.centroid.y
     df['region'] = df['cent_y'].apply(lambda x: locate_region(x))
-        
-    ## Aggregate by month
+
     # Convert date columns to datetime
     df['acqdate'] = pd.to_datetime(df['acqdate'])
     df.set_index('acqdate', inplace=True)
@@ -129,29 +141,36 @@ for name, stereo_type in dfs.items():
            'catalogid': 'count',
            'sqkm_utm': 'sum'
            }
-    dfs2plot[name] = df.groupby([pd.Grouper(freq='M')]).agg(agg)
+    dfs2plot[name] = df.groupby([pd.Grouper(freq='M'),'region']).agg(agg)
     dfs2plot[name].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
     
+    # Create dfs for xtrack with area in given range
     if name == x_name:
-        for n in (250, 500, 1000):
-            dfs2plot['Xtrack {}'.format(n)] = df[df['sqkm_utm'] >= n].groupby([pd.Grouper(freq='M')]).agg(agg)
-            dfs2plot['Xtrack {}'.format(n)].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
+        for n in ((250, 500), (500, 1000), (1000, np.inf)):
+            dfs2plot['Xtrack {}'.format(n[0])] = df[(df['sqkm_utm'] >= n[0]) & (df['sqkm_utm'] < n[1])].groupby([pd.Grouper(freq='M'), 'region']).agg(agg)
+            dfs2plot['Xtrack {}'.format(n[0])].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
 #        dfs2plot['xtrack_500'] = df[df['sqkm_utm'] > 500 % df['sqkm_utm'] < 1000].groupby([pd.Grouper(freq='M')]).agg(agg)
 #        dfs2plot['xtrack_500'].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
  
-
+# Create combined df of intrack and xtrack > 1k km^2
 dfs2plot['Intrack + Xtrack 1k'] = dfs2plot[in_name].add(dfs2plot['Xtrack 1000'], fill_value=0)
 
-# Add Node Hours
+# Add Node Hours column to each df
 km_per_hour = 16.0
 for name, df in dfs2plot.items():
     df['Node Hours'] = df['Area'] / km_per_hour
 
-# Create ordered dictionary by key
+
+## Reset index for plotting (testing)
+#for name, df in dfs2plot.items():
+#    df.reset_index(level='region', inplace=True)
+
+
+# Create ordered dictionary by key, to plot in correct order
 dfs2plot = collections.OrderedDict(sorted(dfs2plot.items(), key=lambda kv: kv[0]))
 
 
-## Plot aggregated columns
+## PLOTTING ##
 #mpl.style.use('seaborn-darkgrid')
 mpl.style.use('ggplot')
 mpl.rcParams['axes.titlesize'] = 10
@@ -159,58 +178,56 @@ mpl.rcParams['axes.titlesize'] = 10
 ## Create plot and axes
 nrows = 3
 ncols = 6
-fig, axes = plt.subplots(nrows=nrows, ncols=ncols, sharex=True, sharey='row')
+fig, axes = plt.subplots(nrows=nrows, ncols=ncols, sharex='col', sharey='row', )
 
 row_ct = 0
 col_ct = 0
 
 
 cols = ['Pairs', 'Area', 'Node Hours']
+#cols = cols[::-1]
 for col in cols:
-    row_axes = []
-    col_min = np.inf
-    col_max = -np.inf
+#    print(col)
     for name, df in dfs2plot.items():
         ax = axes[row_ct][col_ct]
-        row_axes.append(ax)
-        df.plot.area(y=col, ax=ax, grid=True, legend=False, color='black', alpha=0.5)
+        df.unstack().plot.area(y=col, ax=ax, grid=True, legend=False, alpha=0.5) #color='black'
         if row_ct == 0:
             ax.set(title=name)
         if col == 'Node Hours':
-            ax.set(ylabel=r'{} (${} km^2$ per hour)'.format(col, int(km_per_hour)))
+            ax.set(ylabel=r'{} (${} km^2$ per hour)'.format(col, int(km_per_hour)), xlabel='')
         else:
             ax.set(ylabel=col, xlabel='')
-        col_ct += 1
         
-        if df[col].min() < col_min:
-            col_min = df[col].min()
-        if df[col].max() > col_max:
-            col_max = df[col].max()
-            
-        for ax in row_axes:
-            col_step = (col_max - col_min) / 10
-            ax.set_ylim(col_min, col_max+col_step)
-            formatter = FuncFormatter(y_fmt)
-            ax.yaxis.set_major_formatter(formatter)
-            ax.set_xlim('2007-01-01', '2019-06-01')
-            plt.setp(ax.xaxis.get_majorticklabels(), 'rotation', 90)
-            
-    del row_axes
+        # Calculate min and max for column, grouping regions together by acqdate
+        col_max = max([df[col].groupby('acqdate').sum().max() for name, df in dfs2plot.items()])
+        col_min = min([df[col].groupby('acqdate').sum().min() for name, df in dfs2plot.items()])
+        col_step = (col_max - col_min) / 10
+        ax.set_ylim(col_min, col_max+col_step)
 
+        # Format x and y axis
+        formatter = FuncFormatter(y_fmt)
+        ax.yaxis.set_major_formatter(formatter)
+        ax.set_xlim('2007-01-01', '2019-06-01')
+        plt.setp(ax.xaxis.get_majorticklabels(), 'rotation', 90)
+            
+        col_ct += 1
     col_ct = 0
     row_ct +=1
 
-
-#fig.tight_layout()
+# Get legend info from last ax, use for a single figure legend    
+handles, labels = ax.get_legend_handles_labels()
+#    fig.tight_layout()
 fig.suptitle('Stereo Archive Monthly Rates', size=14)
 plt.gcf().text(0.01, 0.02, '*Monthly stereo rates', 
        ha='left', 
        va='center', 
        fontstyle='italic', 
        fontsize='small')
+plt.savefig(r'E:\disbr007\imagery_archive_analysis\imagery_rates\monthly_stereo_rates_region.jpg')
 
 
-
+#if __name__ == '__main__':
+#    main()
 
 
 
