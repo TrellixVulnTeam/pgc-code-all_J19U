@@ -73,12 +73,7 @@ def query_footprint(layer, table=False, where=None, columns=None):
 
 def list_danco_footprint():
     '''
-    ** NOT FUNCTIONAL YET - cannot manage to get a list of layer names back**
     queries the danco footprint database, returns all layer names in list
-    TO TRY: 
-        SELECT *
-        FROM layer.INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = N'Customers'
     '''
     try:
         danco = "danco.pgc.umn.edu"
@@ -86,25 +81,19 @@ def list_danco_footprint():
                                       password = creds[1],
                                       host = danco,
                                       database = "footprint")
-
-        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/footprint'.format(creds[0], creds[1]))
-        connection = engine.connect()
-
-        if connection:
-            print('PostgreSQL connection to {} opened.'.format(danco))
-            tables = []
-            inspector = inspect(engine)
-            print(type(inspector))
-
-            schemas = inspector.get_schema_names()
-            table_names = inspector.get_table_names(schema="disbr007")
-            view_names = inspector.get_view_names(schema="disbr007")
-            print(table_names, view_names)
+        cursor = connection.cursor()
+        cursor.execute("""SELECT table_name FROM information_schema.tables""")
+        tables = cursor.fetchall()    
+        tables = [x[0] for x in tables]
+        return tables
+    
+    
     except (Exception, psycopg2.Error) as error :
         print ("Error while connecting to PostgreSQL", error)
     
+    
     finally:
-        return tables
+#        return tables
         # Close database connection.
         if (connection):
             connection.close()
