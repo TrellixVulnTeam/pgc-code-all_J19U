@@ -8,10 +8,12 @@ Created on Wed Apr 17 13:13:23 2019
 import geopandas as gpd
 import pandas as pd
 import seaborn as sns
-import os
+import datetime as dt
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import os, argparse, time
 
-#from query_danco import query_footprint
+from query_danco import query_footprint, list_danco_footprint
 
 def merge_gdf(gdf1, gdf2):
     gdf = gpd.GeoDataFrame(pd.concat([gdf1, gdf2], ignore_index=True), crs=gdf1.crs)
@@ -37,7 +39,11 @@ def select_location(in_lyr, target):
     return selection
 
 
-def select_by_feat(in_lyr, target, target_name='Site Name', date_col='acqdate', cloud='cloudcover', catid='catalogid'):
+def select_by_feat(target, in_lyr, target_name='Site Name', 
+                   date_col='acqdate', 
+                   date_min=dt.date.min.strftime('%Y-%m-%d'), 
+                   date_max=dt.datetime.now().strftime('%Y-%m-%d'), 
+                   catid='catalogid'):
     '''
     select features from in_lyr that intersects each feature in target
     in_lyr: geodataframe to select from
@@ -45,10 +51,14 @@ def select_by_feat(in_lyr, target, target_name='Site Name', date_col='acqdate', 
     (the following args defaults to dg_footprint params)
     target_name: column from target dataset to keep
     date_col: column that holds date information
-    cloud: column that holds cloud cover
+    date_min: earliest date to choose (default no min)
+    date_max: latest date to choose (default no max)
     catid: catalogid column
     '''
-#    # Do inital selection on all features in target to limit second searches
+    # Select only within date range
+    in_lyr = in_lyr[(in_lyr[date_col] >= date_min) & (in_lyr[date_col] <= date_max)]
+    
+#    # Do inital selection on all features in target to limit secondary searches
     initial_selection = select_location(in_lyr, target)
     
     # Create empty gdf to hold master selection
@@ -99,53 +109,171 @@ def select_by_feat(in_lyr, target, target_name='Site Name', date_col='acqdate', 
     return sel
 
 
+def agg_by_year(fp, date_col, freq, catid='PAIRNAME'):
+    '''
+    Takes a dataframe that is a footprint selection over each AOI point and aggregates by 
+    time period (year, month, day) and AOI point
+    fp: dataframe with all ids for each point
+    date_col: name of dataframe column holding date
+    freq: frequency to group by ('Y', 'M', 'W' 'D')
+    '''
+    ## Aggregrate by site and year
+    # Convert to datetime
+    fp[date_col] = pd.to_datetime(fp[date_col]) # convert to datetime col
+    fp.set_index([date_col], inplace=True)
+    
+    # Aggregate by time period and feature
+#    dems_by_feat['Year'] = dems_by_feat.index.year
+    dems_agg = fp.groupby([pd.Grouper(freq=freq), 'SiteName']).agg({catid: 'count'})
+    # Moves SiteName out of index to column, then switches SiteName back to index
+    dems_agg = dems_agg.unstack().resample(freq).asfreq()
+    dems_agg = dems_agg.transpose()
+    # Removes time period from index
+    dems_agg.index = dems_agg.index.droplevel(level=0)
+    
+    # Convert columns to datetime object
+    dems_agg.columns = pd.to_datetime(dems_agg.columns, format='%Y-%m-%d %H:%M:%S')
+    
+    
+    # Format correctly for freq
+    if freq == 'Y':
+        dems_agg.columns = dems_agg.columns.year
+    elif freq == 'M':
+        dems_agg.columns = dems_agg.columns.map(lambda x: x.strftime('%Y-%m'))
+    elif freq == 'W':
+        dems_agg.columns = dems_agg.columns.isocalendar()[1] # Week number out of year (may not work at all)
+    elif freq == 'D':
+        dems_agg.columns = dems_agg.columns.day
+
+    return dems_agg
+    
+
+def plot_heatmap(agg_df, title, save_path=None):
+    '''
+    Takes an dataframe aggregated by AOI site and time period and creates a heatmap from it
+    agg_df: dataframe aggregated by AOI site and time period
+    title: title for heatmap plot
+    '''
+    ## Plot
+    fig, ax = plt.subplots(figsize=(20,10))
+        
+    # Get min and max counts for setting limits
+    min_val = agg_df.min(axis=1).min()
+    max_val = agg_df.max(axis=1).max()
+    
+    # Get column names (time periods) and sum to create a 'Total' column
+#    cols = list(agg_df)
+#    agg_df['Total'] = agg_df[cols].sum(axis=1)
+    
+    hm = sns.heatmap(agg_df, cmap='Reds', fmt='.0f', 
+                linewidths=0.2, linecolor='lightgrey', 
+                annot=True, vmin=min_val, vmax=max_val, ax=ax).set_title(title) #xticklabels=2 (every other)
+    
+    ax.tick_params(
+            axis='both',
+            which='both',
+            bottom=False,
+            left=False,
+            )
+    
+    fig.tight_layout()
+    
+    # Save plot
+    if save_path:
+        fig.savefig(save_path)
+    
+    return hm
+
+
+def write_shp(agg_df, out_path):
+    '''
+    Write a copy of the original shapefile with counts per feature
+    agg_df: aggregated dataframe
+    out_path: path to write shapefile
+    '''
+
+
+def load_data(aoi, footprint):
+    '''
+    Load aoi and footprint layers. 
+    aoi: shapefile of aoi features
+    footprint: footprint layer to count -> can be shapefile or danco layer
+    '''
+    driver='ESRI Shapefile'
+    aoi = gpd.read_file(aoi, driver=driver)
+    if os.path.isfile(footprint):
+        fp = gpd.read_file(footprint, driver=driver)
+    elif type(footprint) == str:
+        if footprint in list_danco_footprint():
+            fp = query_footprint(layer=footprint)
+    else:
+        print('Unknown footprint type')
+        fp = None
+    return aoi, fp
+        
+    
+
 project_path = 'E:\disbr007\change_detection'
 
 sites_path = os.path.join(project_path, 'inital_site_selection.shp')
-sites = gpd.read_file(sites_path, driver='ESRI_Shapefile')
-
 dems_path = os.path.join(project_path, 'inital_site_selection_DEMs.shp')
-dems = gpd.read_file(dems_path, driver='ESRI Shapefile')
+
+# Load data
+aoi, fp = load_data(sites_path, dems_path)
 
 # Select DEMs over each site
-dems_by_feat = select_by_feat(dems, sites, target_name='SiteName', date_col='ACQDATE1', catid='PAIRNAME')
+dems_by_feat = select_by_feat(aoi, fp, target_name='SiteName', date_col='ACQDATE1', catid='PAIRNAME')
 
 # Aggregrate by site and year
-dems_by_feat['ACQDATE1'] = pd.to_datetime(dems_by_feat['ACQDATE1']) # convert to datetime col
-dems_by_feat.set_index(['ACQDATE1'], inplace=True)
-dems_by_feat['Year'] = dems_by_feat.index.year
-dems_agg = dems_by_feat.groupby(['Year', 'SiteName']).agg({'Year': 'count'})
-dems_agg = dems_agg.unstack()
-dems_agg = dems_agg.transpose()
-dems_agg.index = dems_agg.index.droplevel(level=0)
+agg = agg_by_year(dems_by_feat, date_col='ACQDATE1', freq='M', catid='PAIRNAME')
 
-min_val = dems_agg.min(axis=1).min()
-max_val = dems_agg.max(axis=1).max()
+# Plot
+plot_heatmap(agg, title='Test')
 
-cols = list(dems_agg)
-dems_agg['Total'] = dems_agg[cols].sum(axis=1)
 
-sns.heatmap(dems_agg, cmap='Reds', fmt='.0f', 
-            linewidths=0.2, linecolor='lightgrey', 
-            annot=True, vmin=min_val, vmax=max_val).set_title('PGC Processed DEMs')
-plt.tick_params(
-        axis='both',
-        which='both',
-        bottom=False,
-        left=False,
-        )
-plt.tight_layout()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('aoi', type=str, help='Path to AOI shapefile.')
+    parser.add_argument('footprint', type=str, 
+                        help='Path to footprint layer to use. Can be .shp or danco layer name. E.g.: "dg_imagery_index_stereo_onhand_cc20"')
+    parser.add_argument('freq', type=str, 
+                        help='Frequency to group by. Can be year ("Y"), month ("M"), week ("W"), or day ("D")')
+    parser.add_argument('aoi_id', type=str, 
+                        help='Name of column to identify AOI features.')
+    parser.add_argument('fp_id', type=str,
+                        help='Identifier to count in footprint. E.g. "CATALOG_ID" or "PAIRNAME", etc.')
+    parser.add_argument('date_col', type=str,
+                        help='Name of column in footprint specifying date')
+    parser.add_argument('date_min', type=str,
+                        help='Earliest date to consider. E.g. "2007-01-31"')
+    parser.add_argument('date_max', type=str,
+                        help='Latest date to consider. E.g. "2019-01-31"')
+    
+    args = parser.parse_args()
+    
+    ## RUN
+    # Load data
+    aoi, fp = load_data(args.aoi, args.footprint)
+    # Select over each site
+    fp_by_feat = select_by_feat(aoi, fp, 
+                                target_name=args.aoi_id, 
+                                date_col=args.date_col, 
+                                date_min=args.date_min, 
+                                date_max=args.date_max,
+                                catid=args.fp_id)
+    # Aggregate by feature in aoi and frequency
+    agg = agg_by_year(fp_by_feat, date_col=args.date_col, freq=args.freq, catid=args.fp_id)
+    # Plot
+    plot_heatmap(agg, title='Test', save_path='test.png')
+
 
 
 # Join back to target to write shapefile with counts
-sites.set_index('SiteName', inplace=True)
-dems_agg = dems_agg.join(sites)
-dems_agg = dems_agg.set_geometry('geometry')
-cols = list(dems_agg)
-cols.remove('geometry')
-for col in cols:
-    dems_agg[col] = dems_agg[col].astype(str)
+#sites.set_index('SiteName', inplace=True)
+#dems_agg = dems_agg.join(sites)
+#dems_agg = dems_agg.set_geometry('geometry')
+#cols = list(dems_agg)
+#cols.remove('geometry')
+#for col in cols:
+#    dems_agg[col] = dems_agg[col].astype(str)
 #dems_agg.to_file(os.path.join(project_path, 'selection_sites_count.shp'), driver='ESRI Shapefile') - encoding/type error...
-
-
-
