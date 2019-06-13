@@ -41,9 +41,10 @@ def select_location(in_lyr, target):
 
 def select_by_feat(target, in_lyr, target_name='Site Name', 
                    date_col='acqdate', 
-                   date_min=dt.date.min.strftime('%Y-%m-%d'), 
-                   date_max=dt.datetime.now().strftime('%Y-%m-%d'), 
-                   catid='catalogid'):
+                   date_min=None, 
+                   date_max=None, 
+                   catid='catalogid',
+                   cloudcover_col='cloudcover'):
     '''
     select features from in_lyr that intersects each feature in target
     in_lyr: geodataframe to select from
@@ -54,15 +55,17 @@ def select_by_feat(target, in_lyr, target_name='Site Name',
     date_min: earliest date to choose (default no min)
     date_max: latest date to choose (default no max)
     catid: catalogid column
+    cloudcover_col: column with cloudcover info
     '''
     # Select only within date range
     in_lyr = in_lyr[(in_lyr[date_col] >= date_min) & (in_lyr[date_col] <= date_max)]
     
-#    # Do inital selection on all features in target to limit secondary searches
+    # Do inital selection on all features in target to limit secondary searches
     initial_selection = select_location(in_lyr, target)
+    print('Total matches over all AOI features: {}'.format(len(initial_selection)))
     
     # Create empty gdf to hold master selection
-    cols = ['PAIRNAME', 'ACQDATE1', 'geometry', target_name]
+    cols = [catid, date_col, 'geometry', target_name, cloudcover_col]
     sel = gpd.GeoDataFrame(columns=cols)
     sel_ids = [] # empty list to hold ids, don't add if already in list
     sel.crs = in_lyr.crs
@@ -109,7 +112,7 @@ def select_by_feat(target, in_lyr, target_name='Site Name',
     return sel
 
 
-def agg_by_year(fp, date_col, freq, catid='PAIRNAME'):
+def agg_by_year(fp, aoi_id, date_col, freq, catid='PAIRNAME'):
     '''
     Takes a dataframe that is a footprint selection over each AOI point and aggregates by 
     time period (year, month, day) and AOI point
@@ -124,7 +127,7 @@ def agg_by_year(fp, date_col, freq, catid='PAIRNAME'):
     
     # Aggregate by time period and feature
 #    dems_by_feat['Year'] = dems_by_feat.index.year
-    dems_agg = fp.groupby([pd.Grouper(freq=freq), 'SiteName']).agg({catid: 'count'})
+    dems_agg = fp.groupby([pd.Grouper(freq=freq), aoi_id]).agg({catid: 'count'})
     # Moves SiteName out of index to column, then switches SiteName back to index
     dems_agg = dems_agg.unstack().resample(freq).asfreq()
     dems_agg = dems_agg.transpose()
@@ -139,9 +142,9 @@ def agg_by_year(fp, date_col, freq, catid='PAIRNAME'):
     if freq == 'Y':
         dems_agg.columns = dems_agg.columns.year
     elif freq == 'M':
-        dems_agg.columns = dems_agg.columns.map(lambda x: x.strftime('%Y-%m'))
+        dems_agg.columns = dems_agg.columns.map(lambda x: x.strftime('%Y %b'))
     elif freq == 'W':
-        dems_agg.columns = dems_agg.columns.isocalendar()[1] # Week number out of year (may not work at all)
+        dems_agg.columns = dems_agg.columns.map(lambda x: x.strftime('%Y %b %d Week: %U')) # Week number out of year (may not work at all)
     elif freq == 'D':
         dems_agg.columns = dems_agg.columns.day
 
@@ -155,7 +158,7 @@ def plot_heatmap(agg_df, title, save_path=None):
     title: title for heatmap plot
     '''
     ## Plot
-    fig, ax = plt.subplots(figsize=(20,10))
+    fig, ax = plt.subplots(figsize=(20,8))
         
     # Get min and max counts for setting limits
     min_val = agg_df.min(axis=1).min()
@@ -213,22 +216,22 @@ def load_data(aoi, footprint):
         
     
 
-project_path = 'E:\disbr007\change_detection'
-
-sites_path = os.path.join(project_path, 'inital_site_selection.shp')
-dems_path = os.path.join(project_path, 'inital_site_selection_DEMs.shp')
-
-# Load data
-aoi, fp = load_data(sites_path, dems_path)
-
-# Select DEMs over each site
-dems_by_feat = select_by_feat(aoi, fp, target_name='SiteName', date_col='ACQDATE1', catid='PAIRNAME')
-
-# Aggregrate by site and year
-agg = agg_by_year(dems_by_feat, date_col='ACQDATE1', freq='M', catid='PAIRNAME')
-
-# Plot
-plot_heatmap(agg, title='Test')
+#project_path = 'E:\disbr007\change_detection'
+#
+#sites_path = os.path.join(project_path, 'inital_site_selection.shp')
+#dems_path = os.path.join(project_path, 'inital_site_selection_DEMs.shp')
+#
+## Load data
+#aoi, fp = load_data(sites_path, dems_path)
+#
+## Select DEMs over each site
+#dems_by_feat = select_by_feat(aoi, fp, target_name='SiteName', date_col='ACQDATE1', catid='PAIRNAME')
+#
+## Aggregrate by site and year
+#agg = agg_by_year(dems_by_feat, date_col='ACQDATE1', freq='M', catid='PAIRNAME')
+#
+## Plot
+#plot_heatmap(agg, title='Test')
 
 
 if __name__ == '__main__':
@@ -244,12 +247,20 @@ if __name__ == '__main__':
                         help='Identifier to count in footprint. E.g. "CATALOG_ID" or "PAIRNAME", etc.')
     parser.add_argument('date_col', type=str,
                         help='Name of column in footprint specifying date')
-    parser.add_argument('date_min', type=str,
+    parser.add_argument('--date_min', type=str,
                         help='Earliest date to consider. E.g. "2007-01-31"')
-    parser.add_argument('date_max', type=str,
+    parser.add_argument('--date_max', type=str,
                         help='Latest date to consider. E.g. "2019-01-31"')
     
     args = parser.parse_args()
+    if not args.date_min:
+        date_min = dt.date.min.strftime('%Y-%m-%d')
+    else:
+        date_min = args.date_min
+    if not args.date_max:
+        date_max = dt.datetime.now().strftime('%Y-%m-%d')
+    else:
+        date_max = args.date_max
     
     ## RUN
     # Load data
@@ -258,13 +269,13 @@ if __name__ == '__main__':
     fp_by_feat = select_by_feat(aoi, fp, 
                                 target_name=args.aoi_id, 
                                 date_col=args.date_col, 
-                                date_min=args.date_min, 
-                                date_max=args.date_max,
+                                date_min=date_min, 
+                                date_max=date_max,
                                 catid=args.fp_id)
     # Aggregate by feature in aoi and frequency
-    agg = agg_by_year(fp_by_feat, date_col=args.date_col, freq=args.freq, catid=args.fp_id)
+    agg = agg_by_year(fp_by_feat, aoi_id=args.aoi_id, date_col=args.date_col, freq=args.freq, catid=args.fp_id)
     # Plot
-    plot_heatmap(agg, title='Test', save_path='test.png')
+    plot_heatmap(agg, title='Test', save_path='test2.png')
 
 
 

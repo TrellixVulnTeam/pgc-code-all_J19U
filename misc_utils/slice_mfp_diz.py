@@ -1,7 +1,7 @@
-import os, string, sys, shutil, math, glob, re, argparse, logging
-print "Importing arcpy..."
+import os, string, sys, shutil, math, glob, re, argparse, logging, tqdm
+print("Importing arcpy...")
 import arcpy
-print "Imported arcpy"
+print("Imported arcpy")
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -45,7 +45,7 @@ def main():
         max_lat_name = str(max_lat).replace('-', 'neg')
         dss.append((lyr, '{}_{}_{}'.format(lyr, min_lat_name, max_lat_name), """CENT_LAT > {} AND CENT_LAT <= {}""".format(min_lat, max_lat)))
     
-    for ds in dss:
+    for ds in tqdm.tqdm(dss):
         src, dst, exp = ds
         logger.info("Calculating {}".format(dst))
         arcpy.FeatureClassToFeatureClass_conversion(src,gdb,dst,exp)
