@@ -32,6 +32,15 @@ def write_ids(ids, out_path, header=None):
             f.write('{}\n'.format(each_id))
 
 
+def compare_ids(ids1_path, ids2_path, write_path=None):
+    '''
+    Takes two text files of ids, writes out unique to list 1, unique to list 2 and overlap
+    '''
+    ids1 = read_ids
+    
+
+
+
 def date_words(date=None, today=False):
     '''get todays date and convert to '2019jan07' style for filenaming'''
     from datetime import datetime, timedelta

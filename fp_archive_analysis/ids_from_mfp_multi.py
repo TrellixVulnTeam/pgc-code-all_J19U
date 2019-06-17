@@ -20,15 +20,21 @@ def main():
     
     mfp_layers = fiona.listlayers(mfp)
     mfp_layers.remove(mfp_name)
-    
-    catalog_ids = []
-    for layer in tqdm.tqdm(mfp_layers):
+
+    def get_ids(layer):
         gdf = gpd.read_file(os.path.join(mfp), driver='OpenFileGDB', layer=layer)
         layer_catids = list(set(gdf['catalog_id']))
-        catalog_ids.append(layer_catids)
-
+        return layer_catids
     
-    write_ids(catalog_ids, r'C:\pgc_index\catalog_ids.txt')
+    num_cores = 3
+    results = Parallel(n_jobs=num_cores)(delayed(get_ids)(i) for i in tqdm.tqdm(mfp_layers))
+    
+    catalog_ids = []
+    for sublist in results:
+        for each_id in sublist:
+            catalog_ids.append(each_id)
+    
+    write_ids(catalog_ids, r'C:\pgc_index\catalog_ids_multithread.txt')
 
 
 if __name__ == '__main__':
