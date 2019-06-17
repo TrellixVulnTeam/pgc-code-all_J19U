@@ -23,6 +23,7 @@ def query_footprint(layer, table=False, where=None, columns=None):
     returns a dataframe of match
     layer: danco layer to query - e.g.: 'dg_imagery_index_stereo_cc20'
     where: sql where clause     - e.g.: "acqdate > '2015-01-01'"
+    columns: list of column names to load
     '''
     try:
         danco = "danco.pgc.umn.edu"

@@ -48,23 +48,26 @@ logging.basicConfig(filename=r'E:\disbr007\scratch\fp_density.log',
 
 lso = logging.StreamHandler()
 lso.setLevel(logging.INFO)
-lso.setFormatter('%(asctime)s -- %(levelname)s: %(message)s')
+lso.setFormatter(formatter)
 logger.addHandler(lso)
 
 logger.info('Starting density calculation...')
 
-# Name of output files
-out_name = r'arctic2'
+# Name of output file
+out_name = r'AK_density'
 
 
 ## Create point grid over aoi polygon - assuming only one feature
 # Read in boundary polygon
-boundary_path = r'E:\disbr007\scratch\arctic_dissolve.shp'
+driver = 'ESRI Shapefile'
+boundary_path = r'E:\disbr007\scratch\ak_wgs84_3.shp'
+boundary = gpd.read_file(boundary_path, driver=driver)
+
 with fiona.open(boundary_path, 'r') as ds_in:
     crs = ds_in.crs
     # Determine bounds
-#    minx, miny, maxx, maxy = get_bounding_box(boundary_path)
-    minx, miny, maxx, maxy = -0.01, 60.001, 180.01, 90.001
+    minx, miny, maxx, maxy = get_bounding_box(boundary_path)
+#    minx, miny, maxx, maxy = -0.01, 60.001, 180.01, 90.001
     range_x = (maxx - minx)
     range_y = (maxy - miny)
     
@@ -72,19 +75,23 @@ with fiona.open(boundary_path, 'r') as ds_in:
 step = 100
 
 # Determine spacing of points in units of polygon projection (xrange / step)
-x_space = range_x / step
-y_space = range_y / step
+#x_space = range_x / step
+#y_space = range_y / step
+x_space = 1
+y_space = 1
 
 # Create points (loop over number cols, inner loop number rows), add to list of gdfs of points
 x = minx
 y = miny
 points = []
 cols = ['count', 'geometry']
-for x_step in np.arange(minx, maxx+x_space, x_space):
+for x_step in tqdm.tqdm(np.arange(minx, maxx+x_space, x_space)):
     y = miny
     for y_step in np.arange(miny, maxy+y_space, y_space):
         the_point = Point(x,y)
-        points.append(the_point)
+        if the_point.within(boundary.geometry[0]):
+#        if 1 == 1:
+            points.append(the_point)
         y += y_space
     x += x_space
 
@@ -93,43 +100,42 @@ cols = ['count', 'geometry']
 density_gdf = gpd.GeoDataFrame(columns=cols)
 density_gdf.crs = crs
 density_gdf['geometry'] = points
+density_gdf.to_file(os.path.join(r'E:\disbr007\scratch', '{}_grid_test.shp'.format(out_name)), driver=driver)
 
+### Count number of polygons over each point
+## Read in footprint to use
+#fp = query_footprint(layer='dg_imagery_index_stereo_cc20')
+#
+## Do initial join to get all intersecting
+#logger.info('Performing initial spatial join.')
+## Check projections are the same, if not reproject
+#if fp.crs != density_gdf.crs:
+#    fp = fp.to_crs(density_gdf.crs)
+#fp_sel = gpd.sjoin(fp, density_gdf, how='inner', op='intersects')
+#fp_sel.drop(columns=['index_right'], inplace=True)
+#del fp
+#
+#
+#logger.info('Performing spatial join for each feature to obtain counts.')
+### For each point in grid count overlaps
+## Split grid into individual gdfs
+#split = [density_gdf.loc[[i]] for i in tqdm.tqdm(range(len(density_gdf)))]
+#num_cores = multiprocessing.cpu_count() - 2
+## Run spatial joins in parallel to get counts
+#results = Parallel(n_jobs=num_cores)(delayed(get_count)(i, fp_sel) for i in tqdm.tqdm(split))
+## Combine individual gdfs back into one
+#density_results = pd.concat(results)
 
-## Count number of polygons over each point
-# Read in footprint to use
-driver = 'ESRI Shapefile'
-fp = query_footprint(layer='dg_imagery_index_stereo_cc20')
-
-# Do initial join to get all intersecting
-logger.info('Performing initial spatial join.')
-# Check projections are the same, if not reproject
-if fp.crs != density_gdf.crs:
-    fp = fp.to_crs(density_gdf.crs)
-fp_sel = gpd.sjoin(fp, density_gdf, how='inner', op='intersects')
-fp_sel.drop(columns=['index_right'], inplace=True)
-del fp
-
-
-logger.info('Performing spatial join for each feature to obtain counts.')
-## For each point in grid count overlaps
-# Split grid into individual gdfs
-split = [density_gdf.loc[[i]] for i in tqdm.tqdm(range(len(density_gdf)))]
-num_cores = multiprocessing.cpu_count() - 2
-# Run spatial joins in parallel to get counts
-results = Parallel(n_jobs=num_cores)(delayed(get_count)(i, fp_sel) for i in tqdm.tqdm(split))
-# Combine individual gdfs back into one
-density_results = pd.concat(results)
-
-## Write grid out
-grid_path = os.path.join(r'E:\disbr007\scratch', '{}.shp'.format(out_name))
-density_results.to_file(grid_path, driver=driver)
-
-## Rasterize
-layer_name = out_name
-grid = grid_path
-out_path = os.path.join(r'E:\disbr007\scratch', '{}_rasterize.tif'.format(out_name))
-gdal_bin = r"C:\OSGeo4W64\bin"
-gdal_grid = os.path.join(gdal_bin, 'gdal_grid.exe')
-command = '''{} -zfield "count" -a nearest -outsize 1000 1000 -ot UInt16 -of GTiff -l {} {} {}'''.format(gdal_grid, layer_name, grid, out_path)
-
-run_subprocess(command)
+### Write grid out
+#grid_path = os.path.join(r'E:\disbr007\scratch', '{}.shp'.format(out_name))
+#density_results.to_file(grid_path, driver=driver)
+#
+### Rasterize
+#layer_name = out_name
+#grid = grid_path
+#out_path = os.path.join(r'E:\disbr007\scratch', '{}_rasterize.tif'.format(out_name))
+#gdal_bin = r"C:\OSGeo4W64\bin"
+#gdal_grid = os.path.join(gdal_bin, 'gdal_grid.exe')
+#command = '''{} -zfield "count" -a nearest -outsize 1000 1000 -ot UInt16 -of GTiff -l {} {} {}'''.format(gdal_grid, layer_name, grid, out_path)
+#
+#run_subprocess(command)

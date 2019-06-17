@@ -7,6 +7,8 @@ Created on Mon Feb  4 12:54:01 2019
 
 import pandas as pd
 import numpy as np
+import os
+
 
 def read_ids(txt_file, sep=None):
     '''reads ids, one per line, from a text file and returns a list of ids'''
@@ -32,13 +34,31 @@ def write_ids(ids, out_path, header=None):
             f.write('{}\n'.format(each_id))
 
 
-def compare_ids(ids1_path, ids2_path, write_path=None):
+def compare_ids(ids1_path, ids2_path, write_path=False):
     '''
     Takes two text files of ids, writes out unique to list 1, unique to list 2 and overlap
     '''
-    ids1 = read_ids
+    # Read in both ids as sets
+    ids1 = set(read_ids(ids1_path))
+    ids2 = set(read_ids(ids2_path))
+    for i, id_list in enumerate([ids1, ids2]):
+        print('IDs in list {}: {}'.format(i, len(id_list)))
     
-
+    ## Get ids unique to each list and those common to both
+    # Unique
+    ids1_u = ids1 - ids2
+    ids2_u = ids2 - ids1
+    # Common
+    ids_c = [x for x in ids1 if x in ids2]
+    
+    if write_path:
+        for id_list in [(ids1_path, ids1_u), (ids2_path, ids2_u)]:
+            out_dir = os.path.dirname(id_list[0])
+            name = os.path.basename(id_list[0]).split('.')[0]
+            write_ids(id_list[1], os.path.join(out_dir, '{}_unique.txt'.format(name)))
+        write_ids(ids_c, os.path.join(out_dir, 'common.txt'))
+    
+    return ids1_u, ids2_u, ids_c
 
 
 def date_words(date=None, today=False):

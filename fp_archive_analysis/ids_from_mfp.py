@@ -25,10 +25,10 @@ def main():
     for layer in tqdm.tqdm(mfp_layers):
         gdf = gpd.read_file(os.path.join(mfp), driver='OpenFileGDB', layer=layer)
         layer_catids = list(set(gdf['catalog_id']))
-        catalog_ids.append(layer_catids)
+        for each_id in layer_catids:
+            catalog_ids.append(each_id)
 
-    
-    write_ids(catalog_ids, r'C:\pgc_index\catalog_ids.txt')
+    write_ids(set(catalog_ids), r'C:\pgc_index\catalog_ids.txt')
 
 
 if __name__ == '__main__':
