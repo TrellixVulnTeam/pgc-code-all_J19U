@@ -4,19 +4,33 @@ Created on Tue May 28 13:05:51 2019
 
 @author: disbr007
 """
+import tqdm, subprocess, os, logging
 
 import fiona
 from shapely.geometry import Point
 import geopandas as gpd
 import pandas as pd
 import numpy as np
-import tqdm, subprocess, os
-
 import multiprocessing
 from joblib import Parallel, delayed
 
 from query_danco import query_footprint
 from get_bounding_box import get_bounding_box
+
+
+## Set up logging
+logger = logging.getLogger()
+
+formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
+logging.basicConfig(filename=r'E:\disbr007\scratch\fp_density.log', 
+                    filemode='w', 
+                    format='%(asctime)s -- %(levelname)s: %(message)s', 
+                    level=logging.DEBUG)
+
+lso = logging.StreamHandler()
+lso.setLevel(logging.INFO)
+lso.setFormatter(formatter)
+logger.addHandler(lso)
 
 
 def get_count(feat, init_sel):
@@ -98,6 +112,7 @@ def get_density(footprint, points_gdf, write_path=False):
     fp = query_footprint(layer=footprint, columns=['catalogid', 'acqdate', 'cloudcover'])
     
     ## Do initial join to get all intersecting
+    logging.info('Performing initial spatial join on entire AOI...')
     # Check projections are the same, if not reproject
     if fp.crs != points_gdf.crs:
         fp = fp.to_crs(points_gdf.crs)
@@ -107,19 +122,23 @@ def get_density(footprint, points_gdf, write_path=False):
     
     ## For each point in grid count overlaps
     # Split grid into individual gdfs
+    logging.info('Splitting AOI into individual features...')
     split = [points_gdf.loc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
     num_cores = multiprocessing.cpu_count() - 2
     # Run spatial joins in parallel to get counts
+    logging.info('Performing spatial join on each feature in AOI...')
     results = Parallel(n_jobs=num_cores)(delayed(get_count)(i, fp_sel) for i in tqdm.tqdm(split))
     # Combine individual gdfs back into one
     density_results = pd.concat(results)
     
     ## Write grid out
     if write_path:
-        grid_path = os.path.join(write_path, 'density.shp')
+        out_path = os.path.join(write_path, 'density.shp')
         driver = 'ESRI Shapefile'
-        density_results.to_file(grid_path, driver=driver)
-
+        try:
+            density_results.to_file(out_path, driver=driver)
+        except Exception as e:
+            print(e)
     return density_results
     
 
