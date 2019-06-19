@@ -62,7 +62,7 @@ print('Missing after removing NotMFP: {}'.format(len(missing)))
 #ima_old = pd.concat([ima1_old, ima2_old], sort=False)
 #ima_old_ids = list(ima_old.catalogid.unique())
 #missing_ima_old = list(set(all_missing_ids) - (set(all_missing_ids) - set(ima_old_ids)))
-
+'''
 ima_ordered_path1 = r'C:\temp\missing_cc20\ima_ordered1_may2019.csv'
 ima_ordered_path2 = r'C:\temp\missing_cc20\ima_ordered2_may2019.csv'
 ima1 = pd.read_csv(ima_ordered_path1, header=None, names=['catalogid'])
@@ -78,7 +78,7 @@ missing_ids = list(set(missing_ids) - set(ima_ids))
 print('Missing in IMA: {}'.format(len(missing_ima)))
 print('Missing after removing IMA: {}'.format(len(missing_ids)))
 print('Remaining missing: {}'.format(len(missing)))
-
+'''
 '''
 ### UNKNOWN
 def region_loc(y1):

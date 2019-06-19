@@ -9,6 +9,29 @@ import pandas as pd
 import pysal as ps
 import calendar
 
+
+def determine_id_col(df):
+    '''
+    Determines the name of the column holding catalogids from a given dataframe
+    '''
+    id_cols = ('catalogid', 'CATALOGID', 'CATALOG_ID')
+    for col in list(df):
+        if col in id_cols:
+            id_col = col
+    return id_col
+
+
+def determine_stereopair_col(df):
+    '''
+    Determines the name of the column holding stereopair catalogids from a given dataframe
+    '''
+    sp_cols = ('STEREOPAIR', 'stereopair', 'stereopair')
+    for col in list(df):
+        if col in sp_cols:
+            sp_col = col
+    return sp_col
+    
+
 def fill_dates(df, freq, date_col=None, date_index=False):
     '''takes a dataframe and it's date column and fills in any missing dates at defined
     frequency with null values'''

@@ -5,24 +5,89 @@ Created on Mon Feb  4 12:54:01 2019
 @author: disbr007
 """
 
+import geopandas as gpd
 import pandas as pd
-import numpy as np
-import os
+#import numpy as np
+import os, tqdm
+
+from dataframe_utils import determine_id_col, determine_stereopair_col
 
 
-def read_ids(txt_file, sep=None):
-    '''reads ids, one per line, from a text file and returns a list of ids'''
+def type_parser(filepath):
+    '''
+    takes a file path (or dataframe) in and determines whether it is a dbf, 
+    excel, txt, csv (or df), ADD SUPPORT FOR SHP****
+    '''
+    if type(filepath) == str:
+        ext = os.path.splitext(filepath)[1]
+        if ext == '.csv':
+            with open(filepath, 'r') as f:
+                content = f.readlines()
+                for row in content[0]:
+                    if len(row) == 1:
+                        return 'id_only_txt' # txt or csv with just ids
+                    elif len(row) > 1:
+                        return 'csv' # csv with columns
+                    else:
+                        print('Error reading number of rows in csv.')
+        elif ext == '.txt':
+            return 'id_only_txt' 
+        elif ext in ('.xls', '.xlsx'):
+            return 'excel'
+        elif ext == '.dbf':
+            return 'dbf'
+        elif ext == '.shp':
+            return 'shp'
+    elif isinstance(filepath, gpd.GeoDataFrame):
+        return 'df'
+    else:
+        print('Unrecognized file type.')
+
+
+def get_stereopair_ids(df):
+    '''
+    Get's ids from stereopair column of df 
+    '''
+    stereopair_col = determine_stereopair_col(df)
+    ids = list(df[stereopair_col])
+    
+    return ids
+
+
+def read_ids(ids_file, sep=None, stereo=False):
+    '''Reads ids from a variety of file types. Can also read in stereo ids from applicable formats
+    Supported types:
+        .txt: one per line, optionally with other fields after "sep"
+        .dbf: shapefile's associated dbf    
+    '''
     ids = []
-    with open(txt_file, 'r') as f:
-        content = f.readlines()
-        for line in content:
-            if sep:
-                # Assumes id is first
-                the_id = line.split(sep)[0]
-                the_id = the_id.strip()
-            else:
-                the_id = line.strip()
-            ids.append(the_id)
+    # Determine file type
+    file_type = type_parser(ids_file)
+    # Text file
+    if file_type == 'id_only_txt':
+        with open(ids_file, 'r') as f:
+            content = f.readlines()
+            for line in content:
+                if sep:
+                    # Assumes id is first
+                    the_id = line.split(sep)[0]
+                    the_id = the_id.strip()
+                else:
+                    the_id = line.strip()
+                ids.append(the_id)
+    # DBF
+    elif file_type == 'dbf':
+        df = gpd.read_file(ids_file)
+        id_col = determine_id_col(df)
+        df_ids = list(df[id_col])
+        for each_id in df_ids:
+            ids.append(each_id)
+        # If stereopairs are desired, find them
+        sp_ids = get_stereopair_ids(df)
+        for sp_id in sp_ids:
+            ids.append(sp_id)
+    else:
+        print('Unsupported file type... {}'.format(file_type))
     return ids
 
 
@@ -34,6 +99,23 @@ def write_ids(ids, out_path, header=None):
             f.write('{}\n'.format(each_id))
 
 
+def combine_ids(*id_lists, write_path=None):
+    '''
+    Takes lists of ids and combines them into a new txt file
+    ids_lists: txt files of one id per line to be combined
+    '''
+    comb_ids = []
+    for each in id_lists:
+        ids = read_ids(each)
+        for i in ids:
+            comb_ids.append(i)
+    if write_path:
+        with open(write_path, 'w') as out:
+            for x in comb_ids:
+                out.write('{}\n'.format(x))
+    return comb_ids
+    
+    
 def compare_ids(ids1_path, ids2_path, write_path=False):
     '''
     Takes two text files of ids, writes out unique to list 1, unique to list 2 and overlap
@@ -46,10 +128,12 @@ def compare_ids(ids1_path, ids2_path, write_path=False):
     
     ## Get ids unique to each list and those common to both
     # Unique
+    print('Finding unique...')
     ids1_u = ids1 - ids2
     ids2_u = ids2 - ids1
     # Common
-    ids_c = [x for x in ids1 if x in ids2]
+    print('Finding common...')
+    ids_c = [x for x in tqdm.tqdm(ids1) if x in ids2]
     
     if write_path:
         for id_list in [(ids1_path, ids1_u), (ids2_path, ids2_u)]:
