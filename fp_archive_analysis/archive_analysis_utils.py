@@ -22,10 +22,8 @@ from get_bounding_box import get_bounding_box
 logger = logging.getLogger()
 
 formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
-logging.basicConfig(filename=r'E:\disbr007\scratch\fp_density.log', 
-                    filemode='w', 
-                    format='%(asctime)s -- %(levelname)s: %(message)s', 
-                    level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
+                    level=logging.INFO)
 
 lso = logging.StreamHandler()
 lso.setLevel(logging.INFO)
@@ -79,11 +77,13 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
     x = minx
     y = miny
     points = []
+    logging.info('Creating grid points...')
     for x_step in tqdm.tqdm(np.arange(minx, maxx+x_space, x_space)):
         y = miny
         for y_step in np.arange(miny, maxy+y_space, y_space):
+            print('{:.2f}, {:.2f}'.format(x, y))
             the_point = Point(x,y)
-            if the_point.within(boundary.geometry[0]):
+            if the_point.intersects(boundary.geometry[0]):
                 points.append(the_point)
             y += y_space
         x += x_space
