@@ -42,6 +42,7 @@ def get_count(feat, init_sel):
     '''
     sel4feat = gpd.sjoin(init_sel, feat, how='inner', op='intersects')
     feat['count'] = len(sel4feat)
+    
     return feat
 
 
@@ -109,27 +110,34 @@ def get_density(footprint, points_gdf, write_path=False):
     '''
     ## Count number of polygons over each point
     # Read in footprint to use
-    fp = query_footprint(layer=footprint, columns=['catalogid', 'acqdate', 'cloudcover'])
+    fp = query_footprint(layer=footprint, columns=['catalogid'])
     
     ## Do initial join to get all intersecting
     logging.info('Performing initial spatial join on entire AOI...')
     # Check projections are the same, if not reproject
     if fp.crs != points_gdf.crs:
         fp = fp.to_crs(points_gdf.crs)
+    # Perform spatial join
     fp_sel = gpd.sjoin(fp, points_gdf, how='inner', op='intersects')
+    # Not sure why there are duplicate footprints but there are... 
+    fp_sel.drop_duplicates(subset=['catalogid'], keep='first', inplace=True)
     fp_sel.drop(columns=['index_right'], inplace=True)
+
     del fp
     
     ## For each point in grid count overlaps
     # Split grid into individual gdfs
     logging.info('Splitting AOI into individual features...')
-    split = [points_gdf.loc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
-    num_cores = multiprocessing.cpu_count() - 2
-    # Run spatial joins in parallel to get counts
-    logging.info('Performing spatial join on each feature in AOI...')
-    results = Parallel(n_jobs=num_cores)(delayed(get_count)(i, fp_sel) for i in tqdm.tqdm(split))
-    # Combine individual gdfs back into one
-    density_results = pd.concat(results)
+    try:
+        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
+        num_cores = multiprocessing.cpu_count() - 2
+        # Run spatial joins in parallel to get counts
+        logging.info('Performing spatial join on each feature in AOI...')
+        results = Parallel(n_jobs=num_cores)(delayed(get_count)(i, fp_sel) for i in tqdm.tqdm(split))
+        # Combine individual gdfs back into one
+        density_results = pd.concat(results)
+    except Exception as e:
+        print(e)
     
     ## Write grid out
     if write_path:
@@ -144,7 +152,8 @@ def get_density(footprint, points_gdf, write_path=False):
 
 def rasterize_grid(grid_path, count_field):
     '''
-    Takes a point shapefile and rasterizes based on 'count' field
+    Takes a point shapefile and rasterizes based on 'count' field, need to better
+    create raster grid size (hardcoded at 1000 units of project)
     '''
     ## Rasterize
     dir_name = os.path.dirname(grid_path)
