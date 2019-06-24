@@ -8,6 +8,7 @@ Created on Wed Apr 24 12:03:31 2019
 import geopandas as gpd
 import pandas as pd
 import numpy as np
+import tqdm
 from fiona.crs import from_epsg, from_string
 
 
@@ -41,7 +42,7 @@ def utm_area_calc(gdf):
     ## Loop through all zones found, reproject to relevant zone and calculate area
     gdf[area_col] = np.nan
     dfs_by_utm = []
-    for utm_zone, df in gdf.groupby('Zone_Hemi'):
+    for utm_zone, df in tqdm.tqdm(gdf.groupby('Zone_Hemi')):
         zone = utm_zone.split(',')[0].replace(' ', '')
         hemi = utm_zone.split(',')[1].replace(' ', '')
         
@@ -62,59 +63,25 @@ def utm_area_calc(gdf):
     recombine = recombine[cols]
     return recombine
 
-#xtrack_path = r"C:\Users\disbr007\scratch\xtrack_test.shp"
-#utm_zone_path = r"C:\Users\disbr007\scratch\UTM_Zone_Boundaries\UTM_Zone_Boundaries.shp"
-#
-#driver = 'ESRI Shapefile'
-#xtrack = gpd.read_file(xtrack_path, driver=driver)
-#utm_zones = gpd.read_file(utm_zone_path, driver=driver)
-#
-#xtrack['centroid'] = xtrack.centroid
-#xtrack.set_geometry('centroid', inplace=True)
-#
-## Locate region of centroid
-#xtrack = gpd.sjoin(xtrack, utm_zones, how='left', op='within')
-#xtrack.drop('centroid', axis=1, inplace=True)
-#xtrack.set_geometry('geometry', inplace=True)
-#cols = list(xtrack)
-#cols.append('sqkm')
-#
-#xtrack_recombine = gpd.GeoDataFrame(columns=cols)
-#
-#utm_dfs = {}
-#for utm_zone, df in xtrack.groupby('Zone_Hemi'):
-#    zone = utm_zone.split(',')[0].replace(' ', '')
-#    hemi = utm_zone.split(',')[1].replace(' ', '')
-#    if hemi == 's':
-#        proj4 = r'+proj=utm +zone={} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs'.format(zone)
-#    elif 'n':
-#        proj4 = r'+proj=utm +zone={} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs'.format(zone)
-#    
-#    source_crs = df.crs
-#    df.geometry = df.geometry.to_crs(proj4)
-#    df.crs = from_string(proj4)
-#    df['sqkm'] = df.geometry.area / 10**6
-#    df.geometry = df.geometry.to_crs(source_crs)
-#    df.crs = source_crs
-#    utm_dfs[utm_zone] = df
-#    xtrack_recombine = pd.concat([xtrack_recombine, df])
-#
-#  
-##def utm_area_calc(gdf):
-##    for utm_zone, gdf in xtrack.groupby('Zone_Hemi'):
-##        zone = utm_zone.split(',')[0]
-##        hemi = utm_zone.split(',')[1]
-##        
-##        if hemi == 's':
-##            proj4 = r'+proj=utm +zone={} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs'.format(zone)
-##        elif 'n':
-##            proj4 = r'+proj=utm +zone={} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs'.format(zone)
-##        
-##        source_crs = gdf.crs
-##        gdf.geometry = gdf.geometry.to_crs(proj4)
-##        gdf.crs = from_string(proj4)
-##        gdf['sqkm'] = gdf.geometry.area / 10**6
-##        gdf.geometry = gdf.geometry.to_crs(source_crs)
-##        gdf.crs = source_crs
-##    utm_dfs[utm_zone] = df
-##    xtrack_recombine = pd.concat([xtrack_recombine, gdf])
+shp_path = r"E:\disbr007\general\geocell\geocells_quarter_.shp"
+
+driver = 'ESRI Shapefile'
+shp = gpd.read_file(shp_path, driver=driver)
+
+shp_areas = utm_area_calc(shp)
+shp_areas.to_file(r"E:\disbr007\general\geocell\geocells_quarter_sqkm.shp", driver=driver)
+
+
+### SCRATCH - Plot areas
+#import matplotlib.pyplot as plt
+
+#fig, ax = plt.subplots(1,1)
+##shp_areas['sqkm_utm'].plot.hist(bins=10)
+#geocells = gpd.read_file(r'E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp')
+#geocells['AREA_SQKM'].astype(float).plot.hist(bins=30, edgecolor='white')
+
+
+
+
+
+

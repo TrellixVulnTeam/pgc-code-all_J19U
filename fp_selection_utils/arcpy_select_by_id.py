@@ -10,24 +10,42 @@ import arcpy
 import os, sys
 import argparse
 
-def read_ids(txt_file):
-    ids = []
-    with open(txt_file, 'r') as ids_file:
-        content = ids_file.readlines()
-        for line in content:
-            ids.append(str(line).strip())
-    return tuple(ids)
 
-def select_footprints_by_attribute(ids):
-    sql = """ "CATALOG_ID" IN {} """.format(ids)
-    imagery_index = r"E:\disbr007\pgc_index\pgcImageryIndexV6_2019mar19.gdb\pgcImageryIndexV6_2019mar19"
+imagery_index = "C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06"
+
+def read_ids(ids_file, sep=None, stereo=False):
+    '''Reads ids from a variety of file types. Can also read in stereo ids from applicable formats
+    Supported types:
+        .txt: one per line, optionally with other fields after "sep"
+        .dbf: shapefile's associated dbf    
+    '''
+    ids = []
+    with open(ids_file, 'r') as f:
+        content = f.readlines()
+        for line in content:
+            if sep:
+                # Assumes id is first
+                the_id = line.split(sep)[0]
+                the_id = the_id.strip()
+            else:
+                the_id = line.strip()
+            ids.append(the_id)
+    ids_str = ''
+    for i in ids:
+        ids_str += "'{}',".format(i)
+    ids_str = '(' + ids_str.rstrip(',') + ')'
+    return ids_str
+
+
+def select_footprints_by_attribute(field, ids):
+    sql = """ {} IN {} """.format(field, ids)
+    print(sql)
     selection = arcpy.SelectLayerByAttribute_management(imagery_index, "NEW_SELECTION", sql)
     count = arcpy.GetCount_management(selection)
     print('Features selected: {}'.format(count))
     return selection
 
 def select_footprints_by_location(aoi):
-    imagery_index = r"E:\disbr007\pgc_index\pgcImageryIndexV6_2019mar19.gdb\pgcImageryIndexV6_2019mar19"
     aoi_lyr = arcpy.MakeFeatureLayer_management(aoi)
     selection = arcpy.SelectLayerByLocation_management(imagery_index, "INTERSECT", aoi_lyr, selection_type="NEW_SELECTION")
     return selection
@@ -51,6 +69,8 @@ if __name__ == '__main__':
     parser.add_argument('selector', type=str, 
                         help='''The file to use to select features. This can be a shp file, which results in a 
                         SelectByLocation, or a .txt file containing one catalog ID per line.''')
+    parser.add_argument('field', type=str,
+                        help='The field in the selector. E.g. CATALOG_ID, SCENE_ID, etc.')
     parser.add_argument('out_name', type=str,
                         help='''The name of the shapefile to be written with the selection''')
     args = parser.parse_args()
@@ -59,7 +79,7 @@ if __name__ == '__main__':
     ext = os.path.splitext(selector)[1]
     if ext == '.txt':
         ids = read_ids(selector)
-        selection = select_footprints_by_attribute(ids)
+        selection = select_footprints_by_attribute(args.field, ids)
     elif ext == '.shp':
         selector = select_footprints_by_location(selector)
     else:

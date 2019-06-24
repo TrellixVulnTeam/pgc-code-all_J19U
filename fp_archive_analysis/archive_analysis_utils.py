@@ -127,9 +127,10 @@ def get_density(footprint, points_gdf, write_path=False):
     
     ## For each point in grid count overlaps
     # Split grid into individual gdfs
-    logging.info('Splitting AOI into individual features...')
+    logging.info('Splitting AOI into individual features for parallel processing...')
     try:
-        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
+#        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
+        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(10))] ## DEBUGGING ##
         num_cores = multiprocessing.cpu_count() - 2
         # Run spatial joins in parallel to get counts
         logging.info('Performing spatial join on each feature in AOI...')
@@ -141,10 +142,9 @@ def get_density(footprint, points_gdf, write_path=False):
     
     ## Write grid out
     if write_path:
-        out_path = os.path.join(write_path, 'density.shp')
         driver = 'ESRI Shapefile'
         try:
-            density_results.to_file(out_path, driver=driver)
+            density_results.to_file(write_path, driver=driver)
         except Exception as e:
             print(e)
     return density_results

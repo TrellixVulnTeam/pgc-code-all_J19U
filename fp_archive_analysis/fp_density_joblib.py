@@ -117,14 +117,14 @@ density_gdf.to_file(os.path.join(r'E:\disbr007\scratch', '{}_grid_test.shp'.form
 #
 #
 #logger.info('Performing spatial join for each feature to obtain counts.')
-### For each point in grid count overlaps
-## Split grid into individual gdfs
-#split = [density_gdf.loc[[i]] for i in tqdm.tqdm(range(len(density_gdf)))]
-#num_cores = multiprocessing.cpu_count() - 2
-## Run spatial joins in parallel to get counts
-#results = Parallel(n_jobs=num_cores)(delayed(get_count)(i, fp_sel) for i in tqdm.tqdm(split))
-## Combine individual gdfs back into one
-#density_results = pd.concat(results)
+## For each point in grid count overlaps
+# Split grid into individual gdfs
+split = [density_gdf.loc[[i]] for i in tqdm.tqdm(range(len(density_gdf)))]
+num_cores = multiprocessing.cpu_count() - 2
+# Run spatial joins in parallel to get counts
+results = Parallel(n_jobs=num_cores)(delayed(get_count)(i, fp_sel) for i in tqdm.tqdm(split))
+# Combine individual gdfs back into one
+density_results = pd.concat(results)
 
 ### Write grid out
 #grid_path = os.path.join(r'E:\disbr007\scratch', '{}.shp'.format(out_name))
