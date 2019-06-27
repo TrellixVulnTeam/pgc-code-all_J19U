@@ -4,8 +4,8 @@ Created on Tue May 28 13:05:51 2019
 
 @author: disbr007
 """
-import tqdm, subprocess, os, logging
-
+import subprocess, os, logging
+from tqdm import tqdm
 import fiona
 from shapely.geometry import Point
 import geopandas as gpd
@@ -13,9 +13,10 @@ import pandas as pd
 import numpy as np
 import multiprocessing
 from joblib import Parallel, delayed
-
+from copy import deepcopy
 from query_danco import query_footprint
 from get_bounding_box import get_bounding_box
+from range_creation import range_tuples
 
 
 ## Set up logging
@@ -30,18 +31,6 @@ lso.setLevel(logging.INFO)
 lso.setFormatter(formatter)
 logger.addHandler(lso)
 
-
-def get_count(feat, init_sel):
-    '''
-    Perform spatial join of feat to init_sel and add column to feat with count of intersecting
-    polygons in init_sel
-    feat: one feature to count overlaps with
-    fp_sel: gdf of polygons (footprints) to count
-    '''
-    sel4feat = gpd.sjoin(init_sel, feat, how='inner', op='intersects')
-    feat['count'] = len(sel4feat)
-    
-    return feat
 
 
 def run_subprocess(command):
@@ -102,52 +91,121 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
     return points_gdf
 
 
-def get_density(footprint, points_gdf, write_path=False):
+def get_count(geocells, fps):
     '''
-    Gets the overlap count over each point in points geodataframe.
-    footprint: danco footprint layer name
-    points: geodataframe of points
+    Gets the count of features in fps that intersect with each feature in geocells
+    geocells: geodataframe of polygons
+    fps: geodataframe of polygons
     '''
-    ## Count number of polygons over each point
-    # Read in footprint to use
-    fp = query_footprint(layer=footprint, columns=['catalogid'])
-    
-    ## Do initial join to get all intersecting
-    logging.info('Performing initial spatial join on entire AOI...')
-    # Check projections are the same, if not reproject
-    if fp.crs != points_gdf.crs:
-        fp = fp.to_crs(points_gdf.crs)
-    # Perform spatial join
-    fp_sel = gpd.sjoin(fp, points_gdf, how='inner', op='intersects')
-    # Not sure why there are duplicate footprints but there are... 
-    fp_sel.drop_duplicates(subset=['catalogid'], keep='first', inplace=True)
-    fp_sel.drop(columns=['index_right'], inplace=True)
+#    print(geocells, fps)
+#    print(type(geocells), type(fps))
+    sj = gpd.sjoin(geocells, fps, how='left', op='intersects')
+    sj.index.names = ['count']
+    sj.reset_index(inplace=True)
+    gb = sj.groupby('count').agg({'count':'count'})
+    out = gb.join(geocells)
+    return out
 
-    del fp
+
+def get_count_loop(fxn, gcs, fps, 
+                   lat_start=None, lat_stop=None, lat_step=None, 
+                   lon_start=None, lon_stop=None, lon_step=None):
+    '''
+    **NEEDS more abstraction**
+    Splits an AOI geodataframe (gcs) into a number of subsets and then loops over it,
+    calling fxn with optional *args
+    fxn: function to call in loop, must return dataframe or geodataframe
+    gcs: geodataframe to split
+    *args: any additional parameters to pass to fxn (gcs must be first)
+    '''
+    crs = gcs.crs
+    # If both latitude and longitude params are set split by lon, then by lat, then combine into one list
+    if lon_start and lat_start:
+        lon_ranges = range_tuples(lon_start, lon_stop, lon_step)
+        lat_ranges = range_tuples(lat_start, lat_stop, lat_step)
+        split = [gcs[(gcs.Cent_Lon > x[0]) & (gcs.Cent_Lon <= x[1])] for x in lon_ranges]
+        subsplit = [[df[(df.Cent_Lat > y[0]) & (df.Cent_Lat <= y[1])] for y in lat_ranges] for df in split]        
+        split = [df for nestedlist in subsplit for df in nestedlist]
+    # If latitude parameters are set - split based on those
+    elif lat_start:
+        lat_ranges = range_tuples(lat_start, lat_stop, lat_step)
+        split = [gcs[(gcs.Cent_Lat > y[0]) & (gcs.Cent_Lat <= y[1])] for y in lat_ranges]
+    # If longitude parameters are set - split based on those
+    elif lon_start:
+        lon_ranges = range_tuples(lon_start, lon_stop, lon_step)
+        split = [gcs[(gcs.Cent_Lon > x[0]) & (gcs.Cent_Lon <= x[1])] for x in lon_ranges]
+    # Simply split into four dfs of geocells
+    else:
+        split = [x for x in len(gcs)/4]
+        
+    print(split)
+#    lon_ranges = [(-180, -90), (-90, 0), (0, 90), (90, 180)]
+#    lat_ranges = [(-90, -45), (-45, 0), (0, 45), (45, 90)]
     
-    ## For each point in grid count overlaps
-    # Split grid into individual gdfs
-    logging.info('Splitting AOI into individual features for parallel processing...')
-    try:
-#        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
-        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(10))] ## DEBUGGING ##
-        num_cores = multiprocessing.cpu_count() - 2
-        # Run spatial joins in parallel to get counts
-        logging.info('Performing spatial join on each feature in AOI...')
-        results = Parallel(n_jobs=num_cores)(delayed(get_count)(i, fp_sel) for i in tqdm.tqdm(split))
-        # Combine individual gdfs back into one
-        density_results = pd.concat(results)
-    except Exception as e:
-        print(e)
+    results = []
+    out_ct = 0
+#    for lst in tqdm(subsplit):
+    for df in split:
+        out_name = 'geocells_qtr_ct_{}.shp'.format(out_ct)
+        out_path = os.path.join(r'E:\disbr007\scratch', out_name)
+        out = fxn(df, fps)
+        out = gpd.GeoDataFrame(out, geometry='geometry', crs=crs)
+        out.to_file(out_path, driver="ESRI Shapefile")
+        out_ct += 1
+        results.append(out)
     
-    ## Write grid out
-    if write_path:
-        driver = 'ESRI Shapefile'
-        try:
-            density_results.to_file(write_path, driver=driver)
-        except Exception as e:
-            print(e)
-    return density_results
+    return results
+
+
+
+#def get_density(footprint, points_gdf, write_path=False):
+#    '''
+#    Gets the overlap count over each point in points geodataframe.
+#    footprint: danco footprint layer name
+#    points: geodataframe of points
+#    '''
+#    ## Count number of polygons over each point
+#    # Read in footprint to use
+#    fp = query_footprint(layer=footprint, columns=['catalogid', 'x1', 'y1'])
+#
+#    ## Do initial join to get all intersecting
+#    logging.info('Performing initial spatial join with entire AOI...')
+#    # Check projections are the same, if not reproject
+#    if fp.crs != points_gdf.crs:
+#        fp = fp.to_crs(points_gdf.crs)
+#    # Perform spatial join
+#    fp_sel = gpd.sjoin(fp, points_gdf, how='inner', op='intersects')
+##    fp_sel = gpd.overlay(fp, points_gdf, how='intersection')
+#    # Not sure why there are duplicate footprints but there are... 
+#    fp_sel.drop_duplicates(subset=['catalogid'], keep='first', inplace=True)
+#    fp_sel.drop(columns=['index_right'], inplace=True)
+#
+#    del fp
+#    
+#    ## For each point in grid count overlaps
+#    # Split grid into individual gdfs
+#    logging.info('Splitting AOI into individual features for parallel processing...')
+#    try:
+##        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
+#        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(10))] ## DEBUGGING ##
+##        num_cores = multiprocessing.cpu_count() - 2
+#        num_cores = 1
+#        # Run spatial joins in parallel to get counts
+#        logging.info('Performing spatial join on each feature in AOI...')
+#        results = Parallel(n_jobs=num_cores)(delayed(get_count_indexed)(i, fp_sel) for i in tqdm.tqdm(split))
+#        # Combine individual gdfs back into one
+#        density_results = pd.concat(results)
+#    except Exception as e:
+#        print(e)
+#    
+#    ## Write grid out
+#    if write_path:
+#        driver = 'ESRI Shapefile'
+#        try:
+#            density_results.to_file(write_path, driver=driver)
+#        except Exception as e:
+#            print(e)
+#    return density_results
     
 
 def rasterize_grid(grid_path, count_field):

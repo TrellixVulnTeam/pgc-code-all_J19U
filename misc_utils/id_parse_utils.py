@@ -83,9 +83,10 @@ def read_ids(ids_file, sep=None, stereo=False):
         for each_id in df_ids:
             ids.append(each_id)
         # If stereopairs are desired, find them
-        sp_ids = get_stereopair_ids(df)
-        for sp_id in sp_ids:
-            ids.append(sp_id)
+        if stereo == True:
+            sp_ids = get_stereopair_ids(df)
+            for sp_id in sp_ids:
+                ids.append(sp_id)
     else:
         print('Unsupported file type... {}'.format(file_type))
     return ids
@@ -124,7 +125,7 @@ def compare_ids(ids1_path, ids2_path, write_path=False):
     ids1 = set(read_ids(ids1_path))
     ids2 = set(read_ids(ids2_path))
     for i, id_list in enumerate([ids1, ids2]):
-        print('IDs in list {}: {}'.format(i, len(id_list)))
+        print('IDs in list {}: {}'.format(i+1, len(id_list)))
     
     ## Get ids unique to each list and those common to both
     # Unique
@@ -133,7 +134,7 @@ def compare_ids(ids1_path, ids2_path, write_path=False):
     ids2_u = ids2 - ids1
     # Common
     print('Finding common...')
-    ids_c = [x for x in tqdm.tqdm(ids1) if x in ids2]
+    ids_c = [x for x in ids1 if x in ids2]
     
     if write_path:
         for id_list in [(ids1_path, ids1_u), (ids2_path, ids2_u)]:

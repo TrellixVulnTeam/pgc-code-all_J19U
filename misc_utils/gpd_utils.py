@@ -44,6 +44,12 @@ def merge_gdf(gdf1, gdf2):
     return gdf
 
 
+def merge_gdfs(gdfs):
+    '''merges a list of gdfs'''
+    gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs=gdfs[0].crs)
+    return gdf
+
+
 ## Function begins
 def grid_poly(poly_gdf, nrows, ncols):
     '''
@@ -57,10 +63,10 @@ def grid_poly(poly_gdf, nrows, ncols):
         '''
         Split a shapely Polygon by shapely LineStrings
         '''
+        
         split_polygons = []
-        remains = copy.deepcopy(polygon)
         for i, ln in enumerate(split_lines):
-            chopped = list(split(remains, ln))
+            chopped = list(split(polygon, ln))
             keep = chopped[0]
             remains = chopped[1]
             split_polygons.append(keep)
@@ -73,18 +79,11 @@ def grid_poly(poly_gdf, nrows, ncols):
     crs = poly_gdf.crs
     cols = list(poly_gdf)
     cols.remove('geometry')
-    print(cols)
     
     # Determine how many split lines
     num_row_split_pts = nrows - 1
     num_col_split_pts = ncols - 1
     
-    # Get polygon geometries as list
-    #    polys = list(poly_gdf.geometry) 
-    
-    # For each polygon, split into number of rows and columns
-    #    final_cells = []
-        
     master_gdf = gpd.GeoDataFrame(columns=cols, crs=crs)
     
     for i in tqdm.tqdm(range(len(poly_gdf))):
@@ -94,10 +93,6 @@ def grid_poly(poly_gdf, nrows, ncols):
         p = feat.geometry.values[0]
 
         minx, miny, maxx, maxy = p.bounds
-#        minx = p.iloc[[i]].geometry.bounds.minx.values[0]
-#        miny = p.iloc[[i]].geometry.bounds.miny.values[0]
-#        maxx = p.iloc[[i]].geometry.bounds.maxx.values[0]
-#        maxy = p.iloc[[i]].geometry.bounds.maxy.values[0]
         
         top = LineString([(minx, maxy), (maxx, maxy)])
         left = LineString([(minx, miny), (minx, maxy)])
@@ -148,13 +143,14 @@ def grid_poly(poly_gdf, nrows, ncols):
         # Merge current feature with master
         master_gdf = merge_gdf(master_gdf, feat_gdf)
 
-    return master_gdf, poly_gdf[i:i+1]
+    return master_gdf
 
 
-driver = 'ESRI Shapefile'
-geocells_path = r'E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp'
-#geocells_path = r'E:\disbr007\scratch\geocells_sub_single.shp'
-polygon = gpd.read_file(geocells_path, driver=driver)
-
-all_cells, test = grid_poly(polygon, nrows=2, ncols=2)
-all_cells.to_file(r'E:\disbr007\scratch\geocells_split.shp', driver=driver)
+#driver = 'ESRI Shapefile'
+#geocells_path = r'E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp'
+##geocells_path = r'E:\disbr007\scratch\geocells_sub_single.shp'
+#polygon = gpd.read_file(geocells_path, driver=driver)
+#
+#all_cells = grid_poly(polygon, nrows=4, ncols=4)
+##all_cells.plot(edgecolor='b', color='')
+#all_cells.to_file(r'E:\disbr007\scratch\geocells_sixteenth.shp', driver=driver)

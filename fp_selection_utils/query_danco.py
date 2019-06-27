@@ -101,6 +101,16 @@ def list_danco_footprint():
             print("PostgreSQL connection closed.")
     
 
+def footprint_fields(layer):
+    '''
+    Gets fields in a danco layer by loading with an SQL
+    query that returns only one result (for speed).
+    '''
+    footprint = query_footprint(layer, where="objectid = 1")
+    fields = list(footprint)
+    return fields
+
+
 def stereo_noh(where=None, cc20=True):
     '''returns a dataframe with all intrack stereo not on hand as individual rows, rather
     than as pairs'''

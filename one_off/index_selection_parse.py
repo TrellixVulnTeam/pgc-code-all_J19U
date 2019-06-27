@@ -21,10 +21,9 @@ def percentage_col(df, col):
     total = df[col].sum()
     df['Percentage'] = df[col].apply(lambda x: 100 * (x/float(total)))
 
+
 driver = 'ESRI Shapefile'
-
 shp_path = r"E:\disbr007\UserServicesRequests\Projects\1536_GWU_kuklina\project_files\selected_imagery.shp"
-
 shp = gpd.read_file(shp_path, driver=driver)
 
 create_month_col(shp, 'ACQ_TIME')

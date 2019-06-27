@@ -14,7 +14,7 @@ def determine_id_col(df):
     '''
     Determines the name of the column holding catalogids from a given dataframe
     '''
-    id_cols = ('catalogid', 'CATALOGID', 'CATALOG_ID')
+    id_cols = ('catalogid', 'CATALOGID', 'CATALOG_ID', 'catalog_id')
     for col in list(df):
         if col in id_cols:
             id_col = col
