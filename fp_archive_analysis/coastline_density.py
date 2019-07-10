@@ -10,7 +10,9 @@ import fiona, os, tqdm, logging
 from pprint import pprint
 import geopandas as gpd
 import pandas as pd
+
 from select_ids_pgc_index import mfp_subset
+from archive_analysis_utils import get_count
 from gpd_utils import merge_gdfs
 from query_danco import query_footprint
 
@@ -22,10 +24,10 @@ formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
 logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
                     level=logging.INFO)
 
-lso = logging.StreamHandler()
-lso.setLevel(logging.INFO)
-lso.setFormatter(formatter)
-logger.addHandler(lso)
+#lso = logging.StreamHandler()
+#lso.setLevel(logging.INFO)
+#lso.setFormatter(formatter)
+#logger.addHandler(lso)
 
 
 def get_max_ona_ids(where=None):
@@ -60,50 +62,56 @@ def get_max_ona_ids(where=None):
 ## Set up paths
 wd = r"C:\Users\disbr007\projects\coastline\scratch"
 coast_n = 'greenland_coast_10km.shp'
-
+geocells_p = r"E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp"
 
 ## Read in coastline
 noaa_coast_p = os.path.join(wd, coast_n)
 coast = gpd.read_file(noaa_coast_p, driver='ESRI Shapefile')
+geocells = gpd.read_file(geocells_p, driver='ESRI Shapefile')
+
 # Dissolve coast to simplify, then buffer 10km - projection is in meters
-#coast['dis'] = 0
-#coast = coast.dissolve(by='dis')
+coast['dis'] = 0
+coast = coast.dissolve(by='dis')
 #coast['geometry'] = coast['geometry'].buffer(10E3)
 
+# Perform spatial join to select only geocells that intersect with coastline, keep only original goecells columns
+if coast.crs != geocells.crs:
+    coast.to_crs(geocells.crs, inplace=True)
+geocells_cst = gpd.sjoin(geocells, coast, how='left', op='intersects')[list(geocells)]
+# Create column to store counts of density
+geocells_cst['count'] = 0
+gc_cols = list(geocells_cst)
 
-## Read in masterfootprint subsets - only those within given latitudes
-lat_min = 58
-lat_max = 90
-#dfs = mfp_subset(lat_min, lat_max)
-mfp_samp = gpd.read_file(os.path.join(wd, 'mfp_sample.shp'), driver='ESRI Shapefile')
-dfs = [mfp_samp]
 
-## Loop over mfp subsets, select only along coastline and that matches criteria
+## Read in masterfootprint subsets - only those within given latitude and longitude and loop over mfp subsets
 # Store matches from each subset in a list of geodataframes
 all_matches = []
-cols = list(dfs[0])
 logging.info('Applying further selection criteria (status, cc, sensor, prod_code, etc.) and performing sjoin.')
-for layer in tqdm.tqdm(dfs):
+
+# Get all ids that were the higher of the pair's ONA
+max_ona_ids = get_max_ona_ids(where="platform in ('WV02', 'WV03')")
+
+for layer in tqdm.tqdm(mfp_subset(-60, 60, 0, 90)):
     selection = layer[(layer['status'] == 'online') &
                       (layer['cloudcover'] <= 0.2) &
                       (layer['sensor'].isin(['WV02', 'WV03'])) &
                       (layer['prod_code'] == 'M1BS') &
-                      (layer['abscalfact'] != 'NULL') &
-                      (layer['bandwidth'] != 'NULL') &
-                      (layer['sun_elev'] != 'NULL')]
+                      (layer['abscalfact'] != None) &
+                      (layer['bandwidth'] != None) &
+                      (layer['sun_elev'] != None)]
     
-    # Remove all ids that were the higher of the pair's ONA
-    max_ona_ids = get_max_ona_ids(where="platform in ('WV02', 'WV03')")
 
+    # Remove higher ONA's
     selection = selection[~selection['catalog_id'].isin(max_ona_ids)]
     
     # Confirm same coordinate system for coastline and mfp
     if coast.crs != layer.crs:
         coast.to_crs(layer.crs, inplace=True)
-    # Do spatial join between subset and coastline, add matches to list, keeping only mfp fields
-    matches = gpd.sjoin(layer, coast)
-    all_matches.append(matches[cols])
+        
+    # Get count of features in each geocell 
+    counted = get_count(geocells_cst, layer)
     
+        
 
 ## Place all matches into intermediate geodataframe for further selection and reduction
 init_selection = merge_gdfs(all_matches)

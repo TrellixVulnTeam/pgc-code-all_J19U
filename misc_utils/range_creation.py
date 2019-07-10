@@ -6,9 +6,6 @@ Created on Tue Jun 25 16:43:27 2019
 """
 
 
-
-
-
 def range_tuples(start, stop, step):
     
     ranges = []
@@ -32,8 +29,6 @@ def lat_lon_cells(lat_step, lon_step):
     for min_lat, max_lat in lats:
         for min_lon, max_lon in lons:
             cells.append((min_lon, min_lat, max_lon, max_lat))
-        
-
             
     return cells
 

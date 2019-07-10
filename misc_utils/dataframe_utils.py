@@ -6,7 +6,7 @@ Created on Mon Mar 11 12:13:14 2019
 """
 
 import pandas as pd
-import pysal as ps
+
 import calendar
 
 
@@ -76,6 +76,7 @@ def dbf2DF(dbfile, upper=True): #Reads in DBF files and returns Pandas DF
     dbfile  : DBF file - Input to be imported
     upper   : Condition - If true, make column heads upper case
     '''
+    import pysal as ps
     db = ps.open(dbfile) #Pysal to open DBF
     d = {col: db.by_col(col) for col in db.header} #Convert dbf to dictionary
     pandasDF = pd.DataFrame(d) #Convert to Pandas DF

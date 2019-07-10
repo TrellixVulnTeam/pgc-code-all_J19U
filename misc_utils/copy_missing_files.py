@@ -71,4 +71,4 @@ if __name__ == '__main__':
         print("Moving missing files...")
         copy_missing_files(missing, dst_dir)
     
-    print('\nComplete.')
+        print('\nMove complete.')

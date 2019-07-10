@@ -8,7 +8,7 @@ Created on Thu Jan 17 12:43:09 2019
 import psycopg2
 import geopandas as gpd
 import pandas as pd
-import sys
+import sys, logging
 from sqlalchemy import create_engine, inspect, MetaData
 
 creds = []
@@ -17,7 +17,7 @@ with open(r"C:\code\cred.txt", 'r') as cred:
     for line in content:
         creds.append(str(line).strip())
 
-def query_footprint(layer, table=False, where=None, columns=None):
+def query_footprint(layer, db='footprint', table=False, where=None, columns=None):
     '''
     queries the danco footprint database, for the specified layer and optional where clause
     returns a dataframe of match
@@ -32,11 +32,11 @@ def query_footprint(layer, table=False, where=None, columns=None):
                                       host = danco,
                                       database = "footprint")
 
-        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/footprint'.format(creds[0], creds[1]))
+        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/{}'.format(creds[0], creds[1], db))
         connection = engine.connect()
 
         if connection:
-            print('PostgreSQL connection to {} at {} opened.'.format(layer, danco))
+            logging.debug('PostgreSQL connection to {} at {} opened.'.format(layer, danco))
             # If specific columns are requested, created comma sep string of those columns to pass in sql
             if columns:
                 cols_str = ', '.join(columns)
@@ -63,13 +63,13 @@ def query_footprint(layer, table=False, where=None, columns=None):
             return df
 
     except (Exception, psycopg2.Error) as error :
-        print ("Error while connecting to PostgreSQL", error)
+        logging.debug("Error while connecting to PostgreSQL", error)
     
     finally:
         # Close database connection.
         if (connection):
             connection.close()
-            print("PostgreSQL connection closed.")
+            logging.debug("PostgreSQL connection closed.")
 
 
 def list_danco_footprint():
@@ -86,11 +86,12 @@ def list_danco_footprint():
         cursor.execute("""SELECT table_name FROM information_schema.tables""")
         tables = cursor.fetchall()    
         tables = [x[0] for x in tables]
+        tables = sorted(tables)
         return tables
     
     
     except (Exception, psycopg2.Error) as error :
-        print ("Error while connecting to PostgreSQL", error)
+        logging.debug("Error while connecting to PostgreSQL", error)
     
     
     finally:
@@ -98,7 +99,7 @@ def list_danco_footprint():
         # Close database connection.
         if (connection):
             connection.close()
-            print("PostgreSQL connection closed.")
+            logging.debug("PostgreSQL connection closed.")
     
 
 def footprint_fields(layer):

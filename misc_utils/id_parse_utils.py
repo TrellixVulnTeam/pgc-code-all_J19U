@@ -121,20 +121,27 @@ def compare_ids(ids1_path, ids2_path, write_path=False):
     '''
     Takes two text files of ids, writes out unique to list 1, unique to list 2 and overlap
     '''
+    # Get names for printing
+    ids1_name = os.path.basename(ids1_path)
+    ids2_name = os.path.basename(ids2_path)
     # Read in both ids as sets
     ids1 = set(read_ids(ids1_path))
     ids2 = set(read_ids(ids2_path))
-    for i, id_list in enumerate([ids1, ids2]):
-        print('IDs in list {}: {}'.format(i+1, len(id_list)))
+    for id_list in [(ids1_name, ids1), (ids2_name, ids2)]:
+        print('IDs in {}: {:,}'.format(id_list[0], len(id_list[1])))
     
     ## Get ids unique to each list and those common to both
     # Unique
-    print('Finding unique...')
+    print('\nFinding unique...')
     ids1_u = ids1 - ids2
     ids2_u = ids2 - ids1
+    for id_list in [(ids1_name, ids1_u), (ids2_name, ids2_u)]:
+        print('Unique in {}: {:,}'.format(id_list[0], len(id_list[1])))
+    
     # Common
-    print('Finding common...')
+    print('\nFinding common...')
     ids_c = [x for x in ids1 if x in ids2]
+    print('\nCommon: {:,}'.format(len(ids_c)))
     
     if write_path:
         for id_list in [(ids1_path, ids1_u), (ids2_path, ids2_u)]:

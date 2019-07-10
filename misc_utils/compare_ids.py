@@ -19,9 +19,9 @@ def main():
     
     ids1, ids2, com = compare_ids(args.list_1, args.list_2, write_path=args.write)
     
-    print('Unique to list 1: {}'.format(len(ids1)))
-    print('Unique to list 2: {}'.format(len(ids2)))
-    print('Common: {}'.format(len(com)))
+#    print('Unique to list 1: {}'.format(len(ids1)))
+#    print('Unique to list 2: {}'.format(len(ids2)))
+#    print('Common: {}'.format(len(com)))
     
 if __name__ == "__main__":
     main()

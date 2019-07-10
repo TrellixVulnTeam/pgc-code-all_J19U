@@ -1,6 +1,16 @@
+screen from home dir
+module load gdal
+
 python /mnt/agic/storage00/agic/private/agic_common/scripts/pgctools3/fc.py /path/to/your/file.shp /path/to/your/output_dir --try-link
 
 python /mnt/agic/storage00/agic/private/agic_common/scripts/imagery_utils/pgc_ortho.py --wd /local -p 4326 -d /mnt/agic/storage00/agic/
 private/elevation/dem/SRTM/srtm_NGA_do_not_distribute/mosaics/Sichuan/SRTM3_Sichuan_4326.tif -c ns -t UInt16 raw/ ortho/ --pbs
 
 python pgc_scripts/imagery_utils/pgc_ortho.py --wd /local -p 3413 -d /mnt/agic/storage00/agic/private/elevation/dem/GDEM_Svalbard/svalbard_gdem_100m.tif -c ns -t UInt16 raw/ ortho/ --pbs
+
+python /mnt/agic/storage00/agic/private/agic_common/scripts/pgctools3/fc.py ./prj_files/aufeis_selection.shp --folder-fields grp --renamed-dest=./raw --try-link
+
+python /mnt/agic/storage00/agic/private/agic_common/scripts/imagery_utils/pgc_ortho.py -t UInt16 -c ns -p 26906 -d /mnt/agic/storage00/agic/public/elevation/dem/AlaskaNED/AlaskaNED_mosaic.tif --wd /local --pbs ./raw ./o
+
+
+for f in raw/*; do echo $f;done

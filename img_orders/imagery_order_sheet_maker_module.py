@@ -7,12 +7,8 @@ Created on Fri Dec  7 12:09:11 2018
 
 import pandas as pd
 import geopandas as gpd
-import os
-import datetime
-import sys
-import argparse
+import os, datetime, sys, argparse, re
 
-sys.path.insert(0, r'C:\code\misc_utils')
 from id_parse_utils import date_words
 
 def type_parser(filepath):
@@ -49,6 +45,7 @@ def type_parser(filepath):
     
 def read_data(filepath):
     '''takes a file path in, determines type and reads data into dataframe accordingly'''
+    
     file_type = type_parser(filepath)
     if file_type == 'csv':
         df = pd.read_csv(filepath)
@@ -79,18 +76,29 @@ def read_data(filepath):
     else:
         df = None
         print('Error reading data into dataframe: {}'.format(filepath))
-    print('IDs found: {}'.format(len(df.index)))
+    print('Total source IDs found: {}'.format(len(df.index)))
+    
     return df
 
 
-def clean_dataframe(dataframe):
+def clean_dataframe(dataframe, list_SWIR=False, out_path=None):
     '''
     remove unnecessary columns, SWIR, duplicates. rename GE columns
     '''
+    # Function to clean the names 
+    def locate_swir(row): 
+        # Search for opening bracket in the name followed by 
+        # any characters repeated any number of times 
+        if re.search('^104A[a-zA-Z0-9_.-]*', row['catalogid']): 
+            return 'WV03-SWIR' 
+        else:
+            return row['platform']
+    
     # Convert GE column names and values to DG style
     ge_cols_to_dg = {
             'image_id': 'catalogid',
-            'source_abr': 'platform'
+            'source_abr': 'platform',
+            'vehicle': 'platform'
             }
     dataframe.rename(columns=ge_cols_to_dg, inplace=True)
     dataframe.platform.replace({'IK-2': 'IK01'}, inplace=True)
@@ -100,9 +108,7 @@ def clean_dataframe(dataframe):
     print('Removing any duplicate ids...')
     dataframe = dataframe[cols_of_int].drop_duplicates(subset=cols_of_int) # Remove duplicate IDs
     dataframe = dataframe.drop_duplicates(subset=['catalogid', 'platform'], keep=False) # Can this line or the one above it be removed? Same thing right?
-    print('Removing any SWIR ids...')
-    dataframe = dataframe[~dataframe.catalogid.str.contains("104A")] # Drop SWIR - begins with 104A
-#    dataframe.sort_values(by=['catalogid'], inplace=True)
+    dataframe['platform'] = dataframe.apply(locate_swir, axis=1)
     return dataframe
 
 
@@ -126,11 +132,24 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix, order_date):
             'QB02': 1000,
             'IK01': 20000,
             'unk': 1000,
+            'WV03-SWIR': 1000,
             }
     n = platform_sheet_size[platform] # Max length of each sheet 
     
     # Break this platform's dataframe into dfs of size det. above
     platform_list = [platform_df[i:i+n] for i in range(0, platform_df.shape[0], n)] 
+    # Find lists smaller than 100 and add them back to the last df
+    if len(platform_list) > 1:
+        for i, each_df in enumerate(platform_list):
+            if len(each_df) < 100:
+                try:
+                    new_df = pd.concat([platform_list[i], platform_list[i-1]])
+                    del platform_list[i], platform_list[i-1]
+                    platform_list.append(new_df)
+                except IndexError:
+                    new_df = pd.concat([platform_list[i], platform_list[i+1]])
+                    del platform_list[i], platform_list[i-1]
+                    platform_list.append(new_df)
     
     total_length = len(platform_list) # Total number of sheets for this platform
     
@@ -165,7 +184,7 @@ def write_master(dataframe, outpath, outnamebase, output_suffix, order_date):
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
 
 
-def create_sheets(filepath, output_suffix, order_date, out_path=None):
+def create_sheets(filepath, output_suffix, order_date, list_swir=False, out_path=None):
     '''
     create sheets based on platforms present in list, including one formatted for entering into gsheets
     filepath: path to ids. can be txt, dbf, excel, csv, or dataframe
@@ -190,9 +209,10 @@ def create_sheets(filepath, output_suffix, order_date, out_path=None):
     # Name to attached to all orders
     project_base = r'PGC_order_'
     # Remove unneccessary columns, rename others  
-    dataframe = clean_dataframe(dataframe)
+    dataframe = clean_dataframe(dataframe, list_swir, project_path)
     
     # Create a nested dictionary for each platform
+    ids_written = 0
     all_platforms = dataframe.platform.unique().tolist() # list all platforms present in list
     print('{} platforms found: {}\n'.format(len(all_platforms), all_platforms))
     all_platforms_dict = {}
@@ -202,10 +222,12 @@ def create_sheets(filepath, output_suffix, order_date, out_path=None):
         all_platforms_dict[pf]['df'] = df # store dataframe for each platform in its dict
         all_platforms_dict[pf]['g_sheet'] = list_chopper(df, project_path, project_base, output_suffix, order_date) # split dataframe into excel sheets
         print('{} IDs found: {}'.format(pf, len(df.index)))
-    
+        ids_written += len(df.index)
+        
     # Write sheet to copy to GSheet
     gsheet_path = os.path.join(project_path, '{}{}_{}_gsheet.xlsx'.format(project_base, date_words(order_date), output_suffix))
     gsheet_dict = {}
+    
     for k in all_platforms_dict:
         gsheet_dict[k] = all_platforms_dict[k]['g_sheet']
     
@@ -216,6 +238,7 @@ def create_sheets(filepath, output_suffix, order_date, out_path=None):
     gsheet_df.to_excel(gsheet_writer, index=True, sheet_name='Sheet1')
     gsheet_writer.save()
     write_master(dataframe, project_path, project_base, output_suffix, order_date)
+    print('IDs written to sheets: {}'.format(ids_written))
     return all_platforms_dict
 
 #input_file = r"E:\disbr007\imagery_orders\test\catalogs_to_reorder.txt" # for debugging
@@ -229,6 +252,10 @@ if __name__ == '__main__':
     parser.add_argument("out_name", type=str, help="Output sheets suffix. E.g. 'PGC_order_2019_[out_name]_WV01_1of2'")
     parser.add_argument("--order_date", type=str, help="Date to attach to order. E.g. '2019-02-21'")
     parser.add_argument("--out_path", type=str, help="Directory to write sheets to.")
+#    parser.add_argument("--keep_SWIR", action='store_true',
+#                        help="Use flag to keep SWIR in order")
+    parser.add_argument("--list_swir", action='store_true',
+                        help="Use flag to write a list of SWIR IDs")
     
     args = parser.parse_args()
     
@@ -236,8 +263,9 @@ if __name__ == '__main__':
     out_suffix = args.out_name
     order_date = args.order_date 
     out_path = args.out_path
+    list_swir = args.list_swir # True/False
     
         
     print("Creating sheets...\n")
-    create_sheets(filepath=input_file, output_suffix=out_suffix, order_date=order_date, out_path=out_path)
+    create_sheets(filepath=input_file, output_suffix=out_suffix, order_date=order_date, list_swir=list_swir, out_path=out_path)
     print('\nComplete.')

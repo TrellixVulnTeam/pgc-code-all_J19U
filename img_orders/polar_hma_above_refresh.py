@@ -3,7 +3,7 @@
 Created on Fri Apr 12 09:10:58 2019
 
 @author: disbr007
-Creates a shapefile that is a refresh in the region selected from 
+Creates a shapefile that is a refresh in the region selected 
 """
 
 import query_danco
@@ -48,6 +48,7 @@ def refresh(last_refresh, refresh_region, refresh_imagery):
         if refresh_imagery == 'mono_stereo':
             noh_recent = query_danco.query_footprint('dg_imagery_index_all_notonhand_cc20', where=where)
         if refresh_imagery == 'mono':
+            print('Mono selection support in development.')
             pass # Update this -> catalogid not in stereopair field anywhere, and stereopair == NONE
         if refresh_imagery == 'stereo':
             noh_recent = query_danco.stereo_noh(where=where)

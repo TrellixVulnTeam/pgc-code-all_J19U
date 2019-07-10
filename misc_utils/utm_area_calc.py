@@ -63,13 +63,13 @@ def utm_area_calc(gdf):
     recombine = recombine[cols]
     return recombine
 
-shp_path = r"E:\disbr007\general\geocell\geocells_quarter_.shp"
+# shp_path = r"E:\disbr007\general\geocell\geocells_quarter_.shp"
 
-driver = 'ESRI Shapefile'
-shp = gpd.read_file(shp_path, driver=driver)
+# driver = 'ESRI Shapefile'
+# shp = gpd.read_file(shp_path, driver=driver)
 
-shp_areas = utm_area_calc(shp)
-shp_areas.to_file(r"E:\disbr007\general\geocell\geocells_quarter_sqkm.shp", driver=driver)
+# shp_areas = utm_area_calc(shp)
+# shp_areas.to_file(r"E:\disbr007\general\geocell\geocells_quarter_sqkm.shp", driver=driver)
 
 
 ### SCRATCH - Plot areas

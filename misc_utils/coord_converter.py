@@ -8,13 +8,17 @@ Created on Fri Jan 18 09:25:18 2019
 import pandas as pd
 import os
 
-def remove_symbols(coords_csv):
-    coords = pd.read_csv(coords_csv, encoding="ISO-8859-1")
+def remove_symbols(coords_src):
+    # If string assume to be path to csv/excel
+    if type(coords_src) == str:
+        coords = pd.read_csv(coords_src, encoding="ISO-8859-1")
+    # Else assume DF
+    coords = coords_src
     coords = coords.replace('°', ' ', regex=True)
     coords = coords.replace('"', ' ', regex=True)
     coords = coords.replace("'", ' ', regex=True)
-    coords = coords.replace("  ", ' ', regex=True)
-    coords.columns = coords.columns.str.replace(' ', '')
+#    coords = coords.replace("  ", ' ', regex=True)
+#    coords.columns = coords.columns.str.replace(' ', '')
     return coords
 
 def coord_conv(in_coord, coord_type):
@@ -56,19 +60,19 @@ def conv_direction(in_coord):
     deg, minutes, seconds, direct = in_coord.split(' ')
     return direct
 
-excel_path = r"E:\disbr007\change_detection\initial_site_selection.csv"
-
-sites = remove_symbols(excel_path)
-
-coord_cols = ['Lat', 'Lon']
-for col in coord_cols:
-    col_name = '{} DD'.format(col)
-#    col_dir = '{} Direction'.format(col[:3])
-    sites['Dir'] = sites.apply(lambda x: conv_direction(x[col]), axis=1)
-    sites[col_name] = sites.apply(lambda x: dms_to_dd(x[col], x['Dir']), axis=1)
-   
-
-out_excel_path = os.path.join(os.path.dirname(excel_path), '{}_converted.xls'.format(os.path.splitext(os.path.basename(excel_path))[0]))
-excel_writer = pd.ExcelWriter(out_excel_path)
-sites.to_excel(excel_writer, 'coords', index=True)
-excel_writer.save()
+#excel_path = r"E:\disbr007\change_detection\initial_site_selection.csv"
+#
+#sites = remove_symbols(excel_path)
+#
+#coord_cols = ['Lat', 'Lon']
+#for col in coord_cols:
+#    col_name = '{} DD'.format(col)
+##    col_dir = '{} Direction'.format(col[:3])
+#    sites['Dir'] = sites.apply(lambda x: conv_direction(x[col]), axis=1)
+#    sites[col_name] = sites.apply(lambda x: dms_to_dd(x[col], x['Dir']), axis=1)
+#   
+#
+#out_excel_path = os.path.join(os.path.dirname(excel_path), '{}_converted.xls'.format(os.path.splitext(os.path.basename(excel_path))[0]))
+#excel_writer = pd.ExcelWriter(out_excel_path)
+#sites.to_excel(excel_writer, 'coords', index=True)
+#excel_writer.save()
