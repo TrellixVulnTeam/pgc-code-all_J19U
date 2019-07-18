@@ -7,28 +7,22 @@ Get all ids from mfp by looping through slices of mfp
 """
 
 import os, tqdm
-import fiona
-import geopandas as gpd
-import multiprocessing
-from joblib import Parallel, delayed
 from id_parse_utils import write_ids
+from select_ids_pgc_index import mfp_subset
 
-def main():
-    # Path to mfp
-    mfp = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb'
-    mfp_name = 'pgcImageryIndexV6_2019jun06'
-    
-    mfp_layers = fiona.listlayers(mfp)
-    mfp_layers.remove(mfp_name)
-    
-    catalog_ids = []
-    for layer in tqdm.tqdm(mfp_layers):
-        gdf = gpd.read_file(os.path.join(mfp), driver='OpenFileGDB', layer=layer)
-        layer_catids = list(set(gdf['catalog_id']))
-        for each_id in layer_catids:
-            catalog_ids.append(each_id)
 
-    write_ids(set(catalog_ids), r'C:\pgc_index\catalog_ids.txt')
+def main(field_of_int):
+    '''
+    Loops through master footprint subset layers and extracts the field of interest values
+    field_of_int: field in the master footprint to find. e.g. 'catalog_id'
+    '''
+    values = []
+    for layer in tqdm.tqdm(mfp_subset(-180, -90, 180, 90)):
+        layer_values = list(set(layer[field_of_int]))
+        for each_id in layer_values:
+            values.append(each_id)
+
+    write_ids(set(values), os.path.join(r'C:\pgc_index', '{}.txt'.format(field_of_int)))
 
 
 if __name__ == '__main__':

@@ -97,13 +97,18 @@ def get_count(geocells, fps):
     geocells: geodataframe of polygons
     fps: geodataframe of polygons
     '''
-#    print(geocells, fps)
-#    print(type(geocells), type(fps))
+    ## Confirm crs is the same
+    if geocells.crs != fps.crs:
+        logging.info('Converting crs of grid to match footprint...')
+        geocells = geocells.to_crs(fps.crs)
+    logging.info('Performing spatial join...')
     sj = gpd.sjoin(geocells, fps, how='left', op='intersects')
     sj.index.names = ['count']
     sj.reset_index(inplace=True)
+    logging.info('Getting count...')
     gb = sj.groupby('count').agg({'count':'count'})
     out = gb.join(geocells)
+    out = gpd.GeoDataFrame(out, geometry='geometry', crs=geocells.crs)
     return out
 
 
@@ -119,6 +124,8 @@ def get_count_loop(fxn, gcs, fps,
     *args: any additional parameters to pass to fxn (gcs must be first)
     '''
     crs = gcs.crs
+    
+    ## Limit to given latititude and longitude
     # If both latitude and longitude params are set split by lon, then by lat, then combine into one list
     if lon_start and lat_start:
         lon_ranges = range_tuples(lon_start, lon_stop, lon_step)
@@ -143,15 +150,13 @@ def get_count_loop(fxn, gcs, fps,
 #    lat_ranges = [(-90, -45), (-45, 0), (0, 45), (45, 90)]
     
     results = []
-    out_ct = 0
 #    for lst in tqdm(subsplit):
-    for df in split:
-        out_name = 'geocells_qtr_ct_{}.shp'.format(out_ct)
-        out_path = os.path.join(r'E:\disbr007\scratch', out_name)
+    for i, df in enumerate(split):
+#        out_name = 'geocells_qtr_ct_{}.shp'.format(i+1)
+#        out_path = os.path.join(r'E:\disbr007\scratch', out_name)
         out = fxn(df, fps)
         out = gpd.GeoDataFrame(out, geometry='geometry', crs=crs)
-        out.to_file(out_path, driver="ESRI Shapefile")
-        out_ct += 1
+#        out.to_file(out_path, driver="ESRI Shapefile")
         results.append(out)
     
     return results

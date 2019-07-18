@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+on # -*- coding: utf-8 -*-
 """
 Created on Mon Jul  8 13:31:22 2019
 
@@ -27,14 +27,9 @@ logging.info('Querying danco footprint.')
 fp = query_footprint(fp_name, 
                      where='cloudcover >=0 and cloudcover <= 50', 
                      columns=['catalogid', 'stereopair', 'cloudcover', 'acqdate'])
-# Do spatial join on intrack stereo cc20
+
+# Do spatial join on intrack stereo
 sel = gpd.sjoin(fp, gc, how='inner')
-
-
-### Load xtrack footprint and do sjoin
-#fp = query_footprint('dg_imagery_index_xtrack_cc20',
-#                     columns=['catalogid1', 'catalogid2'])
-#sel_x = gpd.sjoin(fp, gc, how='inner')
 
 
 ## Get all ids out as one list
