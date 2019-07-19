@@ -20,7 +20,7 @@ import geopandas as gpd
 import pandas as pd
 
 from select_ids_pgc_index import mfp_subset
-from archive_analysis_utils import get_count
+#from fp_archive_analysis.archive_analysis_utils import get_count
 from gpd_utils import merge_gdfs
 from query_danco import query_footprint
 
@@ -36,7 +36,7 @@ def get_max_ona_ids(where=None):
     Gets a list of those ids with the higher off nadir angle out of the stereopair
     where: SQL query to reduce load times if only specific records are needed. E.g. "platform in ('WV02', 'WV03')"
     '''
-    logging.INFO("Getting a list of the higher off-nadir-angle IDs...")
+#    logging.INFO("Getting a list of the higher off-nadir-angle IDs...")
     # Load min ona footprint
     min_ona = query_footprint(layer='dg_stereo_catalogids_having_min_ona',
                               columns=['catalogid'],
@@ -83,7 +83,7 @@ logging.info('Applying further selection criteria (status, cc, sensor, prod_code
 # Get all ids that were the higher of the pair's ONA
 max_ona_ids = get_max_ona_ids(where="platform in ('WV02', 'WV03')")
 
-for layer in tqdm.tqdm(mfp_subset(-60, 60, 0, 90)):
+for layer in mfp_subset(-60, 60, 0, 90):
     selection = layer[(layer['status'] == 'online') &
                       (layer['cloudcover'] <= 0.2) &
                       (layer['sensor'].isin(['WV02', 'WV03'])) &
@@ -100,10 +100,11 @@ for layer in tqdm.tqdm(mfp_subset(-60, 60, 0, 90)):
     if coast.crs != layer.crs:
         coast.to_crs(layer.crs, inplace=True)
 
+    all_matches.append(selection)
 
 ## Place all matches into intermediate geodataframe for further selection and reduction
 init_selection = merge_gdfs(all_matches)
-`init_selection.to_pickle(os.path.join(wd, 'initial_selection.pkl'))
+init_selection.to_pickle(os.path.join(wd, 'initial_selection.pkl'))
 
 
 

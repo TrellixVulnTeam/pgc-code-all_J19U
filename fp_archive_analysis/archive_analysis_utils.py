@@ -26,12 +26,6 @@ formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
 logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
                     level=logging.INFO)
 
-lso = logging.StreamHandler()
-lso.setLevel(logging.INFO)
-lso.setFormatter(formatter)
-logger.addHandler(lso)
-
-
 
 def run_subprocess(command):
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)

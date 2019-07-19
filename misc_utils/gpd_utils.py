@@ -239,22 +239,22 @@ def grid_poly_row(row, nrows, ncols):
     return feat_cells
 
 
-driver = 'ESRI Shapefile'
-#geocells_path = r'E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp'
-#geocells_path = r'E:\disbr007\scratch\geocells_sub.shp'
-geocells_path = r'E:\disbr007\scratch\antarctic_aoi.shp'
-df = gpd.read_file(geocells_path, driver=driver)
-crs = df.crs
-# Results in a list of new geometries for each cell
-tqdm.pandas()
-df['new_geom'] = df.progress_apply(lambda row: grid_poly_row(row, nrows=500, ncols=500), axis=1)
-
-# Expands the list of new geometries to unique rows, copying other column data
-all_cells = gpd.GeoDataFrame({col:np.repeat(df[col].values, df['new_geom'].str.len()) for col in df.columns.drop('new_geom')}, crs=crs).assign(**{'new_geom':np.concatenate(df['new_geom'].values)})
-# Set the new geometry and drop the old
-all_cells = all_cells.set_geometry('new_geom')
-all_cells.drop(columns=['geometry'], inplace=True)
-# Write
-all_cells.to_file(r'E:\disbr007\scratch\ant_aoi_100.shp', driver=driver)
+#driver = 'ESRI Shapefile'
+##geocells_path = r'E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp'
+##geocells_path = r'E:\disbr007\scratch\geocells_sub.shp'
+#geocells_path = r'E:\disbr007\scratch\antarctic_aoi.shp'
+#df = gpd.read_file(geocells_path, driver=driver)
+#crs = df.crs
+## Results in a list of new geometries for each cell
+#tqdm.pandas()
+#df['new_geom'] = df.progress_apply(lambda row: grid_poly_row(row, nrows=500, ncols=500), axis=1)
+#
+## Expands the list of new geometries to unique rows, copying other column data
+#all_cells = gpd.GeoDataFrame({col:np.repeat(df[col].values, df['new_geom'].str.len()) for col in df.columns.drop('new_geom')}, crs=crs).assign(**{'new_geom':np.concatenate(df['new_geom'].values)})
+## Set the new geometry and drop the old
+#all_cells = all_cells.set_geometry('new_geom')
+#all_cells.drop(columns=['geometry'], inplace=True)
+## Write
+#all_cells.to_file(r'E:\disbr007\scratch\ant_aoi_100.shp', driver=driver)
 
 
