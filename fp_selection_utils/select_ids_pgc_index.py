@@ -11,7 +11,7 @@ import fiona
 import pandas as pd
 import tqdm
 import sys, os, argparse, multiprocessing, logging
-from joblib import Parallel, delayed
+#from joblib import Parallel, delayed
 from pprint import pprint
 
 sys.path.insert(0, r'C:\code\misc_utils')
@@ -76,8 +76,8 @@ def mfp_layers_subset(lon_min, lat_min, lon_max, lat_max):
     global index_path
     
     # Include provided mins/maxes
-    lat_range = range(lat_min, lat_max+1)
-    lon_range = range(lon_min, lon_max+1)
+    lat_range = range(lat_min, lat_max)
+    lon_range = range(lon_min, lon_max)
     
     # Get all layer names from MFP GDB, remove original MFP    
     layers = fiona.listlayers(index_path)    

@@ -83,7 +83,7 @@ logging.info('Applying further selection criteria (status, cc, sensor, prod_code
 # Get all ids that were the higher of the pair's ONA
 max_ona_ids = get_max_ona_ids(where="platform in ('WV02', 'WV03')")
 
-for layer in mfp_subset(-60, 60, 0, 90):
+for layer in mfp_subset(-120, 60, 0, 90):
     selection = layer[(layer['status'] == 'online') &
                       (layer['cloudcover'] <= 0.2) &
                       (layer['sensor'].isin(['WV02', 'WV03'])) &
@@ -99,12 +99,13 @@ for layer in mfp_subset(-60, 60, 0, 90):
     # Confirm same coordinate system for coastline and mfp
     if coast.crs != layer.crs:
         coast.to_crs(layer.crs, inplace=True)
+    selection = gpd.sjoin(selection, coast, how='inner')
 
     all_matches.append(selection)
 
 ## Place all matches into intermediate geodataframe for further selection and reduction
 init_selection = merge_gdfs(all_matches)
-init_selection.to_pickle(os.path.join(wd, 'initial_selection.pkl'))
+init_selection.to_pickle(os.path.join(wd, 'initial_selection_greenland.pkl'))
 
 
 

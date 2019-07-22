@@ -16,7 +16,7 @@ import copy, logging, os
 from tqdm import tqdm
 
 import multiprocessing
-from joblib import Parallel, delayed
+
 
 logger = logging.getLogger()
 
@@ -31,6 +31,7 @@ logger.addHandler(lso)
 
 
 def multiprocess_gdf(fxn, gdf, *args, num_cores=None, **kwargs):
+    from joblib import Parallel, delayed
     num_cores = num_cores if num_cores else multiprocessing.cpu_count() - 2
     split_dfs = [gdf.iloc[[i]] for i in range(len(gdf))]
     # Run fxn in counts

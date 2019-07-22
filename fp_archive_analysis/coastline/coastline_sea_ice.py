@@ -8,16 +8,18 @@ Use Sea-Ice concentration rasters to further refine selection
 
 import geopandas as gpd
 import pandas as pd
-import os
-import copy
+import os, logging
+
+from RasterWrapper import Raster
 
 
-cand_p = r'C:\Users\disbr007\projects\coastline\scratch\initial_selection.pkl'
-candidates = pd.read_pickle(cand_p)
-sea_ice_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\resampled_nd'
+logger = logging.getLogger()
+logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
+                    level=logging.INFO)
+logger.setLevel(logging.INFO)
 
 
-def create_raster_lut(year_start=1978, year_stop=2020):
+def create_raster_lut(sea_ice_dir, year_start=1978, year_stop=2020):
     '''
     Creates a lookup dictionary for each raster in the sea ice
     raster directory.
@@ -61,40 +63,100 @@ def create_raster_lut(year_start=1978, year_stop=2020):
     return raster_index
 
 
-def sample_dem(dem_array, pt, dem_gt=None, grid=(3,3)):
+def locate_sea_ice_path(footprint, raster_lut):
     '''
-    Takes a dem that has been opened as an array and samples the value in a given
-    grid size around the pt.
-    dem_array: dem opened and read as array with GDAL
-    dem_gt: dem geotransform
-    pt: pt in geographic coordinates
-    grid: tuple of (x-size, y-size)
+    Takes footprints in and looks up their acq_time (date) in the raster_lut to locate
+    the path to the appropriate raster.
     '''
+    acq_time = footprint['acq_time']
+    year, month, day = acq_time[:10].split('-')
+    # Try to locate raster for actual day. If not try the next day, if not try the day before
+    if day in raster_lut[year][month].keys():
+        sea_ice_p = raster_lut[year][month][day]
     
-    ## Convert point geocoordinates to array coordinates
-    px = int((pt[0] - dem_gt[0]) / dem_gt[1])
-    py = int((pt[1] - dem_gt[3]) / dem_gt[5])
+    elif str(int(day) + 1) in raster_lut[year][month].keys():
+        sea_ice_p = raster_lut[year][month][str(int(day) + 1)]
     
-    ## Get window around point
-    x_sz = grid[0]
-    x_step = int(x_sz / 2) # assuming int rounds down
-    y_sz = grid[1]
-    y_step = int(y_sz / 2)
+    else:
+        sea_ice_p = raster_lut[year][month][str(int(day) - 1)]
     
-    xmin = px - x_step
-    xmax = px + x_step + 1 # slicing doesn't include stop val so add 1
-    ymin = py - y_step
-    ymax = py + y_step + 1
+    return sea_ice_p
+
+
+def get_center_yx(footprint, geom_col):
+    '''
+    Returns a tuple of the center y,x coordinates
+    '''
+    cent_yx = (footprint[geom_col].y, footprint[geom_col].x)
+    return cent_yx
+
+
+def sample_sea_ice(footprint, yx_col):
+    '''
+    Takes a footprint and determines the path to the appropriate raster, then samples
+    the raster at that point
+    '''
+    y = footprint[yx_col][0]
+    x = footprint[yx_col][1]
     
-    window = dem_array[ymin:ymax, xmin:xmax]
+    sea_ice = Raster(footprint['sea_ice_path'])
     
-    window_mean = window.mean()
+    sea_ice_concen = sea_ice.SampleWindow((y,x), (3,3), agg='mean')
     
-    return window_mean
+    ## Convert to percentage
+    sea_ice_concen = sea_ice_concen / 10
+    
+    return sea_ice_concen
+    
 
 
 
-raster_lut = create_raster_lut()
+## Create look up table of all sea-ice concentration rasters by date raster_lut['year']['month']['day'] = filename
+logging.info('Creating look-up table of sea-ice rasters by date...')
+sea_ice_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\resampled_nd'
+
+raster_lut = create_raster_lut(sea_ice_dir)
+
+## Read in candidate footprints from initial selection criteria and coastline intersect
+#logging.info('Reading in initial candidates...')
+cand_p = r'C:\Users\disbr007\projects\coastline\scratch\initial_selection_greenland.pkl'
+
+cand = pd.read_pickle(cand_p)
+
+# Reproject
+#logging.info('Reprojecting footprints to EPSG 3413...')
+
+cand = cand.to_crs({'init':'epsg:3413'})
+
+## Change to centroid, saving original geometry
+#logging.info('Converting footprints to centroids...')
+
+cand['geom_poly'] = cand.geometry
+cand['geom_cent'] = cand.centroid
+cand.drop(columns='geometry', inplace=True)
+cand.set_geometry('geom_cent', inplace=True)
+
+# Get center point coordinates
+#logging.info('Getting center coordinates...')
+
+cand['yx'] = cand.apply(get_center_yx, args=('geom_cent',), axis=1)
+
+# Locate sea ice path for each footprint
+#logging.info('Looking up sea-ice raster path for each candidate footprint...')
+
+cand['sea_ice_path'] = cand.apply(locate_sea_ice_path, args=(raster_lut,), axis=1)
+
+# Sample sea ice rasters - try sorting to speed up
+logging.info('Sampling sea-ice rasters...')
+
+cand['sea_ice_concen'] = cand.apply(sample_sea_ice, args=('yx',), axis=1)
+
+## Switch back to polygon geometry
+cand.set_geometry('geom_poly', inplace=True)
+cand['yx'] = cand['yx'].astype(str)
+
+
+
 
 
 

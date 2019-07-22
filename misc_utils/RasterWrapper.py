@@ -62,7 +62,6 @@ class Raster():
         ## Convert point geocoordinates to array coordinates
         py = int(np.around((point[0] - self.geotransform[3]) / self.geotransform[5]))
         px = int(np.around((point[1] - self.geotransform[0]) / self.geotransform[1]))
-        print(px, py)
         ## Handle point being out of raster bounds
         try:    
             point_value = self.Array[py, px]
@@ -73,42 +72,94 @@ class Raster():
         return point_value
     
     
-    def SampleWindow(self, center_point, window_size, agg='mean'):
+    def SampleWindow(self, center_point, window_size, agg='mean', grow_window=False, max_grow=81):
         '''
         Samples the current raster object using a window centered 
         on center_point.
         center_point: tuple of (y, x) in geocoordinates
         window_size: tuple of (y_size, x_size) as number of pixels (must be odd)
-        agg: type of aggregation, default is mean, can also me sum, min, max'''
+        agg: type of aggregation, default is mean, can also me sum, min, max
+        grow_window: set to True to increase the size of the window until a valid value is 
+                        included in the window
+        max_grow: the maximum area (x * y) the window will grow to          
+        '''
         
-        ## Convert point geocoordinates to array coordinates
+        
+        
+        def window_bounds(window_size, py, px):
+            '''
+            Takes a window size and center pixel coords and 
+            returns the window bounds as ymin, ymax, xmin, xmax
+            window_size: tuple (3,3)
+            py: int 125
+            px: int 100
+            '''
+            ## Get window around center point
+            # Get size in y, x directions
+            y_sz = window_size[0]
+            y_step = int(y_sz / 2)
+            x_sz = window_size[1]
+            x_step = int(x_sz / 2)
+            
+            # Get pixel locations of window bounds
+            ymin = py - y_step
+            ymax = py + y_step + 1 # slicing doesn't include stop val so add 1
+            xmin = px - x_step
+            xmax = px + x_step + 1 
+            
+            return ymin, ymax, xmin, xmax
+        
+#        ## Get window around center point
+#        # Get size in y, x directions
+#        y_sz = window_size[0]
+#        y_step = int(y_sz / 2)
+#        x_sz = window_size[1]
+#        x_step = int(x_sz / 2)
+#        
+#        # Get pixel locations of window bounds
+#        ymin = py - y_step
+#        ymax = py + y_step + 1 # slicing doesn't include stop val so add 1
+#        xmin = px - x_step
+#        xmax = px + x_step + 1 
+        
+        ## Convert center point geocoordinates to array coordinates
         py = int(np.around((center_point[0] - self.geotransform[3]) / self.geotransform[5]))
         px = int(np.around((center_point[1] - self.geotransform[0]) / self.geotransform[1]))
         
-        ## Get window arround center point
-        # Get size in y, x directions
-        y_sz = window_size[0]
-        y_step = int(y_sz / 2)
-        x_sz = window_size[1]
-        x_step = int(x_sz / 2)
-        
-        # Get pixel locations of window bounds
-        ymin = py - y_step
-        ymax = py + y_step + 1 # slicing doesn't include stop val so add 1
-        xmin = px - x_step
-        xmax = px + x_step + 1 
-        
         ## Handle window being out of raster bounds
         try:
-            window = self.Array[ymin:ymax, xmin:xmax]
-            agg_lut = {
-                'mean': window.mean(),
-                'sum': window.sum(),
-                'min': window.min(),
-                'max': window.max()
-                }
-
-            window_agg = agg_lut[agg]
+            grow = True
+            while grow == True:
+                ymin, ymax, xmin, xmax = window_bounds(window_size, py, px)
+                window = self.Array[ymin:ymax, xmin:xmax].astype(np.float32)
+                window = np.where(window==-9999.0, np.nan, window)
+                
+                ## Test for window with all nans to avoid getting 0's for all nans
+                # Returns an array of True/False where True is valid values
+                window_valid = window == window
+                
+                if True in window_valid:
+                    ## Window contains at least one valid value, do aggregration
+                    agg_lut = {
+                        'mean': np.nanmean(window),
+                        'sum': np.nansum(window),
+                        'min': np.nanmin(window),
+                        'max': np.nanmax(window)
+                        }
+                    window_agg = agg_lut[agg]
+                    # Do not grow if valid values found
+                    grow = False
+                    
+                else:
+                    ## Window all nan's, return nan value (arbitratily picking -9999)
+                    # If grow_window is True, increase window by (y+2, x+2)
+                    if grow_window == True:
+                        window_size = (window_size[0]+2, window_size[1]+2)
+                    # If grow_window is False, return no data and exit while loop
+                    else:
+                        window_agg = -9999
+                        grow = False
+            
             
         except IndexError as e:
             logging.error('Window bounds not within raster bounds.')
