@@ -147,12 +147,13 @@ class Raster():
                         'max': np.nanmax(window)
                         }
                     window_agg = agg_lut[agg]
+                    
                     # Do not grow if valid values found
                     grow = False
                     
                 else:
                     ## Window all nan's, return nan value (arbitratily picking -9999)
-                    # If grow_window is True, increase window by (y+2, x+2)
+                    # If grow_window is True, increase window (y+2, x+2)
                     if grow_window == True:
                         window_size = (window_size[0]+2, window_size[1]+2)
                     # If grow_window is False, return no data and exit while loop

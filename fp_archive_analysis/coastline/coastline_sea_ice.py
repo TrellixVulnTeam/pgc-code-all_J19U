@@ -9,6 +9,7 @@ Use Sea-Ice concentration rasters to further refine selection
 import geopandas as gpd
 import pandas as pd
 import os, logging
+import numpy as np
 
 from RasterWrapper import Raster
 
@@ -101,7 +102,7 @@ def sample_sea_ice(footprint, yx_col):
     
     sea_ice = Raster(footprint['sea_ice_path'])
     
-    sea_ice_concen = sea_ice.SampleWindow((y,x), (3,3), agg='mean')
+    sea_ice_concen = sea_ice.SampleWindow((y,x), (3,3), agg='mean', grow_window=True, max_grow=81)
     
     ## Convert to percentage
     sea_ice_concen = sea_ice_concen / 10
@@ -118,44 +119,111 @@ sea_ice_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\resampled_nd'
 raster_lut = create_raster_lut(sea_ice_dir)
 
 ## Read in candidate footprints from initial selection criteria and coastline intersect
-#logging.info('Reading in initial candidates...')
 cand_p = r'C:\Users\disbr007\projects\coastline\scratch\initial_selection_greenland.pkl'
 
 cand = pd.read_pickle(cand_p)
 
 # Reproject
-#logging.info('Reprojecting footprints to EPSG 3413...')
 
 cand = cand.to_crs({'init':'epsg:3413'})
 
 ## Change to centroid, saving original geometry
-#logging.info('Converting footprints to centroids...')
-
 cand['geom_poly'] = cand.geometry
 cand['geom_cent'] = cand.centroid
 cand.drop(columns='geometry', inplace=True)
 cand.set_geometry('geom_cent', inplace=True)
 
 # Get center point coordinates
-#logging.info('Getting center coordinates...')
 
 cand['yx'] = cand.apply(get_center_yx, args=('geom_cent',), axis=1)
 
 # Locate sea ice path for each footprint
-#logging.info('Looking up sea-ice raster path for each candidate footprint...')
 
 cand['sea_ice_path'] = cand.apply(locate_sea_ice_path, args=(raster_lut,), axis=1)
 
 # Sample sea ice rasters - try sorting to speed up
 logging.info('Sampling sea-ice rasters...')
-
+cand.sort_values(by=['acq_time'], inplace=True)
 cand['sea_ice_concen'] = cand.apply(sample_sea_ice, args=('yx',), axis=1)
 
 ## Switch back to polygon geometry
 cand.set_geometry('geom_poly', inplace=True)
 cand['yx'] = cand['yx'].astype(str)
 
+## Drop centroid geometry for writing to shape
+cand.drop(columns='geom_cent', inplace=True)
 
+cand.to_file(r'C:\temp\coastline_candidates_greenland.shp', driver='ESRI Shapefile')
+
+
+#### PLOTTING
+def y_fmt(y, pos):
+    '''
+    Formatter for y axis of plots. Returns the number with appropriate suffix
+    y: value
+    pos: *Not needed?
+    '''
+    decades = [1e9, 1e6, 1e3, 1e0, 1e-3, 1e-6, 1e-9 ]
+    suffix  = ["G", "M", "k", "" , "m" , "u", "n"  ]
+    if y == 0:
+        return str(0)
+    for i, d in enumerate(decades):
+        if np.abs(y) >=d:
+            val = y/float(d)
+            signf = len(str(val).split(".")[1])
+            if signf == 0:
+                return '{val:d} {suffix}'.format(val=int(val), suffix=suffix[i])
+            else:
+                if signf == 1:
+                    if str(val).split(".")[1] == "0":
+                       return '{val:d}{suffix}'.format(val=int(round(val)), suffix=suffix[i]) 
+                tx = "{"+"val:.{signf}f".format(signf = signf) +"} {suffix}"
+                return tx.format(val=val, suffix=suffix[i])
+    return y
+
+
+def plot_agg_timeseries(src_df, agg_col, agg_type, date_col, freq, ax=None):
+    """
+    df: dataframe to make histogram from
+    agg_col: column to agg
+    agg_type = type of aggregation on col -> 'count', 'sum', etc.
+    date_col: column with date information, unaggregated
+    freq: frequency of aggregation ('Y', 'M', 'D')
+    ax: preexisting ax to plot on, defaults to creating a new one
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib as mpl
+    from matplotlib.ticker import FuncFormatter
+    import matplotlib.dates as mdates
+    import copy
+    ## Prep data
+    # Convert date column to pandas datetime and set as index
+    df = copy.deepcopy(src_df)
+    df[date_col] = pd.to_datetime(df[date_col])
+    df.set_index(date_col, inplace=True)
+    
+    # Aggregate 
+    agg = {agg_col: agg_type}
+    agg_df = df.groupby([pd.Grouper(freq=freq)]).agg(agg)
+    
+    
+    ## Plotting
+    mpl.style.use('ggplot')
+    if ax == None:
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+    
+    agg_df.plot.area(y=agg_col, ax=ax)
+    
+#    ax.xaxis.set_major_locator(mdates.YearLocator((range(2010, 2019, 1))))
+#    ax.xaxis.set_minor_locator(mdates.MonthLocator((1,4,7,10)))
+#    
+#    ax.xaxis.set_major_formatter(mdates.DateFormatter("\n%Y"))
+#    ax.xaxis.set_minor_formatter(mdates.DateFormatter("%b"))
+#    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+    plt.show()
+    return fig, ax
+
+plot_agg_timeseries(cand, 'sea_ice_concen', 'mean', 'acq_time', 'M')
 
 
 

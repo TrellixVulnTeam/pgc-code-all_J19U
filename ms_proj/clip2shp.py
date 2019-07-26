@@ -17,7 +17,7 @@ gdal.UseExceptions()
 
 ## Directory containing dems and shp path
 dems_dir = r'V:\pgc\data\scratch\jeff\ms_proj_2019jul05\dems\raw\raw'
-shp_path = r"V:\pgc\data\scratch\jeff\ms_proj_2019jul05\dems\raw\aoi_prj.shp"
+shp_path = r'C:\temp\dem_clip.shp'
 
 
 ## Load Shapefile to clip rasters and get extent
@@ -40,7 +40,7 @@ for i, x in enumerate(extent):
 dems = []
 for root, dirs, files in os.walk(dems_dir):
     for f in files:
-        if f.endswith('_dem.tif'):
+        if f.endswith('SETSM_WV01_20160413_102001004EA97100_102001004C845700_seg1_2m_v3.0_dem.tif'):
             dems.append(os.path.join(root, f))
 
 
