@@ -97,54 +97,54 @@ def determine_season(date_col):
     return season
 
 
-## Load and prep data
-# Load intrack and xtrack
-it = query_footprint('dg_imagery_index_stereo_cc20', where="y1 < -50", columns=['pairname', 'acqdate', 'sqkm_utm'])
-it['type'] = 'intrack'
-# Copy intrack area col to align names with xtrack area col
-it['area_sqkm'] = it['sqkm_utm'] 
-
-xt = query_footprint('dg_imagery_index_xtrack_cc20', 
-                     where="project = 'REMA'", 
-                     columns=['pairname', 'acqdate1', 'datediff'])
-xt['type'] = 'cross-track'
-xt = xt[xt['datediff'] <= 10]
-# Calc area of xtrack and combine utm area col with polar area col
-xt = area_calc(xt)
-#xt['area_m'] = np.where(xt.sqkm_utm.isna(), xt.polar_area, xt.sqkm_utm)
-
-# Rename xtrack columns to align with intrack names
-xt.rename(columns={'acqdate1': 'acqdate'}, inplace=True)
-
-# Load REMA pairnames as list
-rema = list(query_footprint('esrifs_rema_strip_index', db='products', columns=['pairname'])['pairname'])
-
-# Load regions
-ant = query_footprint('pgc_world_aois', where="loc_name = 'Antarctica'", columns=['loc_name'])
-
-## Do sjoin, first saving original cols
-it_cols = list(it)
-xt_cols = list(xt)
-it = gpd.sjoin(it, ant, how='inner')[it_cols]
-xt = gpd.sjoin(xt, ant, how='inner')[xt_cols]
-
-# Use REMA to determine released not released
-it['released'] = np.where(it['pairname'].isin(rema), 'released', 'unreleased')
-xt['released'] = np.where(xt['pairname'].isin(rema), 'released', 'unreleased')
-
-date_col = 'acqdate'
-it[date_col] = pd.to_datetime(it[date_col])
-xt[date_col] = pd.to_datetime(xt[date_col])
-
-it['season'] = it.apply(lambda x: determine_season(x['acqdate']), axis=1)
-xt['season'] = xt.apply(lambda x: determine_season(x['acqdate']), axis=1)
-
-
-## Save to pkl
+### Load and prep data
+## Load intrack and xtrack
+#it = query_footprint('dg_imagery_index_stereo_cc20', where="y1 < -50", columns=['pairname', 'acqdate', 'sqkm_utm'])
+#it['type'] = 'intrack'
+## Copy intrack area col to align names with xtrack area col
+#it['area_sqkm'] = it['sqkm_utm'] 
+#
+#xt = query_footprint('dg_imagery_index_xtrack_cc20', 
+#                     where="project = 'REMA'", 
+#                     columns=['pairname', 'acqdate1', 'datediff'])
+#xt['type'] = 'cross-track'
+#xt = xt[xt['datediff'] <= 10]
+## Calc area of xtrack and combine utm area col with polar area col
+#xt = area_calc(xt)
+##xt['area_m'] = np.where(xt.sqkm_utm.isna(), xt.polar_area, xt.sqkm_utm)
+#
+## Rename xtrack columns to align with intrack names
+#xt.rename(columns={'acqdate1': 'acqdate'}, inplace=True)
+#
+## Load REMA pairnames as list
+#rema = list(query_footprint('esrifs_rema_strip_index', db='products', columns=['pairname'])['pairname'])
+#
+## Load regions
+#ant = query_footprint('pgc_world_aois', where="loc_name = 'Antarctica'", columns=['loc_name'])
+#
+### Do sjoin, first saving original cols
+#it_cols = list(it)
+#xt_cols = list(xt)
+#it = gpd.sjoin(it, ant, how='inner')[it_cols]
+#xt = gpd.sjoin(xt, ant, how='inner')[xt_cols]
+#
+## Use REMA to determine released not released
+#it['released'] = np.where(it['pairname'].isin(rema), 'released', 'unreleased')
+#xt['released'] = np.where(xt['pairname'].isin(rema), 'released', 'unreleased')
+#
+#date_col = 'acqdate'
+#it[date_col] = pd.to_datetime(it[date_col])
+#xt[date_col] = pd.to_datetime(xt[date_col])
+#
+#it['season'] = it.apply(lambda x: determine_season(x['acqdate']), axis=1)
+#xt['season'] = xt.apply(lambda x: determine_season(x['acqdate']), axis=1)
+#
+#
+### Save to pkl
 it_pkl_p = r'E:\disbr007\imagery_archive_analysis\antarctic_dems\pkl\it_release_status_2019jul11.pkl'
 xt_pkl_p = r'E:\disbr007\imagery_archive_analysis\antarctic_dems\pkl\xt_release_status.2019jul11.pkl'
-it.to_pickle(it_pkl_p)
-xt.to_pickle(xt_pkl_p)
+#it.to_pickle(it_pkl_p)
+#xt.to_pickle(xt_pkl_p)
 
 
 ## Read pkl

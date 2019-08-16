@@ -5,24 +5,27 @@ Created on Thu Jan 17 12:43:09 2019
 @author: disbr007
 """
 
-import psycopg2
+import sys, logging
+
 import geopandas as gpd
 import pandas as pd
-import sys, logging
-from sqlalchemy import create_engine, inspect, MetaData
+import psycopg2
+from sqlalchemy import create_engine#, inspect, MetaData
 
+## Credentials for logging into danco
 creds = []
-with open(r"C:\code\cred.txt", 'r') as cred:
+with open(r"C:\code\pgc-code-all\cred.txt", 'r') as cred:
     content = cred.readlines()
     for line in content:
         creds.append(str(line).strip())
+
 
 def query_footprint(layer, db='footprint', table=False, where=None, columns=None):
     '''
     queries the danco footprint database, for the specified layer and optional where clause
     returns a dataframe of match
     layer: danco layer to query - e.g.: 'dg_imagery_index_stereo_cc20'
-    where: sql where clause     - e.g.: "acqdate > '2015-01-01'"
+    where: sql where clause     - e.g.: "acqdate > '2015-01-21'"
     columns: list of column names to load
     '''
     try:
@@ -113,8 +116,12 @@ def footprint_fields(layer):
 
 
 def stereo_noh(where=None, cc20=True):
-    '''returns a dataframe with all intrack stereo not on hand as individual rows, rather
-    than as pairs'''
+    '''
+    Returns a dataframe with all intrack stereo not on hand as individual rows, 
+    rather than as pairs.
+    where: string of SQL query syntax
+    cc20: True returns on cloudcover 20% or better.
+    '''
     if cc20:
         # Use the prebuilt cc20 not on hand layers
         stereo_noh_left = 'dg_imagery_index_stereo_notonhand_left_cc20'
@@ -175,7 +182,7 @@ def all_noh(where=None, cc20=True):
 
 def all_IK01(where=None, onhand=None):
     '''
-    returns a dataframe of IKONOS imagery footprints
+    Returns a dataframe of IKONOS imagery footprints
     where:    sql query
     onhand:   if True return only on hand, if False only not on hand, defaults to both
     '''
@@ -226,10 +233,8 @@ def all_IK01(where=None, onhand=None):
     
     return df
     
-    
 
-
-
+st_noh = stereo_noh(where="""acqdate >= '2019-08-04'""")
 
 
 

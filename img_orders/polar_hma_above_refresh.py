@@ -12,17 +12,19 @@ import argparse, os
 from imagery_order_sheet_maker_module import create_sheets
 from id_parse_utils import date_words
 
+
 def refresh_region_lut(refresh_region='polar_hma_above'):
     '''
-    take in a refresh type and return relevent regions
-    refresh_type: string, supported types ['polar_hma_above', 'nonpolar', 'global']
+    Uses a refresh region shortname to return relevent region names in AOI shapefile.
+    refresh_region: string, supported types ['polar_hma_above', 'nonpolar', 'global']
     '''
     supported_refreshes = ['polar_hma_above', 'nonpolar', 'global']
     if refresh_region in supported_refreshes:
         if refresh_region == 'polar_hma_above':
             regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'ABoVE Nonpolar', 'HMA']
         elif refresh_region == 'nonpolar':
-            regions = ['Nonpolar']
+            regions = ['Nonpolar', 'Nonpolar Ice']
+#            regions = ['Nonpolar']
         elif refresh_region == 'global':
             regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'HMA', 'Nonpolar', 'ABoVE Nonpolar', 'Nonpolar Ice']
     else:
@@ -33,7 +35,7 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
 
 def refresh(last_refresh, refresh_region, refresh_imagery):
     '''
-    select ids for imagery order
+    Select ids for imagery order
     '''
     
     where = "acqdate >= '{}'".format(last_refresh)

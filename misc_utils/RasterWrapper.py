@@ -13,9 +13,10 @@ import logging
 
 class Raster():
     '''
-    A class wrapper using GDAL to make simplify working with rasters.
+    A class wrapper using GDAL to simplify working with rasters.
     Basic functionality:
         -read array from raster
+        -read stacked array
         -write array out with same metadata
         -sample raster at point in geocoordinates
         -sample raster with window around point
@@ -34,21 +35,57 @@ class Raster():
         self.dtype = self.data_src.GetRasterBand(1).DataType
         
         ## Get the raster as an array
+        ## Defaults to band 1 -- use ReadArray() to return stack of multiple bands
         self.Array = self.data_src.ReadAsArray()
 
 
+    def ReadStackedArray(self, stacked=True):
+        '''
+        Read raster as array, stacking multiple bands as either stacked array or multiple arrays
+        stacked: boolean - specify False to return a separate array for each band
+        '''
+        ## Get number of bands in raster
+        num_bands = self.data_src.RasterCount
+        ## For each band read as array and add to list
+        band_arrays = []
+        for band in range(num_bands):
+            band_arr = self.data_src.GetRasterBand(band).ReadAsArray()
+            band_arrays.append(band_arr)
+        
+        ## If stacked is True, stack bands and return
+        if stacked == True:
+            ## Control for 1 band rasters as stacked=True is the default
+            if num_bands > 1:
+                stacked_array = np.dstack(band_arrays)
+            else:
+                stacked_array = band_arrays[0]
+                
+            return stacked_array
+        
+        ## Return list of band arrays
+        else:
+            return band_arrays
+            
+        
     def WriteArray(self, array, out_path):
         '''
         Writes the passed array with the metadata of the current raster object
         as new raster.
         '''
+        # Get dimensions of input array
+        rows, cols, depth = array.shape
+        
+        # Create output file
         fmt = 'GTiff'
         driver = gdal.GetDriverByName(fmt)
         dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, 1, self.dtype)
-        dst_ds.GetRasterBand(1).WriteArray(array)
         dst_ds.SetGeoTransform(self.geotransform)
         dst_ds.SetProjection(self.prj.ExportToWkt())
-        dst_ds.GetRasterBand(1).SetNoDataValue(self.nodata_val)
+
+        # Loop through each layer of array and right as band
+        for i in range(depth):        
+            dst_ds.GetRasterBand(i).WriteArray(array)
+            dst_ds.GetRasterBand(i).SetNoDataValue(self.nodata_val)
         
         dst_ds = None
         
@@ -72,10 +109,10 @@ class Raster():
         return point_value
     
     
-    def SampleWindow(self, center_point, window_size, agg='mean', grow_window=False, max_grow=81):
+    def SampleWindow(self, center_point, window_size, agg='mean', grow_window=False, max_grow=window_size*100):
         '''
         Samples the current raster object using a window centered 
-        on center_point.
+        on center_point. Assumes 1 band raster.
         center_point: tuple of (y, x) in geocoordinates
         window_size: tuple of (y_size, x_size) as number of pixels (must be odd)
         agg: type of aggregation, default is mean, can also me sum, min, max
@@ -109,18 +146,6 @@ class Raster():
             
             return ymin, ymax, xmin, xmax
         
-#        ## Get window around center point
-#        # Get size in y, x directions
-#        y_sz = window_size[0]
-#        y_step = int(y_sz / 2)
-#        x_sz = window_size[1]
-#        x_step = int(x_sz / 2)
-#        
-#        # Get pixel locations of window bounds
-#        ymin = py - y_step
-#        ymax = py + y_step + 1 # slicing doesn't include stop val so add 1
-#        xmin = px - x_step
-#        xmax = px + x_step + 1 
         
         ## Convert center point geocoordinates to array coordinates
         py = int(np.around((center_point[0] - self.geotransform[3]) / self.geotransform[5]))
@@ -128,8 +153,8 @@ class Raster():
         
         ## Handle window being out of raster bounds
         try:
-            grow = True
-            while grow == True:
+            growing = True
+            while growing == True:
                 ymin, ymax, xmin, xmax = window_bounds(window_size, py, px)
                 window = self.Array[ymin:ymax, xmin:xmax].astype(np.float32)
                 window = np.where(window==-9999.0, np.nan, window)
@@ -149,7 +174,7 @@ class Raster():
                     window_agg = agg_lut[agg]
                     
                     # Do not grow if valid values found
-                    grow = False
+                    growing = False
                     
                 else:
                     ## Window all nan's, return nan value (arbitratily picking -9999)
@@ -159,7 +184,7 @@ class Raster():
                     # If grow_window is False, return no data and exit while loop
                     else:
                         window_agg = -9999
-                        grow = False
+                        growing = False
             
             
         except IndexError as e:

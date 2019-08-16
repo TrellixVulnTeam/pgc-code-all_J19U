@@ -39,7 +39,6 @@ def read_ids(ids_file, sep=None, stereo=False):
 
 def select_footprints_by_attribute(field, ids):
     sql = """ {} IN {} """.format(field, ids)
-    print(sql)
     selection = arcpy.SelectLayerByAttribute_management(imagery_index, "NEW_SELECTION", sql)
     count = arcpy.GetCount_management(selection)
     print('Features selected: {}'.format(count))

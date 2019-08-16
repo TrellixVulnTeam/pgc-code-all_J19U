@@ -11,6 +11,7 @@ import pandas as pd
 import os, tqdm
 
 from dataframe_utils import determine_id_col, determine_stereopair_col
+from ids_order_sources import get_ordered_ids
 
 
 def type_parser(filepath):
@@ -38,6 +39,8 @@ def type_parser(filepath):
             return 'dbf'
         elif ext == '.shp':
             return 'shp'
+        elif ext == '.pkl':
+            return 'pkl'
     elif isinstance(filepath, gpd.GeoDataFrame):
         return 'df'
     else:
@@ -54,11 +57,12 @@ def get_stereopair_ids(df):
     return ids
 
 
-def read_ids(ids_file, sep=None, stereo=False):
+def read_ids(ids_file, field=None, sep=None, stereo=False):
     '''Reads ids from a variety of file types. Can also read in stereo ids from applicable formats
     Supported types:
         .txt: one per line, optionally with other fields after "sep"
         .dbf: shapefile's associated dbf    
+    field: field name, irrelevant for text files, but will search for this name if ids_file is .dbf
     '''
     ids = []
     # Determine file type
@@ -78,7 +82,10 @@ def read_ids(ids_file, sep=None, stereo=False):
     # DBF
     elif file_type == 'dbf':
         df = gpd.read_file(ids_file)
-        id_col = determine_id_col(df)
+        if field == None:
+            id_col = determine_id_col(df)
+        else:
+            id_col = field
         df_ids = list(df[id_col])
         for each_id in df_ids:
             ids.append(each_id)
@@ -87,6 +94,14 @@ def read_ids(ids_file, sep=None, stereo=False):
             sp_ids = get_stereopair_ids(df)
             for sp_id in sp_ids:
                 ids.append(sp_id)
+    elif file_type == 'pkl':
+        df = pd.read_pickle(ids_file)
+        if len(df.columns) > 1:
+            ids = list(df[df.columns[0]])
+        elif len(df.columns) == 1:
+            ids = list(df)
+        else:
+            print('No columns found in pickled dataframe.')
     else:
         print('Unsupported file type... {}'.format(file_type))
     return ids
@@ -260,3 +275,42 @@ def ge_ids2dg_ids(ids):
     return converted_ids, not_conv_ids
 
 
+def pgc_index_path():
+    '''
+    Returns the path to the most recent pgc index from a manually updated
+    text file containing the path.
+    '''
+    with open(r'C:\pgc-code-all\pgc_index_path.txt', 'r') as src:
+        content = src.readlines()
+        index_path = content[0]
+    return index_path
+
+
+
+
+def locate_ids(df, cat_id_field):
+    '''
+    Creates a new column in df with the location of each catalogid - prioritizing PGC, then NASA, then ordered.
+    df: dataframe containing catalogids
+    cat_id_field: field name with catalogids
+    '''
+    def locate_id(each_id, pgc_ids, nasa_ids, ordered_ids):
+        '''
+        Returns where a single id is located.
+        '''
+        if each_id in pgc_ids:
+            location = 'pgc'
+        elif each_id in nasa_ids:
+            location = 'nasa'
+        elif each_id in ordered_ids:
+            location = 'ordered'
+        else:
+            location = 'unknown'
+        return location
+
+    pgc_ids = set(read_ids(r'C:\pgc_index\catalog_ids.txt')) # mfp
+    nasa_ids = set(read_ids(r'C:\pgc_index\nga_inventory_canon20190505\nga_inventory_canon20190505_CATALOG_ID.txt')) # nasa
+    ordered_ids = set(get_ordered_ids()) #order sheets
+    
+    df['location'] = df[cat_id_field].apply(lambda x: locate_id(x, pgc_ids, nasa_ids, ordered_ids))
+    

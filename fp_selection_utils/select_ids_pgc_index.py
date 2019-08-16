@@ -14,8 +14,7 @@ import sys, os, argparse, multiprocessing, logging
 #from joblib import Parallel, delayed
 from pprint import pprint
 
-sys.path.insert(0, r'C:\code\misc_utils')
-from id_parse_utils import read_ids
+#from id_parse_utils import read_ids
 
 
 ## Set up logging
@@ -114,7 +113,7 @@ def mfp_layers_subset(lon_min, lat_min, lon_max, lat_max):
 
     lyr_matches = []
     for layer in layers:
-        # Determine minimum of eachc layer given the step size
+        # Determine minimum of each layer given the step size
         lyr_dict[layer]['min_lat'] = lyr_dict[layer]['max_lat'] - lat_step
         lyr_dict[layer]['min_lon'] = lyr_dict[layer]['max_lon'] - lon_step
         
@@ -126,7 +125,8 @@ def mfp_layers_subset(lon_min, lat_min, lon_max, lat_max):
         if any(i in lyr_lat_range for i in lat_range):
             if any(x in lyr_lon_range for x in lon_range):
                 lyr_matches.append(layer)
-        print('\n')
+                
+    logging.info('Matching master footprint layers: {}'.format(lyr_matches))
     
     return lyr_matches
 
@@ -138,11 +138,10 @@ def mfp_subset(lon_min, lat_min, lon_max, lat_max):
     layers = mfp_layers_subset(lon_min, lat_min, lon_max, lat_max)
     logging.info('Matching master footprint layers: {}'.format(len(layers)))
     for layer in layers:
+        print('Working on: {}'.format(layer))
         logging.info('Working on: {}'.format(layer))
         df = gpd.read_file(index_path, driver='OpenFileGDB', layer=layer)
         yield df
-
-
 
 
 #if __name__ == '__main__':

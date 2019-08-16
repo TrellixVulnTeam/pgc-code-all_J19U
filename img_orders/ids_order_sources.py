@@ -10,12 +10,16 @@ import pandas as pd
 import os, tqdm, argparse, datetime
 
 from id_parse_utils import read_ids, write_ids
-from copy_missing_files import copy_missing_files
+
+
+ordered_ids_path = r'E:\disbr007\imagery_orders\ordered\all_ordered.pkl'
+
 
 def id_order_loc_update():
     '''
     Reads ids from excel sheets, pairing each id with the associated order (directory name)
     '''
+    global ordered_ids_path
     # Directory holding sheets of orders - copied from the server location manually
     sheets_dir = r'E:\disbr007\imagery_orders\NGA'
     
@@ -39,10 +43,18 @@ def id_order_loc_update():
                         all_ids.append((i, order, dtime))
                 except LookupError:
                     exception_count += 1
-    
     all_orders = pd.DataFrame(all_ids, columns=['ids', 'order', 'created'])
-    all_orders.to_pickle(r'E:\disbr007\imagery_orders\ordered\all_ordered.pkl')
+    all_orders.to_pickle(ordered_ids_path)
     return all_orders
+
+
+def get_ordered_ids():
+    '''
+    Returns a list of all ids in an order sheet
+    '''
+    global ordered_ids_path
+    ordered_ids_df = pd.read_pickle(ordered_ids_path)
+    return list(ordered_ids_df['ids'])
 
 
 def lookup_id_order(txt_file, all_orders=None, write_missing=False):
@@ -51,13 +63,13 @@ def lookup_id_order(txt_file, all_orders=None, write_missing=False):
     txt_file: txt file of ids, one per line
     all_orders: df containing ids and order sheets
     '''
+    global ordered_ids_path
     if isinstance(all_orders, pd.DataFrame):
         pass
     else:
-        all_orders = pd.read_pickle(r'E:\disbr007\imagery_orders\ordered\all_ordered.pkl')
+        all_orders = pd.read_pickle(ordered_ids_path)
         
     txt_ids = read_ids(txt_file)
-    print(len(set(txt_ids)))
     ids_loc = all_orders.loc[all_orders['ids'].isin(txt_ids)]
     ids_loc.to_excel(os.path.join(os.path.dirname(txt_file), 'order_sources.xlsx'), index=False)
     
