@@ -234,7 +234,6 @@ def all_IK01(where=None, onhand=None):
     return df
     
 
-st_noh = stereo_noh(where="""acqdate >= '2019-08-04'""")
 
 
 

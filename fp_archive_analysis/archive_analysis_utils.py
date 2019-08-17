@@ -12,7 +12,7 @@ import geopandas as gpd
 import pandas as pd
 import numpy as np
 import multiprocessing
-from joblib import Parallel, delayed
+#from joblib import Parallel, delayed
 from copy import deepcopy
 from query_danco import query_footprint
 from get_bounding_box import get_bounding_box

@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 
+sys.path.insert(0, r"C:\code\pgc-code-all\fp_archive_analysis\archive_analysis_utils.py")
 from archive_analysis_utils import get_count
 
 def update_density_grid(src_grid, coastline, output_grid, distance=0):
@@ -70,6 +71,8 @@ candidates = gpd.read_file(gdb, driver='OpenFileGDB', layer=candidates_n)
 ## is counted. Footprints can be counted more than once.
 density = get_count(grid, candidates)
 density.to_file(os.path.join(wd, 'density.shp'), driver='ESRI Shapefile')
+
+logger.info('Done.')
 
 
 
