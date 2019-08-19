@@ -280,7 +280,7 @@ def pgc_index_path():
     Returns the path to the most recent pgc index from a manually updated
     text file containing the path.
     '''
-    with open(r'C:\pgc-code-all\pgc_index_path.txt', 'r') as src:
+    with open(r'C:\code\pgc-code-all\pgc_index_path.txt', 'r') as src:
         content = src.readlines()
         index_path = content[0]
     return index_path

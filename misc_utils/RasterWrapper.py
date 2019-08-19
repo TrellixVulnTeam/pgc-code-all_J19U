@@ -109,7 +109,7 @@ class Raster():
         return point_value
     
     
-    def SampleWindow(self, center_point, window_size, agg='mean', grow_window=False, max_grow=window_size*100):
+    def SampleWindow(self, center_point, window_size, agg='mean', grow_window=False, max_grow=100000):
         '''
         Samples the current raster object using a window centered 
         on center_point. Assumes 1 band raster.

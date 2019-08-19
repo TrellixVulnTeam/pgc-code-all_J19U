@@ -20,67 +20,77 @@ logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s',
 logger.setLevel(logging.INFO)
 
 
-def create_raster_lut(sea_ice_dir, year_start=1978, year_stop=2020):
+def create_raster_lut(sea_ice_dir, year_start=1978, year_stop=2020, update=False):
     '''
     Creates a lookup dictionary for each raster in the sea ice
     raster directory.
     '''
-    ## Initialize empty dictionary with entries for each year, month, and day
-    years = [str(year) for year in range(year_start, year_stop+1)]
-    months = [str(month) if len(str(month))==2 else '0'+str(month) for month in range(1, 13)]
-    days = [str(day) if len(str(day))==2 else '0'+str(day) for day in range(1,32)]
-    raster_index = {year: {month: {day: None for day in days} for month in months} for year in years}
-    ## Walk rasters extracting date information
-#    ctr = 0 
-    for root, dirs, files in os.walk(sea_ice_dir):
-        for f in files:
-            # Only add concentration rasters
-            if f.endswith('_concentration_v3.0.tif'):
-                date = f.split('_')[1] # f format: N_ N_19851126_concentration_v3.0.tif
-                year = date[0:4]
-                month = date[4:6]
-                day = date[6:8]
-#                print(year, month, day)
-                raster_index[year][month][day] = os.path.join(root, f)
-
-    ## Remove empty dictionary entries
-    # Remove empty days
-    for year_k, year_v in raster_index.copy().items():
-        for month_k, month_v in raster_index[year_k].copy().items():
-            for day_k, day_v in raster_index[year_k][month_k].copy().items():
-                if day_v == None:
-                    del raster_index[year_k][month_k][day_k]
-    # Remove empty months
-    for year_k, year_v in raster_index.copy().items():
-        for month_k, month_v in raster_index[year_k].copy().items():
-            if not month_v:
-                del raster_index[year_k][month_k]
-    # Remove empty years
-    for year_k, year_v in raster_index.copy().items():
-        if not year_v:
-            del raster_index[year_k]
+    pickle_path = r'C:\Users\disbr007\projects\coastline\pickles\sea_ice_concentraion_index.pkl'
+    if update == False:
+        raster_index = pd.read_pickle(pickle_path)
+    else:
+        ## Initialize empty dictionary with entries for each year, month, and day
+        years = [str(year) for year in range(year_start, year_stop+1)]
+        months = [str(month) if len(str(month))==2 else '0'+str(month) for month in range(1, 13)]
+        days = [str(day) if len(str(day))==2 else '0'+str(day) for day in range(1,32)]
+        raster_index = {year: {month: {day: None for day in days} for month in months} for year in years}
+        ## Walk rasters extracting date information
+    #    ctr = 0 
+        for root, dirs, files in os.walk(sea_ice_dir):
+            for f in files:
+                # Only add concentration rasters
+                if f.endswith('_concentration_v3.0.tif'):
+                    date = f.split('_')[1] # f format: N_ N_19851126_concentration_v3.0.tif
+                    year = date[0:4]
+                    month = date[4:6]
+                    day = date[6:8]
+    #                print(year, month, day)
+                    raster_index[year][month][day] = os.path.join(root, f)
     
-
+        ## Remove empty dictionary entries
+        # Remove empty days
+        for year_k, year_v in raster_index.copy().items():
+            for month_k, month_v in raster_index[year_k].copy().items():
+                for day_k, day_v in raster_index[year_k][month_k].copy().items():
+                    if day_v == None:
+                        del raster_index[year_k][month_k][day_k]
+        # Remove empty months
+        for year_k, year_v in raster_index.copy().items():
+            for month_k, month_v in raster_index[year_k].copy().items():
+                if not month_v:
+                    del raster_index[year_k][month_k]
+        # Remove empty years
+        for year_k, year_v in raster_index.copy().items():
+            if not year_v:
+                del raster_index[year_k]
+        
+        pd.to_pickle(raster_index, pickle_path)
+    
     return raster_index
 
 
-def locate_sea_ice_path(footprint, raster_lut):
+def locate_sea_ice_path(footprint, raster_lut, date_col='acq_time'):
     '''
     Takes footprints in and looks up their acq_time (date) in the raster_lut to locate
     the path to the appropriate raster.
     '''
-    acq_time = footprint['acq_time']
+    acq_time = footprint[date_col]
     year, month, day = acq_time[:10].split('-')
-    # Try to locate raster for actual day. If not try the next day, if not try the day before
-    if day in raster_lut[year][month].keys():
-        sea_ice_p = raster_lut[year][month][day]
-    
-    elif str(int(day) + 1) in raster_lut[year][month].keys():
-        sea_ice_p = raster_lut[year][month][str(int(day) + 1)]
-    
-    else:
-        sea_ice_p = raster_lut[year][month][str(int(day) - 1)]
-    
+    try:    
+        # Try to locate raster for actual day. If not try the next day, if not try the day before
+        if day in raster_lut[year][month].keys():
+            sea_ice_p = raster_lut[year][month][day]
+        
+        elif str(int(day) + 1) in raster_lut[year][month].keys():
+            sea_ice_p = raster_lut[year][month][str(int(day) + 1)]
+        
+        else:
+            sea_ice_p = raster_lut[year][month][str(int(day) - 1)]
+    except KeyError as e:
+        print(e)
+        print(acq_time)
+        print(year, month, day)
+        sea_ice_p = None
     return sea_ice_p
 
 
@@ -111,20 +121,21 @@ def sample_sea_ice(footprint, yx_col):
     
 
 
-
 ## Create look up table of all sea-ice concentration rasters by date raster_lut['year']['month']['day'] = filename
 logging.info('Creating look-up table of sea-ice rasters by date...')
 sea_ice_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\resampled_nd'
 
-raster_lut = create_raster_lut(sea_ice_dir)
+raster_lut = create_raster_lut(sea_ice_dir, update=False)
 
 ## Read in candidate footprints from initial selection criteria and coastline intersect
-cand_p = r'C:\Users\disbr007\projects\coastline\scratch\initial_selection_greenland.pkl'
+gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
+cand_p = 'dg_global_coastline_candidates'
+cand = gpd.read_file(gdb, driver='OpenFileGDB', layer=cand_p)
+#cand_p = r'C:\Users\disbr007\projects\coastline\scratch\initial_selection_greenland.pkl'
+#cand = pd.read_pickle(cand_p)
 
-cand = pd.read_pickle(cand_p)
 
 # Reproject
-
 cand = cand.to_crs({'init':'epsg:3413'})
 
 ## Change to centroid, saving original geometry
@@ -134,12 +145,10 @@ cand.drop(columns='geometry', inplace=True)
 cand.set_geometry('geom_cent', inplace=True)
 
 # Get center point coordinates
-
 cand['yx'] = cand.apply(get_center_yx, args=('geom_cent',), axis=1)
 
 # Locate sea ice path for each footprint
-
-cand['sea_ice_path'] = cand.apply(locate_sea_ice_path, args=(raster_lut,), axis=1)
+cand['sea_ice_path'] = cand.apply(locate_sea_ice_path, args=(raster_lut,'acqdate'), axis=1)
 
 # Sample sea ice rasters - try sorting to speed up
 logging.info('Sampling sea-ice rasters...')
@@ -153,7 +162,7 @@ cand['yx'] = cand['yx'].astype(str)
 ## Drop centroid geometry for writing to shape
 cand.drop(columns='geom_cent', inplace=True)
 
-cand.to_file(r'C:\temp\coastline_candidates_greenland.shp', driver='ESRI Shapefile')
+cand.to_file(r'C:\Users\disbr007\projects\coastline\dg_global_coastline_candidates_seaice.shp', driver='ESRI Shapefile')
 
 
 #### PLOTTING
@@ -223,7 +232,7 @@ def plot_agg_timeseries(src_df, agg_col, agg_type, date_col, freq, ax=None):
     plt.show()
     return fig, ax
 
-plot_agg_timeseries(cand, 'sea_ice_concen', 'mean', 'acq_time', 'M')
+#plot_agg_timeseries(cand, 'sea_ice_concen', 'mean', 'acq_time', 'M')
 
 
 

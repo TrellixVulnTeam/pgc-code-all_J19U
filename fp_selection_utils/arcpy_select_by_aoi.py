@@ -82,7 +82,10 @@ if __name__ == '__main__':
     search_distance = args.search_distance
     
     ## Inital selection by location
-    selection = select_footprints(aoi_path, overlap_type, search_distance)
+    selection = select_footprints(aoi_path, 
+                                  imagery_index=r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06', 
+                                  overlap_type='INTERSECT', 
+                                  search_distance=0)
     
     ## CC20 if specified
     if cc20:
