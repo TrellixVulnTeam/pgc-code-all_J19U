@@ -240,13 +240,9 @@ def grid_poly_row(row, nrows, ncols):
     return feat_cells
 
 
-
 gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
-
 gp = r'density_grid_10km'
-
 grid = gpd.read_file(gdb, layer=gp, driver='OpenFileGDB')
-
 sixt = grid_poly(grid, nrows=16, ncols=16)
 
 #driver = 'ESRI Shapefile'

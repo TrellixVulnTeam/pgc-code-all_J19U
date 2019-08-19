@@ -35,6 +35,7 @@ def create_raster_lut(sea_ice_dir, year_start=1978, year_stop=2020, update=False
     Creates a lookup dictionary for each raster in the sea ice
     raster directory.
     '''
+    ## Create a 'arctic_sea_ice_path' and 'antarctic_sea_ice_path - use lat to determine which to sample
     pickle_path = r'C:\Users\disbr007\projects\coastline\pickles\sea_ice_concentraion_index.pkl'
     if update == False:
         raster_index = pd.read_pickle(pickle_path)
@@ -85,6 +86,7 @@ def locate_sea_ice_path(footprint, raster_lut, date_col='acq_time'):
     Takes footprints in and looks up their acq_time (date) in the raster_lut to locate
     the path to the appropriate raster.
     '''
+    ## Create a 'arctic_sea_ice_path' and 'antarctic_sea_ice_path - use lat to determine which to sample
     acq_time = footprint[date_col]
     year, month, day = acq_time[:10].split('-')
     try:    
@@ -120,13 +122,19 @@ def sample_sea_ice(footprint, yx_col):
     '''
     y = footprint[yx_col][0]
     x = footprint[yx_col][1]
-    
-    sea_ice = Raster(footprint['sea_ice_path'])
-    
-    sea_ice_concen = sea_ice.SampleWindow((y,x), (3,3), agg='mean', grow_window=True, max_grow=81)
-    
-    ## Convert to percentage
-    sea_ice_concen = sea_ice_concen / 10
+
+    ## Create a 'arctic_sea_ice_path' and 'antarctic_sea_ice_path - use lat to determine which to sample
+    sea_ice = Raster(footprint['sea_ice_path'])    
+    ## Determine if sampling makes sense - if so, which pole
+    # Arctic
+    if y > 55.0:
+        sea_ice_concen = sea_ice.SampleWindow((y,x), (3,3), agg='mean', grow_window=True, max_grow=81)
+        ## Convert to percentage
+        sea_ice_concen = sea_ice_concen / 10
+    # Antarctic
+#    elif y < -55.0:
+    else:
+        sea_ice_concen = -9999                
     
     return sea_ice_concen
     
@@ -140,12 +148,12 @@ raster_lut = create_raster_lut(sea_ice_dir, update=False)
 ## Read in candidate footprints from initial selection criteria and coastline intersect
 logger.info('Loading candidate footprints...')
 gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
-cand_p = 'nasa_global_coastline_candidates'
+cand_p = 'mfp_global_coastline_candidates'
 cand = gpd.read_file(gdb, driver='OpenFileGDB', layer=cand_p)
 #date_col = 'acqdate' # DG
-#date_col = 'acq_time' # MFP
-date_col = 'ACQ_TIME' # NASA ?
-out_path = r'C:\Users\disbr007\projects\coastline\nasa_global_coastline_candidates_seaice.shp'
+date_col = 'acq_time' # MFP
+#date_col = 'ACQ_TIME' # NASA ?
+out_path = r'C:\Users\disbr007\projects\coastline\mfp_global_coastline_candidates_seaice.shp'
 
 ## Reproject, saving original crs
 logger.info('Reprojecting footprints to EPGS:3413 to match sea-ice rasters...')
