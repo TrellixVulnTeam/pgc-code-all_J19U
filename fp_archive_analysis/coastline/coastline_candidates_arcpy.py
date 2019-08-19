@@ -106,14 +106,14 @@ def selection_clause(src):
     max_ona = get_max_ona_ids()
 
     if src == 'mfp':
-        where = f"""(status = {status}) 
-            AND (cloudcover <= {cloudcover}) 
-            AND (sensor IN {sensors}) 
+        where = f"""(cloudcover <= {cloudcover}) 
+            AND (sensor IN {sensors})
             AND (prod_code = {prod_code})
             AND (abscalfact IS {abscalfact}) 
             AND (bandwidth IS {bandwith}) 
             AND (sun_elev IS {sun_elev})
             AND (catalog_id NOT IN {max_ona})"""
+#           AND (status = {status})"""
 
     elif src == 'dg':
         where = f"""(cloudcover <= {int(cloudcover*100)})
@@ -121,14 +121,14 @@ def selection_clause(src):
 #            AND (catalogid NOT IN {max_ona})"""
     
     elif src == 'nasa':
-        where = f"""(STATUS = '{status}') 
-            AND (CLOUDCOVER <= {cloudcover}) 
+        where = f"""(CLOUDCOVER <= {cloudcover}) 
             AND (SENSOR IN {sensors}) 
             AND (PROD_CODE = '{prod_code}')
             AND (ABSCALFACT IS {abscalfact}) 
             AND (BANDWIDTH IS {bandwith}) 
             AND (SUN_ELEV IS {sun_elev})"""
 #            AND (CATALOG_ID NOT IN {max_ona})"""
+#            AND (status = {status})"""
             
     else:
         print('Unknown source for selection_clause(), must be one of "mfp" or "dg"')

@@ -8,16 +8,26 @@ Use Sea-Ice concentration rasters to further refine selection
 
 import geopandas as gpd
 import pandas as pd
-import os, logging
+import os, logging, sys
 import numpy as np
+from tqdm import tqdm
 
 from RasterWrapper import Raster
 
 
+#### Environment settings
+tqdm.pandas()
+
+
+#### Logging
 logger = logging.getLogger()
-logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
-                    level=logging.INFO)
 logger.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 
 def create_raster_lut(sea_ice_dir, year_start=1978, year_stop=2020, update=False):
@@ -29,6 +39,7 @@ def create_raster_lut(sea_ice_dir, year_start=1978, year_stop=2020, update=False
     if update == False:
         raster_index = pd.read_pickle(pickle_path)
     else:
+        logger.info('Creating look-up table of sea-ice rasters by date...')
         ## Initialize empty dictionary with entries for each year, month, and day
         years = [str(year) for year in range(year_start, year_stop+1)]
         months = [str(month) if len(str(month))==2 else '0'+str(month) for month in range(1, 13)]
@@ -122,23 +133,27 @@ def sample_sea_ice(footprint, yx_col):
 
 
 ## Create look up table of all sea-ice concentration rasters by date raster_lut['year']['month']['day'] = filename
-logging.info('Creating look-up table of sea-ice rasters by date...')
 sea_ice_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\resampled_nd'
-
 raster_lut = create_raster_lut(sea_ice_dir, update=False)
 
+
 ## Read in candidate footprints from initial selection criteria and coastline intersect
+logger.info('Loading candidate footprints...')
 gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
-cand_p = 'dg_global_coastline_candidates'
+cand_p = 'nasa_global_coastline_candidates'
 cand = gpd.read_file(gdb, driver='OpenFileGDB', layer=cand_p)
-#cand_p = r'C:\Users\disbr007\projects\coastline\scratch\initial_selection_greenland.pkl'
-#cand = pd.read_pickle(cand_p)
+#date_col = 'acqdate' # DG
+#date_col = 'acq_time' # MFP
+date_col = 'ACQ_TIME' # NASA ?
+out_path = r'C:\Users\disbr007\projects\coastline\nasa_global_coastline_candidates_seaice.shp'
 
-
-# Reproject
+## Reproject, saving original crs
+logger.info('Reprojecting footprints to EPGS:3413 to match sea-ice rasters...')
+src_crs = cand.crs
 cand = cand.to_crs({'init':'epsg:3413'})
 
 ## Change to centroid, saving original geometry
+logger.info('Getting footprint center point coordinates for sampling...')
 cand['geom_poly'] = cand.geometry
 cand['geom_cent'] = cand.centroid
 cand.drop(columns='geometry', inplace=True)
@@ -148,21 +163,26 @@ cand.set_geometry('geom_cent', inplace=True)
 cand['yx'] = cand.apply(get_center_yx, args=('geom_cent',), axis=1)
 
 # Locate sea ice path for each footprint
-cand['sea_ice_path'] = cand.apply(locate_sea_ice_path, args=(raster_lut,'acqdate'), axis=1)
+logger.info('Looking up path to sea-ice raster for each footprint...')
+cand['sea_ice_path'] = cand.apply(locate_sea_ice_path, args=(raster_lut, date_col), axis=1)
 
 # Sample sea ice rasters - try sorting to speed up
-logging.info('Sampling sea-ice rasters...')
-cand.sort_values(by=['acq_time'], inplace=True)
-cand['sea_ice_concen'] = cand.apply(sample_sea_ice, args=('yx',), axis=1)
+logger.info('Sampling sea-ice rasters...')
+cand.sort_values(by=[date_col], inplace=True)
+cand['sea_ice_concen'] = cand.progress_apply(sample_sea_ice, args=('yx',), axis=1)
+
 
 ## Switch back to polygon geometry
+logging.info('Writing to shapefile...')
 cand.set_geometry('geom_poly', inplace=True)
 cand['yx'] = cand['yx'].astype(str)
 
 ## Drop centroid geometry for writing to shape
 cand.drop(columns='geom_cent', inplace=True)
 
-cand.to_file(r'C:\Users\disbr007\projects\coastline\dg_global_coastline_candidates_seaice.shp', driver='ESRI Shapefile')
+## Reproject back to original crs
+cand.to_crs(src_crs)
+cand.to_file(out_path, driver='ESRI Shapefile')
 
 
 #### PLOTTING

@@ -240,6 +240,15 @@ def grid_poly_row(row, nrows, ncols):
     return feat_cells
 
 
+
+gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
+
+gp = r'density_grid_10km'
+
+grid = gpd.read_file(gdb, layer=gp, driver='OpenFileGDB')
+
+sixt = grid_poly(grid, nrows=16, ncols=16)
+
 #driver = 'ESRI Shapefile'
 ##geocells_path = r'E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp'
 ##geocells_path = r'E:\disbr007\scratch\geocells_sub.shp'
