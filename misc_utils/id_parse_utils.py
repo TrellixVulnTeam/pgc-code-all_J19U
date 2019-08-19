@@ -11,7 +11,7 @@ import pandas as pd
 import os, tqdm
 
 from dataframe_utils import determine_id_col, determine_stereopair_col
-from ids_order_sources import get_ordered_ids
+#from ids_order_sources import get_ordered_ids
 
 
 def type_parser(filepath):

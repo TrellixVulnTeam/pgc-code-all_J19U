@@ -96,7 +96,7 @@ def grid_poly(poly_gdf, nrows, ncols):
     
     master_gdf = gpd.GeoDataFrame(columns=cols, crs=crs)
     
-    for i in tqdm.tqdm(range(len(poly_gdf))):
+    for i in tqdm(range(len(poly_gdf))):
 
         feat = poly_gdf.iloc[[i]]
 

@@ -39,8 +39,8 @@ gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
 coast_n = 'GSHHS_f_L1_GIMPgl_ADDant_USGSgl_pline'
 
 
-## Type of candidates - from dg footprint ('dg') or masterfootprint ('mfp')
-src = 'dg'
+## Type of candidates - from dg footprint ('dg') or masterfootprint ('mfp') ot ('nasa')
+src = 'nasa' #'mfp' #'nasa'
 
 #### Search distance
 distance = 10
@@ -49,7 +49,7 @@ distance = 10
 #### Output feature class name + arcpy env
 arcpy.env.workspace = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
 arcpy.env.overwriteOutput = True
-out_name = 'dg_global_coastline_candidates'
+out_name = 'nasa_global_coastline_candidates'
 
 
 def get_max_ona_ids(update=False, where=None, wd=wd):
@@ -96,7 +96,7 @@ def selection_clause(src):
     src: str 'mfp' or 'dg'
     '''
     #### Selection criteria
-    status = 'online'
+    status = 'online' ## Change this to any status?
     cloudcover = 0.2
     sensors = ('WV02', 'WV03')
     prod_code = 'M1BS'
@@ -117,8 +117,18 @@ def selection_clause(src):
 
     elif src == 'dg':
         where = f"""(cloudcover <= {int(cloudcover*100)})
-            AND platform IN {sensors}
-            AND catalogid NOT IN {max_ona}"""
+            AND (platform IN {sensors})"""
+#            AND (catalogid NOT IN {max_ona})"""
+    
+    elif src == 'nasa':
+        where = f"""(STATUS = '{status}') 
+            AND (CLOUDCOVER <= {cloudcover}) 
+            AND (SENSOR IN {sensors}) 
+            AND (PROD_CODE = '{prod_code}')
+            AND (ABSCALFACT IS {abscalfact}) 
+            AND (BANDWIDTH IS {bandwith}) 
+            AND (SUN_ELEV IS {sun_elev})"""
+#            AND (CATALOG_ID NOT IN {max_ona})"""
             
     else:
         print('Unknown source for selection_clause(), must be one of "mfp" or "dg"')
@@ -198,6 +208,15 @@ def danco_footprint_connection(layer):
     return '{}.sde.{}'.format('footprint', layer)
 
 
+def count_or_no_results_exit(feat):
+    count = int(arcpy.GetCount_management(feat)[0])
+    if count == 0:
+        logger.info('No features in selection. Exiting.')
+        del selection
+        sys.exit()
+    else:
+        return count
+
 
 #### Load coastline
 logger.info('Loading coastline.')
@@ -211,15 +230,20 @@ if src == 'mfp':
     
 elif src == 'dg':
     src_p = danco_footprint_connection('index_dg')
+
+elif src == 'nasa':
+    src_p = r'C:\pgc_index\nga_inventory_canon20190505\nga_inventory_canon20190505.gdb\nga_inventory_canon20190505'
     
 
 #### Select by criteria
 logger.info('Selecting based on criteria.')
 selection = arcpy.MakeFeatureLayer_management(src_p, os.path.join(gdb, 'intermed_sel'), where_clause=selection_clause(src))
-logging.info('Features selected: {}'.format(arcpy.GetCount_management(selection)))
+   
+count = count_or_no_results_exit(selection)
 
+logger.info('Features selected: {}'.format(count))
 logger.info('Writing intermediate selection...')
-selection = arcpy.CopyFeatures_management(selection, os.path.join(gdb, 'intermed_sel'))
+selection = arcpy.CopyFeatures_management(selection, os.path.join(gdb, 'intermed_sel2'))
 
 
 #### Select only footprints that are within 10 km of coastline
@@ -229,12 +253,14 @@ selection = arcpy.SelectLayerByLocation_management(os.path.join(gdb, 'intermed_s
                                                    select_features=noaa_coast_p,
                                                    search_distance=f'{distance} Kilometers',
                                                    selection_type='NEW_SELECTION')
-logging.info('Features selected: {}'.format(arcpy.GetCount_management(selection)))
+
+count = count_or_no_results_exit(selection)
+logger.info('Features selected: {}'.format(count))
 
 ##### Write to new feature class
 logger.info('Writing final candidates to feature class.')
 final_selection = arcpy.CopyFeatures_management(selection, out_feature_class=os.path.join(gdb, out_name))
-logging.info('Features selected: {}'.format(arcpy.GetCount_management(selection)))
+logger.info('Features selected: {}'.format(arcpy.GetCount_management(selection)))
 
 logger.info('Done.')
 

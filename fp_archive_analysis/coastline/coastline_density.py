@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 
-sys.path.insert(0, r"C:\code\pgc-code-all\fp_archive_analysis\archive_analysis_utils.py")
+sys.path.insert(0, r"C:\code\pgc-code-all\fp_archive_analysis")
 from archive_analysis_utils import get_count
 
 def update_density_grid(src_grid, coastline, output_grid, distance=0):
@@ -55,22 +55,23 @@ arcpy.env.overwriteOutput = True
 wd = r'C:\Users\disbr007\projects\coastline'
 gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
 coast_n = 'GSHHS_f_L1_GIMPgl_ADDant_USGSgl_pline'
-candidates_n = 'global_coastline_candidates'
-grid_n = 'global_density_grid'
+candidates_n = 'mfp_global_coastline_candidates'
+grid_n = 'density_grid_10km_qtr'
 
 ## Output paths
 updated_grid_n = 'global_density_grid_update'
-density_n = 'global_density'
+density_n = 'mfp_global_density'
 
 
 #### Get Density
 ## Load feature classes as geodataframes
-grid = gpd.read_file(gdb, driver='OpenFileGDB', layer=grid_n)
+update_density_grid(grid_n, coast_n, updated_grid_n, distance=10)
+grid = gpd.read_file(gdb, driver='OpenFileGDB', layer=updated_grid_n)
 candidates = gpd.read_file(gdb, driver='OpenFileGDB', layer=candidates_n)
 ## Count candidates per grid cell, any intersecting footprint
 ## is counted. Footprints can be counted more than once.
 density = get_count(grid, candidates)
-density.to_file(os.path.join(wd, 'density.shp'), driver='ESRI Shapefile')
+density.to_file(os.path.join(wd, '{}.shp'.format(density_n)), driver='ESRI Shapefile')
 
 logger.info('Done.')
 
