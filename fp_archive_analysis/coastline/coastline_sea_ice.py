@@ -127,12 +127,12 @@ def sample_sea_ice(footprint, yx_col):
     sea_ice = Raster(footprint['sea_ice_path'])    
     ## Determine if sampling makes sense - if so, which pole
     # Arctic
-    if y > 55.0:
+    if y > 50.0:
         sea_ice_concen = sea_ice.SampleWindow((y,x), (3,3), agg='mean', grow_window=True, max_grow=81)
         ## Convert to percentage
         sea_ice_concen = sea_ice_concen / 10
     # Antarctic
-#    elif y < -55.0:
+#    elif y < -50.0:
     else:
         sea_ice_concen = -9999                
     

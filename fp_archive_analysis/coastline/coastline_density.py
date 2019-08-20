@@ -23,6 +23,8 @@ def update_density_grid(src_grid, coastline, output_grid, distance=0):
     distance: select within distance, in kilometers
     output_grid: write location for updated grid
     '''
+    logging.info('''Updating source grid by selecting only those cells within 
+                 {} km of coastline.'''.format(distance))
     # Select cells from source grid that intersect within distance of coastline
     updated_grid = arcpy.SelectLayerByLocation_management(src_grid, 
                                                    overlap_type='INTERSECT',
@@ -52,29 +54,37 @@ arcpy.env.overwriteOutput = True
 
 #### Set up paths
 ## Source data paths
+src = 'mfp'
+search_distance = 10 # in km
+ice_threshold = 20
 wd = r'C:\Users\disbr007\projects\coastline'
 gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
 coast_n = 'GSHHS_f_L1_GIMPgl_ADDant_USGSgl_pline'
-candidates_n = 'mfp_global_coastline_candidates'
-grid_n = 'density_grid_10km_qtr'
+candidates_n = '{}_global_coastline_candidates_seaice'.format(src)
+grid_n = 'density_grid_one_deg_16x16'
+
 
 ## Output paths
-updated_grid_n = 'global_density_grid_update'
-density_n = 'mfp_global_density'
+updated_grid_n = '{}_{}km'.format(grid_n, search_distance)
+density_n = '{}_global_density_16x16'.format(src)
 
 
 #### Get Density
 ## Load feature classes as geodataframes
-update_density_grid(grid_n, coast_n, updated_grid_n, distance=10)
+#update_density_grid(grid_n, coast_n, updated_grid_n, distance=search_distance)
+
+logger.info('Loading candidate footprints: {}'.format(candidates_n))
 grid = gpd.read_file(gdb, driver='OpenFileGDB', layer=updated_grid_n)
 candidates = gpd.read_file(gdb, driver='OpenFileGDB', layer=candidates_n)
+
+logger.info('Selecting sea-ice concentration <= {}'.format(ice_threshold))
+candidates = candidates[candidates['sea_ice_co'] <= ice_threshold]
+
 ## Count candidates per grid cell, any intersecting footprint
 ## is counted. Footprints can be counted more than once.
+logger.info('Getting count of candidates per cell.')
 density = get_count(grid, candidates)
 density.to_file(os.path.join(wd, '{}.shp'.format(density_n)), driver='ESRI Shapefile')
 
 logger.info('Done.')
-
-
-
 

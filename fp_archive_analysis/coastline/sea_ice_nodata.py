@@ -51,8 +51,8 @@ def resample_nodata(nd1, nd2, nd3, nd4, out_path):
 
 
 #sea_ice_p = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice'
-sea_ice_p = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\north\daily\geotiff'
-out_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\resampled_nd\daily\geotiff'
+sea_ice_p = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\south\daily\geotiff'
+out_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\south\resampled_nd\daily\geotiff'
 
 ## Control which rasters to resample - only those since last update
 last_update_year, last_update_month, last_update_day = 2019, 7, 0
