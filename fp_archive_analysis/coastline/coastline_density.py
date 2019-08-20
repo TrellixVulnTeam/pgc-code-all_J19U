@@ -18,7 +18,7 @@ def update_density_grid(src_grid, coastline, output_grid, distance=0):
     '''
     Takes an empty, global grid and selects only those 
     cells that intersect the coastline at the given distance
-    src_grid: grid polygon, layer or path
+    src_grid:  grid polygon, layer or path
     coastline: coastline line, layer or path
     distance: select within distance, in kilometers
     output_grid: write location for updated grid
