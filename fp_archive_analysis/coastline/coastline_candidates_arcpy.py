@@ -137,50 +137,6 @@ def selection_clause(src):
     return where
 
 
-#def danco_footprint_connection():
-#    creds = []
-#    with open(r"C:\code\pgc-code-all\cred.txt", 'r') as cred:
-#        content = cred.readlines()
-#        for line in content:
-#            creds.append(str(line).strip())
-#    
-#    
-#    out_folder_path = r'C:\dbconn\arcpy_cxn'
-#    out_name = r'footprint_arcpy.sde'
-#    database_platform = 'POSTGRESQL'
-#    instance = r'danco.pgc.umn.edu'
-#    account_authentication= 'DATABASE_AUTH'
-#    database = 'footprint'
-#    schema = ''
-#    username = creds[0]
-#    password = creds[1]
-#    save_user_pass = "DO_NOT_SAVE_USERNAME"
-#    version_type = 'TRANSACTIONAL'
-#    version = 'sde.DEFAULT'
-#    date = ''
-#    
-#    
-#    
-#    arcpy.env.overwriteOutput = True
-#    
-#    cxn = arcpy.CreateDatabaseConnection_management(out_folder_path=out_folder_path,
-#                                              out_name=out_name,
-#                                              database_platform=database_platform,
-#                                              instance=instance,
-#                                              account_authentication=account_authentication,
-#                                              username=username,
-#                                              password=password,
-#                                              save_user_pass=save_user_pass,
-#                                              database=database,
-#                                              schema=schema,
-#                                              version_type=version_type,
-#                                              version=version,
-#                                              date=date)
-#    
-#    print(f'Connected to {instance}: {database}.')
-#    
-#    return os.path.join(out_folder_path, 'footprint.sde.index.dg')
-    
 def danco_footprint_connection(layer):
     arcpy.env.overwriteOutput = True
 
@@ -227,10 +183,8 @@ noaa_coast_p = os.path.join(gdb, coast_n)
 logger.info('Loading source footprint.')
 if src == 'mfp':
     src_p = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06'
-    
 elif src == 'dg':
     src_p = danco_footprint_connection('index_dg')
-
 elif src == 'nasa':
     src_p = r'C:\pgc_index\nga_inventory_canon20190505\nga_inventory_canon20190505.gdb\nga_inventory_canon20190505'
     

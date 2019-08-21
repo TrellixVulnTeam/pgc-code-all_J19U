@@ -10,10 +10,10 @@ Resamples values in rasters to a new no data value.
 import os
 from osgeo import gdal, osr
 import numpy as np
+from tqdm import tqdm
 
 
 gdal.UseExceptions()
-
 
 def resample_nodata(nd1, nd2, nd3, nd4, out_path):
     ## Read source and metadata
@@ -49,13 +49,14 @@ def resample_nodata(nd1, nd2, nd3, nd4, out_path):
     
     dst_ds = None
 
-
+print('file paths')
 #sea_ice_p = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice'
-sea_ice_p = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\south\daily\geotiff'
+#sea_ice_p = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\south\daily\geotiff'
+sea_ice_p = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\south\daily'
 out_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\south\resampled_nd\daily\geotiff'
 
 ## Control which rasters to resample - only those since last update
-last_update_year, last_update_month, last_update_day = 2019, 7, 0
+last_update_year, last_update_month, last_update_day = 1994, 0, 0
 
 ## Concentration raster no data values
 con_miss = 2550
@@ -89,14 +90,18 @@ signed_dtype_lut = {
         }
 
 ctr = 0
+print('preloop')
 for root, dirs, files in os.walk(sea_ice_p):
-    for file in files:
+    print('loop')
+    for file in tqdm(files):
+        print(file)
         f_p = os.path.join(root, file)
         date = os.path.basename(f_p).split('_')[1]
+        print(date)
         year, month, day = int(date[:4]), int(date[4:6]), int(date[6:8])
         if year >= last_update_year and month >= last_update_month and day > last_update_day:
             out_path = os.path.join(out_dir, os.path.relpath(os.path.join(root, file), sea_ice_p))
-#            print(out_path)
+            print(out_path)
             # Resample concentration rasters
             if file.endswith('_concentration_v3.0.tif'):
                 resample_nodata(con_miss, con_land, con_coast, con_pol, out_path=out_path)
