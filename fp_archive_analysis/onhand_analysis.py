@@ -58,22 +58,29 @@ def y_fmt(y, pos):
 
 ## Set up logging
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
+logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
+                    level=logging.INFO)
 
 
 
 #### Load DG archives
 data_path = r'E:\disbr007\imagery_archive_analysis\onhand_analysis\data'
 
+
+
 ## Intrack - pull out stereopair ids and stack them with catalogid
+logging.info('Loading intrack data...')
 it1 = query_footprint('dg_imagery_index_stereo', 
                      columns=['catalogid', 'cloudcover', 'acqdate'], 
                      where="""cloudcover <= 50""")
 
 it2 = query_footprint('dg_imagery_index_stereo', 
-                     columns=['catalogid', 'cloudcover', 'acqdate'], 
+                     columns=['stereopair', 'cloudcover', 'acqdate'], 
                      where="""cloudcover <= 50""")
 
+logger.info('Processing intrack...')
 it2.rename({'stereopair': 'catalogid'}, inplace=True)
 it = pd.concat([it1, it2])
 del it1, it2
@@ -85,15 +92,19 @@ it50 = it[(it['cloudcover'] > 20)]
 # Get all stereo ids for removing from archive to determine mono ids
 it_ids = set(list(it['catalogid']))
 
-## Xtrack
+
+#### Xtrack
+logger.info('Loading cross track...')
 xt_all = query_footprint('dg_imagery_index_xtrack_cc20',
                      columns=['catalogid1', 'acqdate1', 'catalogid2', 'acqdate2'])
+
+logger.info('Processing cross track...')
 xt1 = xt_all[['catalogid1', 'acqdate1']]
 xt1.drop_duplicates(subset='catalogid1', inplace=True)
 xt2 = xt_all[['catalogid2', 'acqdate2']]
 xt2.drop_duplicates(subset='catalogid2', inplace=True)
 
-# Rename columns to match and concat
+## Rename columns to match and concat
 ren = {'catalogid1': 'catalogid', 'catalogid2': 'catalogid',
        'acqdate1': 'acqdate','acqdate2': 'acqdate'}
 xt1.rename(ren, axis='columns', inplace=True)
@@ -105,14 +116,18 @@ del xt1, xt2, xt_all
 
 
 ## Mono - remove stereo from all cc20
+logger.info('Determining mono...')
 mono20 = query_footprint('dg_imagery_index_all_cc20',
                        columns=['catalogid', 'acqdate'])
 mono20 = mono20[~mono20['catalogid'].isin(it_ids)]
 
 
 ## Archive - exported from ArcMap as text file of catalogid, acqdate, cloudcover
-dg_archive = pd.read_csv(r'E:\disbr007\imagery_archive_analysis\onhand_analysis\data\index_dg.txt',
-                         parse_dates=[1])
+#dg_archive = pd.read_csv(r'E:\disbr007\imagery_archive_analysis\onhand_analysis\data\index_dg.txt',
+#                         parse_dates=[1])
+logger.info('Loading DG archive...')
+dg_archive = query_footprint('index_dg', columns=['catalogid', 'cloudcover', 'acqdate'])
+dg_archive['acqdate'] = pd.to_datetime(dg_archive['acqdate'])
 dg_archcc20 = dg_archive[dg_archive['cloudcover'] <= 20]
 dg_archcc50 = dg_archive[dg_archive['cloudcover'] <= 50]
 
@@ -125,7 +140,7 @@ dfs = {'DG_Archive': {'base': dg_archive},
        'Cross_Track': {'base': xt},
        'Mono': {'base': mono20}}
 
-
+logger.info('Determining on hand...')
 #### Load PGC / NASA and Determine On Hand
 ## PGC
 pgc_id_p = r'C:\pgc_index\catalog_ids.txt'

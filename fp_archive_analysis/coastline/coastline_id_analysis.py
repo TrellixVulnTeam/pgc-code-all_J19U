@@ -45,3 +45,4 @@ oh_scids = set(oh_cand['SCENE_ID'])
 print("We have processed {:,} scene ID's, out of {:,} = {:.0f}%".format(len(processed_scids), len(oh_scids),
       (len(processed_scids)/len(oh_scids))*100))
 
+#### Pre-sea-ice arctic only

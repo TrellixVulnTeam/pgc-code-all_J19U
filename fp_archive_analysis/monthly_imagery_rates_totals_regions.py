@@ -92,7 +92,7 @@ intrack = query_footprint(layer='dg_imagery_index_stereo_cc20',
 logging.info('Loading xtrack stereo...')
 # Use this query_footprint and following utm_area_calc to reload xtrack from Danco, else use load
 # from pickle to use saved xtrack layer
-#xtrack = query_footprint(layer='dg_imagery_index_xtrack_cc20', 
+xtrack = query_footprint(layer='dg_imagery_index_xtrack_cc20', 
 #                         where="""acqdate1 < '2019-06-01'""", 
 #                         columns=x_cols)
 
