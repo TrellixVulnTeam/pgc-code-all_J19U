@@ -25,7 +25,7 @@ def process_tasking(xlsx, out_name):
     ## Remove any degrees symbols
     request = remove_symbols(request)
     # Convert to geopandas database, using shapely Points
-    geometry = [Point(x,y) for x, y in zip(request['Longitude (decimal degrees)'].astype(float), request['Latitude (decimal degrees)'].astype(float))]
+    geometry = [Point(y,x) for y, x in zip(request['Longitude (decimal degrees)'].astype(float), request['Latitude (decimal degrees)'].astype(float))]
     geo_req = gpd.GeoDataFrame(request, geometry=geometry, crs={'init':'epsg:4326'})
     geo_req.fillna(0, inplace=True)
     # Write out shapefile

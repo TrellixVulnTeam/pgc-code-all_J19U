@@ -88,23 +88,42 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
 def get_count(geocells, fps):
     '''
     Gets the count of features in fps that intersect with each feature in geocells
-    geocells: geodataframe of polygons
+    This method is essentially a many to many spatial join, so if two footprints
+    overlaps a grid cell, there will be two of that grid cell in the resulting
+    dataframe.
     fps: geodataframe of polygons
     '''
     ## Confirm crs is the same
     if geocells.crs != fps.crs:
         logging.info('Converting crs of grid to match footprint...')
         geocells = geocells.to_crs(fps.crs)
+        
     logging.info('Performing spatial join...')
+    ## Get a column from fps to use to test if sjoin found matches
+    fp_col = fps.columns[1]
     sj = gpd.sjoin(geocells, fps, how='left', op='intersects')
     sj.index.names = ['count']
     sj.reset_index(inplace=True)
+    
     logging.info('Getting count...')
-    gb = sj.groupby('count').agg({'count':'count'})
-    out = gb.join(geocells)
+    ## Remove no matches, group the rest the the index
+    gb = sj[~sj[fp_col].isna()].groupby('count').agg({'count':'count'})
+    ## Join geocells to dataframe with counts
+    out = geocells.join(gb)
+#    out[out['count'].isna()] = 0
+#    print(out.geometry)
     out = gpd.GeoDataFrame(out, geometry='geometry', crs=geocells.crs)
+    ## Change nan's (no fps found) to 0
+    
     return out
 
+#gdb = r'C:\Users\disbr007\projects\coastline\coast.gdb'
+#geo = 'grid_t'
+#fp = 'mfp_test_final_candidates'
+#geocells = gpd.read_file(gdb, layer=geo, driver='OpenFileGDB')
+#fps = gpd.read_file(gdb, layer=fp, driver='OpenFileGDB')
+##sj = gpd.sjoin(geocells, fps, how='left', op='intersects')
+#test = get_count(geocells, fps)
 
 def get_count_loop(fxn, gcs, fps, 
                    lat_start=None, lat_stop=None, lat_step=None, 

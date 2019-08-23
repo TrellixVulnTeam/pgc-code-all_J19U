@@ -36,55 +36,70 @@ def update_density_grid(src_grid, coastline, output_grid, distance=0):
     
 
 
-#### Logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-
-#### arcpy environmental variables
-arcpy.env.workspace = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
-arcpy.env.overwriteOutput = True
+##### Logging
+#logger = logging.getLogger()
+#logger.setLevel(logging.INFO)
+#
+#handler = logging.StreamHandler(sys.stdout)
+#handler.setLevel(logging.INFO)
+#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+#handler.setFormatter(formatter)
+#logger.addHandler(handler)
 
 
-#### Set up paths
-## Source data paths
-src = 'mfp'
-search_distance = 10 # in km
-ice_threshold = 20
-wd = r'C:\Users\disbr007\projects\coastline'
-gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
-coast_n = 'GSHHS_f_L1_GIMPgl_ADDant_USGSgl_pline'
-candidates_n = '{}_global_coastline_candidates_seaice'.format(src)
-grid_n = 'density_grid_one_deg_16x16'
-
-
-## Output paths
-updated_grid_n = '{}_{}km'.format(grid_n, search_distance)
-density_n = '{}_global_density_16x16'.format(src)
+##### arcpy environmental variables
+#arcpy.env.workspace = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
+#arcpy.env.overwriteOutput = True
+#
+#
+##### Set up paths
+### Source data paths
+#src = 'mfp'
+#search_distance = 10 # from coastline to select grid cells if updating - in km
+#ice_threshold = 20
+#wd = r'C:\Users\disbr007\projects\coastline'
+#gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
+#coast_n = 'GSHHS_f_L1_GIMPgl_ADDant_USGSgl_pline'
+#candidates_n = '{}_global_coastline_candidates_seaice'.format(src)
+#grid_n = 'density_grid_one_deg_16x16'
+#
+#
+### Output paths
+##updated_grid_n = '{}_{}km'.format(grid_n, search_distance)
+#density_n = '{}_global_density_16x16'.format(src)
 
 
 #### Get Density
 ## Load feature classes as geodataframes
 #update_density_grid(grid_n, coast_n, updated_grid_n, distance=search_distance)
-
-logger.info('Loading candidate footprints: {}'.format(candidates_n))
-grid = gpd.read_file(gdb, driver='OpenFileGDB', layer=updated_grid_n)
-candidates = gpd.read_file(gdb, driver='OpenFileGDB', layer=candidates_n)
-
-logger.info('Selecting sea-ice concentration <= {}'.format(ice_threshold))
-candidates = candidates[candidates['sea_ice_co'] <= ice_threshold]
-
-## Count candidates per grid cell, any intersecting footprint
-## is counted. Footprints can be counted more than once.
-logger.info('Getting count of candidates per cell.')
-density = get_count(grid, candidates)
-density.to_file(os.path.join(wd, '{}.shp'.format(density_n)), driver='ESRI Shapefile')
-
-logger.info('Done.')
+def gpd_get_density(candidates_n, grid_n, density_n, gdb, wd):
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.info('Loading candidate footprints: {}'.format(candidates_n))
+    grid = gpd.read_file(gdb, driver='OpenFileGDB', layer=grid_n)
+#    logging.DEBUG('Grid cells loaded: {}'.format(len(grid)))
+    candidates = gpd.read_file(gdb, driver='OpenFileGDB', layer=candidates_n)
+    
+    #logger.info('Selecting sea-ice concentration <= {}'.format(ice_threshold))
+    #candidates = candidates[candidates['sea_ice_co'] <= ice_threshold]
+    
+    ## Count candidates per grid cell, any intersecting footprint
+    ## is counted. Footprints can be counted more than once.
+    logger.info('Getting count of candidates per cell.')
+    density = get_count(grid, candidates)
+    keep_cols = ['count', 'geometry']
+    density = density[keep_cols]
+#    print(density.geometry)
+    logger.info('Writing {} to file...'.format(density_n))
+    density.to_file(os.path.join(wd, '{}.shp'.format(density_n)), driver='ESRI Shapefile')
+    
+    logger.info('Done.')
+    
+#    return density
 
