@@ -240,12 +240,12 @@ def grid_poly_row(row, nrows, ncols):
     return feat_cells
 
 
-gdb = r'E:\disbr007\general\geocell\geocell.gdb'
-gp = r'one_degree_geocell_north_america'
-grid = gpd.read_file(gdb, layer=gp, driver='OpenFileGDB')
-sixt = grid_poly(grid, nrows=16, ncols=16)
-sixt.to_file(r'E:\disbr007\general\geocell\one_deg_nam_16x16.shp')
-
+#gdb = r'E:\disbr007\general\geocell\geocell.gdb'
+#gp = r'one_degree_geocell_north_america'
+#grid = gpd.read_file(gdb, layer=gp, driver='OpenFileGDB')
+#sixt = grid_poly(grid, nrows=16, ncols=16)
+#sixt.to_file(r'E:\disbr007\general\geocell\one_deg_nam_16x16.shp')
+#
 #driver = 'ESRI Shapefile'
 ##geocells_path = r'E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp'
 ##geocells_path = r'E:\disbr007\scratch\geocells_sub.shp'

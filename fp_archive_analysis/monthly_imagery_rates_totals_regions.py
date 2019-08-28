@@ -18,7 +18,7 @@ from matplotlib.ticker import FuncFormatter, MultipleLocator
 import os, calendar, datetime, sys, logging, collections
 
 from query_danco import query_footprint
-from utm_area_calc import utm_area_calc
+#from utm_area_calc import utm_area_calc
 
 #def main():
 def locate_region(x):
@@ -85,14 +85,22 @@ x_cols = ['catalogid1', 'catalogid2', 'acqdate1', 'perc_ovlp']
 
 # Read footprints from Danco using only specified column
 logging.info('Loading intrack stereo...')
-intrack = query_footprint(layer='dg_imagery_index_stereo_cc20', 
-                          where="""acqdate < '2019-06-01'""", 
+intrack = query_footprint(layer='dg_imagery_index_stereo', 
+                          where="""cloudcover <= 50""", 
                           columns=in_cols)
 
-logging.info('Loading xtrack stereo...')
+def det_cc_cat(x):
+    if x <= 20:
+        return 'cc20'
+    elif x <= 50:
+        return 'cc21-50'
+    
+intrack['cc_cat'] = intrack['cloudcover'].apply(lambda x: det_cc_cat(x))
+
+#logging.info('Loading xtrack stereo...')
 # Use this query_footprint and following utm_area_calc to reload xtrack from Danco, else use load
 # from pickle to use saved xtrack layer
-xtrack = query_footprint(layer='dg_imagery_index_xtrack_cc20', 
+#xtrack = query_footprint(layer='dg_imagery_index_xtrack_cc20', 
 #                         where="""acqdate1 < '2019-06-01'""", 
 #                         columns=x_cols)
 
@@ -103,7 +111,7 @@ xtrack = query_footprint(layer='dg_imagery_index_xtrack_cc20',
 # Saved pickle with utm areas calculated already
 xtrack = pd.read_pickle(r'E:\disbr007\pgc_index\dg_imagery_index_xtrackcc20_2019jun10_utm.pkl')
 #xtrack.to_pickle(r'E:\disbr007\pgc_index\dg_imagery_index_xtrackcc20_2019jun10_utm.pkl')
-
+xtrack['cc_cat'] = 'cc20'
 
 # Rename xtrack columns to align with intrack names
 xtrack.rename(columns={
@@ -141,7 +149,7 @@ for name, stereo_type in dfs.items():
            'catalogid': 'count',
            'sqkm_utm': 'sum'
            }
-    dfs2plot[name] = df.groupby([pd.Grouper(freq='M'),'region']).agg(agg)
+    dfs2plot[name] = df.groupby([pd.Grouper(freq='M'),'region', 'cc_cat']).agg(agg)
     dfs2plot[name].rename(columns={'catalogid': 'Pairs', 'sqkm_utm': 'Area'}, inplace=True)
     
     # Create dfs for xtrack with area in given range
@@ -209,6 +217,8 @@ for col in cols:
         ax.yaxis.set_major_formatter(formatter)
         ax.set_xlim('2007-01-01', '2019-06-01')
         plt.setp(ax.xaxis.get_majorticklabels(), 'rotation', 90)
+        
+        df.to_pickle(r'E:\disbr007\imagery_archive_analysis\imagery_rates\2019aug25\pickles\{}.pkl'.format(name))
             
         col_ct += 1
     col_ct = 0
@@ -223,14 +233,8 @@ fig.suptitle('Stereo Archive Monthly Rates', size=14)
 #       va='center', 
 #       fontstyle='italic', 
 #       fontsize='small')
-plt.savefig(r'E:\disbr007\imagery_archive_analysis\imagery_rates\monthly_stereo_rates_region.jpg')
-
+plt.savefig(r'E:\disbr007\imagery_archive_analysis\imagery_rates\2019aug25\monthly_stereo_rates_region.jpg')
 
 #if __name__ == '__main__':
 #    main()
-
-
-
-
-
 

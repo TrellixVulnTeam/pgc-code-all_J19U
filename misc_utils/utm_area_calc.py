@@ -9,16 +9,18 @@ import geopandas as gpd
 import pandas as pd
 import numpy as np
 import tqdm
+import copy
 from fiona.crs import from_epsg, from_string
 
 
-def area_calc(gdf):
+def area_calc(geodataframe):
     '''
     Takes a geodataframe in and calculates the area based on UTM zones of each feature. Returns
     a geodataframe with added 'utm_sqkm' column and 'polar_area' column for those features north of south
     of utm zones boundaries
-    gdf: geodataframe
+    geodataframe: geodataframe
     '''
+    gdf = copy.deepcopy(geodataframe)
     ## Load UTM zones shapefile
     utm_zone_path = r'E:\disbr007\general\UTM_Zone_Boundaries\UTM_Zone_Boundaries.shp'
     utm_zones = gpd.read_file(utm_zone_path, driver='ESRI Shapefile')
@@ -26,6 +28,7 @@ def area_calc(gdf):
     ## Locate zone of each feature based on centroid
     # Get original geometry column name and original crs
     geom_name = gdf.geometry.name
+    print('geom_name: ', geom_name)
     source_crs = gdf.crs
     # Get original list of columns - add new area col
     cols = list(gdf)
@@ -45,14 +48,17 @@ def area_calc(gdf):
     
     # Find all points that fall in a utm zone
     gdf = gpd.sjoin(gdf, utm_zones, how='left', op='within')
+    print(gdf.geometry.geom_type.values[0])
     gdf.drop('centroid', axis=1, inplace=True)
     
     # Reset to original geometry
     gdf.set_geometry(geom_name, inplace=True)
+    print(gdf.geometry.geom_type.values[0])
     
     ## Loop through all zones found, reproject to relevant utm zone and calculate area
     dfs_with_area = []
-    for utm_zone, df in tqdm.tqdm(gdf.groupby('Zone_Hemi')):
+#    for utm_zone, df in tqdm.tqdm(gdf.groupby('Zone_Hemi')):
+    for utm_zone, df in gdf.groupby('Zone_Hemi'):
         zone = utm_zone.split(',')[0].replace(' ', '')
         hemi = utm_zone.split(',')[1].replace(' ', '')
         
@@ -72,6 +78,7 @@ def area_calc(gdf):
     for each_df, epsg in [(south_pole, '3031'), (north_pole, '3995')]:
         # Return to orginal geometry
         each_df.set_geometry(geom_name, inplace=True)
+        print(gdf.geometry.geom_type.values[0])    
         each_df = each_df.to_crs({'init':'epsg:{}'.format(epsg)})
         each_df[pol_area_col] = each_df.geometry.area / 10**6
         each_df = each_df.to_crs(source_crs)

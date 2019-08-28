@@ -7,7 +7,10 @@ Select from index by list of ids
 """
 
 import argparse
+import os
 import sys
+import geopandas as gpd
+from shapely.geometry import Point
 
 import arcpy
 
@@ -18,15 +21,70 @@ try:
     imagery_index = pgc_index_path()
 except ImportError:
     imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06'
+    print('Could not load updated index. Using last known path: {}'.format(imagery_index))
     
 arcpy.env.overwriteOutput = True
+
+
+def danco_connection(db, layer):
+    arcpy.env.overwriteOutput = True
+    
+    # Local variables:
+    arcpy_cxn = "C:\\dbconn\\arcpy_cxn"
+    #arcpy_footprint_MB_sde = arcpy_cxn
+    
+    # Process: Create Database Connection
+    cxn = arcpy.CreateDatabaseConnection_management(arcpy_cxn, 
+                                                     "{}_arcpy.sde".format(db), 
+                                                     "POSTGRESQL", 
+                                                     "danco.pgc.umn.edu", 
+                                                     "DATABASE_AUTH", 
+                                                     "disbr007", 
+                                                     "ArsenalFC10", 
+                                                     "SAVE_USERNAME", 
+                                                     "{}".format(db), 
+                                                     "",
+                                                     "TRANSACTIONAL", 
+                                                     "sde.DEFAULT", 
+                                                     "")
+    
+    arcpy.env.workspace = os.path.join("C:\\dbconn\\arcpy_cxn", "{}_arcpy.sde".format(db))
+    
+    return '{}.sde.{}'.format(db, layer)
+
+
+def place_name_AOI(place_name, aoi_path):
+    '''
+    Creates a layer of a placename from danco acan DB. 
+    '''
+#    place_name_formats = ','.join([place_name, place_name.upper(), place_name.lower(), place_name.title()])
+#    where = """Gazatteer Name IN ({})""".format(place_name_formats)
+    where = """gaz_name = '{}'""".format(place_name)
+#    print(where)
+    place_name_layer_p = danco_connection('acan', 'ant_gnis_pt')
+    aoi = arcpy.MakeFeatureLayer_management(place_name_layer_p, out_layer='place_name_lyr',
+                                      where_clause=where)
+    arcpy.CopyFeatures_management(aoi, aoi_path)
+    
+    return aoi_path
+    
+
+def create_points(coords, shp_path):
+    '''
+    Creates a point shapefile from long, lat pairs.
+    '''
+    print('Creating point shapefile from long, lat pairs(s)...')
+    points = [Point(float(pair.split(',')[0]), float(pair.split(',')[1])) for pair in coords]
+    gdf = gpd.GeoDataFrame(geometry=points, crs={'init':'epsg:4326'})
+    gdf.to_file(shp_path, driver='ESRI Shapefile')
+        
 
 
 def select_footprints(aoi, imagery_index, overlap_type, search_distance):
 #    imagery_index = pgc_index_path()
     print('Loading index...')
     idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
-    print('Loading AOI')
+    print('Loading AOI...')
     aoi_lyr = arcpy.MakeFeatureLayer_management(aoi)
     selection = arcpy.SelectLayerByLocation_management(idx_lyr, overlap_type, aoi_lyr, selection_type="NEW_SELECTION")
     return selection
@@ -56,7 +114,9 @@ def write_shp(selection, out_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('aoi_path', type=str, help='The path to the AOI shp file.')
+    parser.add_argument('aoi_path', type=str, 
+                        help='''The path to the AOI shp file. If providing coordinates or placename, the path
+                        to write the new AOI shapefile to.''')
     parser.add_argument('out_path', type=str, help='Path to write selection shp file.')
     parser.add_argument('--min_year', type=str, help='Earliest year to include.')
     parser.add_argument('--max_year', type=str, help='Latest year to include')
@@ -68,6 +128,10 @@ if __name__ == '__main__':
                             'CROSSED_BY_OUTLINE_OF', etc. Default = 'INTERSECT' ''')
     parser.add_argument('--search_distance', type=int, default=0,
                         help='''Search distance for overlap_types that support. Default = 0''')
+    parser.add_argument('--coordinate_pairs', nargs='*', 
+                        help='Longitude, latitude pairs. x1,y1 x2,y2 x3,y3, etc.' )
+    parser.add_argument('--place_name', type=str,
+                        help='Select by Antarctic placename from acan danco DB.')
     
     
     args = parser.parse_args()
@@ -80,6 +144,17 @@ if __name__ == '__main__':
     cc20 = args.cc20
     overlap_type = args.overlap_type
     search_distance = args.search_distance
+    coordinate_pairs = args.coordinate_pairs
+    place_name = args.place_name
+    
+#    print(args)
+    
+    ## If coordinate pairs create shapefile
+    if coordinate_pairs:
+        create_points(coordinate_pairs, aoi_path)
+    
+    ## If place name provided, use as AOI layer
+    place_name_AOI(place_name, aoi_path)
     
     ## Inital selection by location
     selection = select_footprints(aoi_path, 
