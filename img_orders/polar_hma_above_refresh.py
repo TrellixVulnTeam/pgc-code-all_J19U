@@ -6,9 +6,10 @@ Created on Fri Apr 12 09:10:58 2019
 Creates a shapefile that is a refresh in the region selected 
 """
 
-import query_danco
 import geopandas as gpd
 import argparse, os
+
+from query_danco import query_footprint, mono_noh, stereo_noh
 from imagery_order_sheet_maker_module import create_sheets
 from id_parse_utils import date_words
 
@@ -21,41 +22,45 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
     supported_refreshes = ['polar_hma_above', 'nonpolar', 'global']
     if refresh_region in supported_refreshes:
         if refresh_region == 'polar_hma_above':
-            regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'ABoVE Nonpolar', 'HMA']
+            regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 
+                       'ABoVE Nonpolar', 'HMA']
         elif refresh_region == 'nonpolar':
             regions = ['Nonpolar', 'Nonpolar Ice']
-#            regions = ['Nonpolar']
         elif refresh_region == 'global':
-            regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'HMA', 'Nonpolar', 'ABoVE Nonpolar', 'Nonpolar Ice']
+            regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'HMA', 
+                       'Nonpolar', 'ABoVE Nonpolar', 'Nonpolar Ice']
     else:
-        print('Refresh region unrecognized, supported refresh regions include {}'.format(supported_refreshes))
+        print("""Refresh region unrecognized, supported refresh regions 
+              include {}""".format(supported_refreshes))
         regions = None
     return regions
     
 
-def refresh(last_refresh, refresh_region, refresh_imagery):
+def refresh(last_refresh, refresh_region, refresh_imagery, cloudcover):
     '''
     Select ids for imagery order
+    cloudcover: cloudcover <= arg
     '''
     
-    where = "acqdate >= '{}'".format(last_refresh)
+    where = "(acqdate > '{}') AND (cloudcover <= {})".format(last_refresh, cloudcover)
     
     # Load regions shp
     regions_path = r"E:\disbr007\imagery_orders\all_regions.shp"
     regions = gpd.read_file(regions_path, driver='ESRI_Shapefile')
     
+
     # Load not on hand footprint -> since last refresh
     supported_refresh_imagery = ['mono_stereo', 'mono', 'stereo']
     if refresh_imagery in supported_refresh_imagery:
         if refresh_imagery == 'mono_stereo':
-            noh_recent = query_danco.query_footprint('dg_imagery_index_all_notonhand_cc20', where=where)
+            noh_recent = query_footprint('index_dg', where=where)
         if refresh_imagery == 'mono':
-            print('Mono selection support in development.')
-            pass # Update this -> catalogid not in stereopair field anywhere, and stereopair == NONE
+            noh_recent = mono_noh(where=where)
         if refresh_imagery == 'stereo':
-            noh_recent = query_danco.stereo_noh(where=where)
+            noh_recent = stereo_noh(where=where)
     else:
-        print('Refresh imagery type unrecognized, supported refresh imagery options include: {}'.format(supported_refresh_imagery))
+        print("""Refresh imagery type unrecognized, supported refresh imagery 
+              options include: {}""".format(supported_refresh_imagery))
    
     ### Spatial join to identify region
     # Calculate centroid
@@ -104,18 +109,31 @@ if __name__ == '__main__':
     parser.add_argument("last_refresh", type=str, 
                         help="Date of last refresh: yyyy-mm-dd")
     parser.add_argument("refresh_region", type=str, 
-                        help="Type of refresh, supported types: 'polar_hma_above', 'nonpolar', 'global'")
+                        help="""Type of refresh, supported types: 
+                            'polar_hma_above', 'nonpolar', 'global'""")
     parser.add_argument("refresh_imagery", type=str, 
-                        help="Type of imagery to refresh, supported types: 'mono_stereo', 'mono', 'stereo'")
+                        help="""Type of imagery to refresh, supported types: 
+                            'mono_stereo', 'mono', 'stereo'""")
     parser.add_argument("out_path", type=str, nargs='?', default=os.getcwd(),
-                        help="Path to write sheets and selection shape to")
+                        help="Path to write sheets and footprint selection shape to.")
+    parser.add_argument("--cloudcover", type=int, default=20,
+                        help='Cloudcover to select less than or equal to. Default = 20.')
+    
     args = parser.parse_args()
     last_refresh = args.last_refresh
     refresh_region = args.refresh_region
     refresh_imagery = args.refresh_imagery
     out_path = args.out_path
+    cloudcover= args.cloudcover
     
     # Do it
-    selection = refresh(last_refresh=last_refresh, refresh_region=refresh_region, refresh_imagery=refresh_imagery)
-    write_selection(selection, last_refresh=last_refresh, refresh_region=refresh_region, out_path=out_path)
+    selection = refresh(last_refresh=last_refresh, 
+                        refresh_region=refresh_region, 
+                        refresh_imagery=refresh_imagery, 
+                        cloudcover=cloudcover)
+    
+    write_selection(selection, 
+                    last_refresh=last_refresh, 
+                    refresh_region=refresh_region, 
+                    out_path=out_path)
     

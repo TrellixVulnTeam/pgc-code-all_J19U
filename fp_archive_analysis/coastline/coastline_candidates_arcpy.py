@@ -103,7 +103,7 @@ def coastline_candidates(src, gdb, wd, coast_n, distance, out_name):
         src: str 'mfp' or 'dg'
         '''
         #### Selection criteria
-        status = 'online' ## Change this to any status?
+#        status = 'online' ## Not currently being used
         cloudcover = 0.2
         sensors = ('WV02', 'WV03')
         prod_code = 'M1BS'
@@ -189,7 +189,16 @@ def coastline_candidates(src, gdb, wd, coast_n, distance, out_name):
     #### Load src footprint, using coastline selection criteria
     logger.info('Loading source footprint.')
     if src == 'mfp':
-        src_p = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06'
+
+        try:
+            sys.path.insert(0, r'C:\pgc-code-all\misc_utils')
+            from id_parse_utils import pgc_index_path
+            src_p = pgc_index_path()
+        except ImportError:
+            src_p = r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28'
+            print('Could not load updated index. Using last known path: {}'.format(imagery_index))
+        
+        # src_p = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06'
     elif src == 'dg':
         src_p = danco_footprint_connection('index_dg')
     elif src == 'nasa':

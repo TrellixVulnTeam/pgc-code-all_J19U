@@ -1,0 +1,4 @@
+http://data.pgc.umn.edu/elev/dem/setsm/ArcticDEM/geocell/v3.0/2m/n66w158/SETSM_WV01_20121102_102001001DA46700_102001001EB6AC00_seg1_2m_v3.0.tar.gz
+http://data.pgc.umn.edu/elev/dem/setsm/ArcticDEM/geocell/v3.0/2m/n66w158/SETSM_WV01_20150722_1020010042719200_1020010040DD0500_seg1_2m_v3.0.tar.gz
+http://data.pgc.umn.edu/elev/dem/setsm/ArcticDEM/geocell/v3.0/2m/n66w158/SETSM_WV02_20120208_1030010011224300_1030010011328000_seg1_2m_v3.0.tar.gz
+http://data.pgc.umn.edu/elev/dem/setsm/ArcticDEM/geocell/v3.0/2m/n66w158/SETSM_WV01_20150722_1020010042719200_1020010040DD0500_seg2_2m_v3.0.tar.gz

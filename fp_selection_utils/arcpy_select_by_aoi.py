@@ -20,7 +20,7 @@ try:
     from id_parse_utils import pgc_index_path
     imagery_index = pgc_index_path()
 except ImportError:
-    imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06'
+    imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28'
     print('Could not load updated index. Using last known path: {}'.format(imagery_index))
     
 arcpy.env.overwriteOutput = True
@@ -80,13 +80,16 @@ def create_points(coords, shp_path):
         
 
 
-def select_footprints(aoi, imagery_index, overlap_type, search_distance):
+def select_footprints(aoi, imagery_index, overlap_type, search_distance, prod_code):
 #    imagery_index = pgc_index_path()
     print('Loading index...')
     idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
     print('Loading AOI...')
     aoi_lyr = arcpy.MakeFeatureLayer_management(aoi)
-    selection = arcpy.SelectLayerByLocation_management(idx_lyr, overlap_type, aoi_lyr, selection_type="NEW_SELECTION")
+    print('Making selection...')
+    selection = arcpy.SelectLayerByLocation_management(idx_lyr, overlap_type, aoi_lyr, selection_type="NEW_SELECTION", search_distance=search_distance)
+    if prod_code:
+        selection = arcpy.SelectLayerByAttribute_management(selection, selection_type='SUBSET_SELECTION', where_clause="""prod_code = '{}'""".format(prod_code))
     return selection
 
 
@@ -117,7 +120,9 @@ if __name__ == '__main__':
     parser.add_argument('aoi_path', type=str, 
                         help='''The path to the AOI shp file. If providing coordinates or placename, the path
                         to write the new AOI shapefile to.''')
-    parser.add_argument('out_path', type=str, help='Path to write selection shp file.')
+    parser.add_argument('out_path', type=os.path.abspath, help='Path to write selection shp file.')
+    parser.add_argument('--prod_code', type=str, default=None,
+                        help='Prod code to select. E.g. P1BS, M1BS')
     parser.add_argument('--min_year', type=str, help='Earliest year to include.')
     parser.add_argument('--max_year', type=str, help='Latest year to include')
     parser.add_argument('--months', nargs='+', help='Months to include. E.g. 01 02 03')
@@ -126,11 +131,12 @@ if __name__ == '__main__':
                         help='''Type of select by location to perform. Must be one of:
                             the options available in ArcMap. E.g.: 'INTERSECT', 'WITHIN',
                             'CROSSED_BY_OUTLINE_OF', etc. Default = 'INTERSECT' ''')
-    parser.add_argument('--search_distance', type=int, default=0,
-                        help='''Search distance for overlap_types that support. Default = 0''')
+    parser.add_argument('--search_distance', type=str, default=0,
+                        help='''Search distance for overlap_types that support. Default = 0
+                        E.g. "10 Kilometers"''')
     parser.add_argument('--coordinate_pairs', nargs='*', 
                         help='Longitude, latitude pairs. x1,y1 x2,y2 x3,y3, etc.' )
-    parser.add_argument('--place_name', type=str,
+    parser.add_argument('--place_name', type=str, default=None,
                         help='Select by Antarctic placename from acan danco DB.')
     
     
@@ -138,6 +144,7 @@ if __name__ == '__main__':
     
     aoi_path = args.aoi_path
     out_path = args.out_path
+    prod_code = args.prod_code
     min_year = args.min_year
     max_year = args.max_year
     months = args.months
@@ -146,21 +153,21 @@ if __name__ == '__main__':
     search_distance = args.search_distance
     coordinate_pairs = args.coordinate_pairs
     place_name = args.place_name
-    
-#    print(args)
-    
+        
     ## If coordinate pairs create shapefile
     if coordinate_pairs:
         create_points(coordinate_pairs, aoi_path)
     
     ## If place name provided, use as AOI layer
-    place_name_AOI(place_name, aoi_path)
+    if place_name: 
+        place_name_AOI(place_name, aoi_path)
     
     ## Inital selection by location
     selection = select_footprints(aoi_path, 
-                                  imagery_index=r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06', 
+                                  imagery_index=r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28', 
                                   overlap_type='INTERSECT', 
-                                  search_distance=0)
+                                  search_distance=0,
+                                  prod_code=prod_code)
     
     ## CC20 if specified
     if cc20:
@@ -176,6 +183,6 @@ if __name__ == '__main__':
             months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
         selection = select_dates(selection, min_year=min_year, max_year=max_year, months=months)
     
-    
+    print(out_path)
     write_shp(selection, out_path)
 

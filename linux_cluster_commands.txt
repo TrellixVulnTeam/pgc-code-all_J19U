@@ -12,5 +12,6 @@ python /mnt/agic/storage00/agic/private/agic_common/scripts/pgctools3/fc.py ./pr
 
 python /mnt/agic/storage00/agic/private/agic_common/scripts/imagery_utils/pgc_ortho.py -t UInt16 -c ns -p 26906 -d /mnt/agic/storage00/agic/public/elevation/dem/AlaskaNED/AlaskaNED_mosaic.tif --wd /local --pbs ./raw ./o
 
-
 for f in raw/*; do echo $f;done
+
+source /home/junt0015/gdal2.2.4/init-gdal.sh 

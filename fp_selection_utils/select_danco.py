@@ -29,6 +29,7 @@ logger.addHandler(lso)
 
 def load_src(layer, where=None, columns=None):
     ## Load source footprint
+    logging.info('Loading source footprint (with any provided SQL)...')
     layer = layer
     where = where=where
     columns = columns
@@ -45,6 +46,7 @@ def make_selection(sel_path, src):
     src: geopandas dataframe of src footprint
     '''
     ## Load selection method
+    logging.info("Making selection...")
     ext = os.path.basename(sel_path).split('.')[1]
     
     # If text, select by id
@@ -85,4 +87,5 @@ if __name__ == '__main__':
     selection = make_selection(args.selector_path, src)
     out_path = os.path.join(os.path.dirname(args.selector_path), os.path.basename(args.selector_path).split('.')[0])
     out_name = out_path + '_selection.shp'
+    logging.info("Writing selection to shapefile: {}".format(out_name))
     selection.to_file(out_name, driver='ESRI Shapefile')

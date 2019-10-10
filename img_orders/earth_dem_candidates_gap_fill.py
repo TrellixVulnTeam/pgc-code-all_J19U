@@ -62,6 +62,7 @@ ids_noh = sel_ids - oh_ids
 xids_noh = selx_ids - oh_ids
 
 sel_noh = sel[sel.catalogid.isin(ids_noh) | sel.stereopair.isin(ids_noh)]
+
 selx_noh = selx[selx.catalogid1.isin(xids_noh) | selx.catalogid2.isin(xids_noh)]
 selx_noh.drop(columns=['index_right'], inplace=True)
 selx_noh_area = area_calc(selx_noh)
@@ -76,5 +77,5 @@ write_ids(xids_noh, out_path=os.path.join(proj_dir, 'TREX_gap_fill_order_xtrackc
 ## Write shapefile, just for viewing
 #selection = sel
 #selection = selection[selection['catalogid'].isin(ids_noh) | selection['stereopair'].isin(ids_noh)]
-sel_noh.to_file(os.path.join(proj_dir, 'TREX_gap_fill_order_intrackcc50.shp'), driver='ESRI Shapefile')
+sel.to_file(os.path.join(proj_dir, 'TREX_gap_fill_order_intrackcc50.shp'), driver='ESRI Shapefile')
 selx_noh.to_file(os.path.join(proj_dir, 'TREX_gap_fill_order_xtrackcc20.shp'), driver='ESRI Shapefile')

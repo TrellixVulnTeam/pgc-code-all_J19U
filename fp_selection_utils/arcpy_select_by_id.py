@@ -9,10 +9,17 @@ Select from index by list of ids
 import arcpy
 import os, sys
 import argparse
+from id_parse_utils import pgc_index_path
 
 
-imagery_index = "C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06"
-
+try:
+    sys.path.insert(0, r'C:\pgc-code-all\misc_utils')
+    from id_parse_utils import pgc_index_path
+    imagery_index = pgc_index_path()
+except ImportError:
+    imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28'
+    print('Could not load updated index. Using last known path: {}'.format(imagery_index))
+    
 def read_ids(ids_file, sep=None, stereo=False):
     '''Reads ids from a variety of file types. Can also read in stereo ids from applicable formats
     Supported types:
@@ -30,6 +37,7 @@ def read_ids(ids_file, sep=None, stereo=False):
             else:
                 the_id = line.strip()
             ids.append(the_id)
+    print('IDs found: {}'.format(len(ids)))
     ids_str = ''
     for i in ids:
         ids_str += "'{}',".format(i)
@@ -72,17 +80,24 @@ if __name__ == '__main__':
                         help='The field in the selector. E.g. CATALOG_ID, SCENE_ID, etc.')
     parser.add_argument('out_name', type=str,
                         help='''The name of the shapefile to be written with the selection''')
+
     args = parser.parse_args()
     selector = args.selector
     out_name = args.out_name
-    ext = os.path.splitext(selector)[1]
-    if ext == '.txt':
-        ids = read_ids(selector)
-        selection = select_footprints_by_attribute(args.field, ids)
-    elif ext == '.shp':
-        selector = select_footprints_by_location(selector)
+    
+    if os.path.exists(selector):
+        ext = os.path.splitext(selector)[1]
+        if ext == '.txt':
+            ids = read_ids(selector)
+        # elif ext == '.shp':
+            # selector = select_footprints_by_location(selector)
+        else:
+            err = 'Selector filetype not recognized: {}'.format(selector)
+            sys.exit(err)
     else:
-        err = 'Selector filetype not recognized: {}'.format(selector)
-        sys.exit(err)
+        ids = selector
+
+    selection = select_footprints_by_attribute(args.field, ids)
+    
     write_shp(selection, selector, out_name)
 

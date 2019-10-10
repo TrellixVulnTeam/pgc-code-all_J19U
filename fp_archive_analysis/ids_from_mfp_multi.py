@@ -15,8 +15,17 @@ from id_parse_utils import write_ids
 
 def main():
     # Path to mfp
-    mfp = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb'
-    mfp_name = 'pgcImageryIndexV6_2019jun06'
+
+    try:
+        sys.path.insert(0, r'C:\pgc-code-all\misc_utils')
+        from id_parse_utils import pgc_index_path
+        imagery_index = pgc_index_path()
+    except ImportError:
+        imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28'
+        print('Could not load updated index. Using last known path: {}'.format(imagery_index))
+
+    mfp = os.path.dirname(imagery_index)
+    mfp_name = os.path.basename(imagery_index)
     
     mfp_layers = fiona.listlayers(mfp)
     mfp_layers.remove(mfp_name)

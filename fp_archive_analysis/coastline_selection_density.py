@@ -15,25 +15,29 @@ from coastline.coastline_sea_ice_arcpy import coastline_sea_ice
 from coastline.coastline_density_arcpy import coastline_density
 from coastline.coastline_density import gpd_get_density
 
-#### Runtime setup
+#### Setup
 working_dir = r'C:\Users\disbr007\projects\coastline'
 gdb = r'C:\Users\disbr007\projects\coastline\coast.gdb'
 
 arcpy.env.workspace = gdb
 arcpy.env.overwriteOutput = True
 
+## Name of coastline feature class in gdb
 coastline = r'GSHHS_f_L1_GIMPgl_ADDant_USGSgl_pline'
-#src = 'mfp' #'nasa' #'dg'
-distance = 10 # search distance in km from coastline
-#initial_candidates = '{}_initial_candidates'
-#initial_candidates = '{}_global_coastline_candidates'.format(src)
-ice_threshold = 20
-update_luts = False
-#final_candidates = '{}_final_candidates'.format(src)
 
+## Which footprint to find cnadidates from - can be 
+srcs = ['mfp'] #'nasa' #'dg'
+distance = 10 # search distance in km from coastline
+
+## Sea ice percentage above which to exclude (<=)
+ice_threshold = 20
+
+## Update the dictionaries that hold the paths to all 
+## sea ice rasters that have been downloaded
+update_luts = False
+
+## Name of grid feature class to sample density on
 grid = 'density_grid_one_deg_16x16_10km'
-#grid = 'grid_t'
-#density_name = '{}_density'.format(src)
 
 
 #### Logging
@@ -51,7 +55,7 @@ logger.addHandler(file_handler)
 
 
 #srcs = ['mfp', 'nasa', 'dg']
-srcs = ['oh']
+#srcs = ['oh']
 for src in srcs:
     logging.info('****WORKING ON {}****'.format(src.upper()))
     initial_candidates = '{}_global_coastline_candidates'.format(src)
@@ -61,25 +65,25 @@ for src in srcs:
     
 #    if src != 'mfp':
     logger.info('FINDING INITAL CANDIDATES...')
-#    coastline_candidates(src=src,
-#                         gdb=gdb,
-#                         wd=working_dir,
-#                         coast_n=coastline,
-#                         distance=10,
-#                         out_name=initial_candidates)
+    coastline_candidates(src=src,
+                         gdb=gdb,
+                         wd=working_dir,
+                         coast_n=coastline,
+                         distance=10,
+                         out_name=initial_candidates)
 
-#    logger.info('LOOKING UP AND SELECTING SEA ICE...')
-#    coastline_sea_ice(src=src,
-#                      initial_candidates=initial_candidates,
-#                      final_candidates=final_candidates,
-#                      gdb=gdb,
-#                      wd=working_dir,
-#                      ice_threshold=ice_threshold,
-#                      update_luts=update_luts)
+    logger.info('LOOKING UP SEA ICE AND THRESHOLDING...')
+    coastline_sea_ice(src=src,
+                      initial_candidates=initial_candidates,
+                      final_candidates=final_candidates,
+                      gdb=gdb,
+                      wd=working_dir,
+                      ice_threshold=ice_threshold,
+                      update_luts=update_luts)
     
-#    logger.info('CALCULATING DENSITY...')
-#    coastline_density(src=src,
-#                      final_candidates=final_candidates,
-#                      grid=grid,
-#                      density_name=density_name)
+    logger.info('CALCULATING DENSITY...')
+    coastline_density(src=src,
+                      final_candidates=final_candidates,
+                      grid=grid,
+                      density_name=density_name)
     gpd_get_density(final_candidates, grid, density_name, gdb=gdb, wd=working_dir)

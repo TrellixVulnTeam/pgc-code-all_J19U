@@ -12,6 +12,7 @@ import geopandas as gpd
 import pandas as pd
 import numpy as np
 import multiprocessing
+from datetime import datetime as dt
 #from joblib import Parallel, delayed
 from copy import deepcopy
 from query_danco import query_footprint
@@ -90,7 +91,9 @@ def get_count(geocells, fps):
     Gets the count of features in fps that intersect with each feature in geocells
     This method is essentially a many to many spatial join, so if two footprints
     overlaps a grid cell, there will be two of that grid cell in the resulting
-    dataframe.
+    dataframe. These repeated cells are then counted and saved to the returned 
+    dataframe
+    geocells: dataframe of features to count within
     fps: geodataframe of polygons
     '''
     ## Confirm crs is the same
@@ -106,7 +109,7 @@ def get_count(geocells, fps):
     sj.reset_index(inplace=True)
     
     logging.info('Getting count...')
-    ## Remove no matches, group the rest the the index
+    ## Remove no matches, group the rest, counting the index
     gb = sj[~sj[fp_col].isna()].groupby('count').agg({'count':'count'})
     ## Join geocells to dataframe with counts
     out = geocells.join(gb)
@@ -116,6 +119,53 @@ def get_count(geocells, fps):
     ## Change nan's (no fps found) to 0
     
     return out
+
+
+def get_time_range(pts, fps, fps_date_col, keep_datetime=False):
+    '''
+    Gets the earliest, latest, and range of dates over
+    each point that are present in fps
+    pts: geodataframe of points of interest
+    fps: geodataframe of footprints
+    fps_date_col: name of date column in fps
+    '''
+    def col_strftime(date_col):
+        str_date = date_col.dt.strftime('%Y-%m-%d')
+        return str_date
+    
+    if type(fps[fps_date_col]) != pd._libs.tslibs.timestamps.Timestamp:
+        fps[fps_date_col] = pd.to_datetime(fps[fps_date_col])
+        
+    
+    ## Confirm crs is the same
+    if pts.crs != fps.crs:
+        logging.info('Converting crs of grid to match footprint...')
+        fps = fps.to_crs(fps.crs)
+        
+    logging.info('Performing spatial join...')
+    ## Get a column from fps to use to test if sjoin found matches
+    fp_col = fps.columns[1]
+    sj = gpd.sjoin(pts, fps, how='left', op='intersects')
+    ## Create index to groupyby and join on later
+    sj.index.names = ['idx']
+    sj.reset_index(inplace=True)
+    
+    ## Remove no matches, group the rest, counting the index
+    gb = sj[~sj[fp_col].isna()].groupby('idx').agg({fps_date_col:['min', 'max']})
+    
+    ## Join geocells to dataframe with counts
+    out = pts.join(gb)
+    out.rename(columns={(fps_date_col, 'max'): 'date_max', (fps_date_col, 'min'): 'date_min'}, inplace=True)
+    out['months_range'] = ((out['date_max'] - out['date_min'] ) / np.timedelta64(1, 'M')).astype(int)
+    
+    if keep_datetime == False:
+        datetime_cols = out.select_dtypes(include=['datetime']).columns
+        for dc in datetime_cols:
+            out[dc] = out[dc].dt.strftime('%Y-%m-%d')
+    out = gpd.GeoDataFrame(out, geometry='geometry', crs=fps.crs) 
+
+    return out
+
 
 #gdb = r'C:\Users\disbr007\projects\coastline\coast.gdb'
 #geo = 'grid_t'

@@ -9,6 +9,8 @@ from query_danco import query_footprint
 import pandas as pd
 import pickle
 import os, sys
+from id_parse_utils import pgc_index
+
 
 wd = r'C:\Users\disbr007\projects\coastline'
 gdb = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
@@ -100,9 +102,18 @@ def selection_clause(src):
 
 #### Load src footprint, using coastline selection criteria
 if src == 'mfp':
-    src_p = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06'
-#elif src == 'dg':
-#    src_p = danco_footprint_connection('index_dg')
+    # src_p = r'C:\pgc_index\pgcImageryIndexV6_2019jun06.gdb\pgcImageryIndexV6_2019jun06'
+
+    try:
+        sys.path.insert(0, r'C:\pgc-code-all\misc_utils')
+        from id_parse_utils import pgc_index_path
+        src_p = pgc_index_path()
+    except ImportError:
+        src_p = r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28'
+        print('Could not load updated index. Using last known path: {}'.format(imagery_index))
+
+elif src == 'dg':
+   src_p = danco_footprint_connection('index_dg')
 elif src == 'nasa':
     src_p = r'C:\pgc_index\nga_inventory_canon20190505\nga_inventory_canon20190505.gdb\nga_inventory_canon20190505'
     

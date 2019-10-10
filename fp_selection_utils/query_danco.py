@@ -19,62 +19,6 @@ with open(r"C:\code\pgc-code-all\cred.txt", 'r') as cred:
     for line in content:
         creds.append(str(line).strip())
 
-
-def query_footprint(layer, db='footprint', table=False, where=None, columns=None):
-    '''
-    queries the danco footprint database, for the specified layer and optional where clause
-    returns a dataframe of match
-    layer: danco layer to query - e.g.: 'dg_imagery_index_stereo_cc20'
-    where: sql where clause     - e.g.: "acqdate > '2015-01-21'"
-    columns: list of column names to load
-    '''
-    try:
-        danco = "danco.pgc.umn.edu"
-        connection = psycopg2.connect(user = creds[0],
-                                      password = creds[1],
-                                      host = danco,
-                                      database = "footprint")
-
-        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/{}'.format(creds[0], creds[1], db))
-        connection = engine.connect()
-
-        if connection:
-            logging.debug('PostgreSQL connection to {} at {} opened.'.format(layer, danco))
-            # If specific columns are requested, created comma sep string of those columns to pass in sql
-            if columns:
-                cols_str = ', '.join(columns)
-            else:
-                cols_str = '*' # select all columns
-            
-            # If table, do not select geometry
-            if table == True:
-#                sql = "SELECT * FROM {}".format(layer) # can delete, saved during 'column' debugging
-                sql = "SELECT {} FROM {}".format(cols_str, layer)
-            else:
-                sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)
-            
-            # Add where clause if necessary
-            if where:
-                sql_where = " where {}".format(where)
-                sql = sql + sql_where
-                
-            # Create pandas df for tables, geopandas df for feature classes
-            if table == True:
-                df = pd.read_sql_query(sql, con=engine)
-            else:
-                df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
-            return df
-
-    except (Exception, psycopg2.Error) as error :
-        logging.debug("Error while connecting to PostgreSQL", error)
-    
-    finally:
-        # Close database connection.
-        if (connection):
-            connection.close()
-            logging.debug("PostgreSQL connection closed.")
-
-
 def list_danco_footprint():
     '''
     queries the danco footprint database, returns all layer names in list
@@ -103,7 +47,105 @@ def list_danco_footprint():
         if (connection):
             connection.close()
             logging.debug("PostgreSQL connection closed.")
+
+
+def list_danco_db(db):
+    '''
+    queries the danco footprint database, returns all layer names in list
+    '''
+    try:
+        danco = "danco.pgc.umn.edu"
+        connection = psycopg2.connect(user = creds[0],
+                                      password = creds[1],
+                                      host = danco,
+                                      database = db)
+        cursor = connection.cursor()
+        cursor.execute("""SELECT table_name FROM information_schema.tables""")
+        tables = cursor.fetchall()    
+        tables = [x[0] for x in tables]
+        tables = sorted(tables)
+        
+        return tables
     
+    
+    except (Exception, psycopg2.Error) as error :
+        logging.debug("Error while connecting to PostgreSQL", error)
+    
+    
+    finally:
+#        return tables
+        # Close database connection.
+        if (connection):
+            connection.close()
+            logging.debug("PostgreSQL connection closed.")
+            
+            
+            
+def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[creds[0], creds[1]], table=False, where=None, columns=None):
+    '''
+    queries the danco footprint database, for the specified layer and optional where clause
+    returns a dataframe of match
+    layer: danco layer to query - e.g.: 'dg_imagery_index_stereo_cc20'
+    where: sql where clause     - e.g.: "acqdate > '2015-01-21'"
+    columns: list of column names to load
+    '''
+    try:
+        db_tables = list_danco_db(db)
+        
+        if layer not in db_tables:
+            logging.warning('{} not found in {}'.format(layer, db))
+        
+        ## Temp solution to use sandwhich instance
+        danco = instance
+#        danco = "danco.pgc.umn.edu"
+#        connection = psycopg2.connect(user = creds[0],
+#                                      password = creds[1],
+#                                      host = danco,
+#                                      database = "footprint")
+
+        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/{}'.format(creds[0], creds[1], db))
+
+#        engine = create_engine('postgresql+psycopg2://{}:{}@{}/{}'.format(creds[0], creds[1], instance, db))
+        connection = engine.connect()
+
+        if connection:
+            # If specific columns are requested, created comma sep string of those columns to pass in sql
+            if columns:
+                cols_str = ', '.join(columns)
+            else:
+                cols_str = '*' # select all columns
+            
+            # If table, do not select geometry
+            if table == True:
+#                sql = "SELECT * FROM {}".format(layer) # can delete, saved during 'column' debugging
+                sql = "SELECT {} FROM {}".format(cols_str, layer)
+            else:
+                sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)
+            
+            # Add where clause if necessary
+            if where:
+                sql_where = " where {}".format(where)
+                sql = sql + sql_where
+                
+            # Create pandas df for tables, geopandas df for feature classes
+            if table == True:
+                df = pd.read_sql_query(sql, con=engine)
+            else:
+                df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
+            return df
+#
+    except (Exception, psycopg2.Error) as error :
+        logging.debug("Error while connecting to PostgreSQL", error)
+    
+    finally:
+        # Close database connection.
+        if (connection):
+            connection.close()
+            logging.debug("PostgreSQL connection closed.")
+
+
+
+
 
 def footprint_fields(layer):
     '''
@@ -115,51 +157,46 @@ def footprint_fields(layer):
     return fields
 
 
-def stereo_noh(where=None, cc20=True):
+def stereo_noh(where=None):
     '''
     Returns a dataframe with all intrack stereo not on hand as individual rows, 
     rather than as pairs.
     where: string of SQL query syntax
-    cc20: True returns on cloudcover 20% or better.
     '''
-    if cc20:
-        # Use the prebuilt cc20 not on hand layers
-        stereo_noh_left = 'dg_imagery_index_stereo_notonhand_left_cc20'
-        stereo_noh_right = 'dg_imagery_index_stereo_notonhand_right_cc20'
-        
-        noh_left = query_footprint(stereo_noh_left, where=where)
-        noh_right = query_footprint(stereo_noh_right, where=where)
-        noh_right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
+    # Use all stereo layer, get both catalogid column and stereopair column
+    left = query_footprint('dg_imagery_index_stereo', where=where)
+    right = left.drop(columns=['catalogid'])
+    right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
     
-    else:
-        # Use all stereo layer, remove ids on hand
-        left = query_footprint('dg_imagery_index_stereo', where=where)
-        right = left.drop(columns=['catalogid'])
-        right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
-                
-        pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
-        pgc_ids = list(pgc_archive.catalog_id)
-        del pgc_archive
-                
-        noh_left = left[~left.catalogid.isin(pgc_ids)]
-        noh_right = right[~right.catalogid.isin(pgc_ids)]
-            
+    # Remove ids on hand
+    pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
+    pgc_ids = list(pgc_archive.catalog_id)
+    del pgc_archive
+    noh_left = left[~left.catalogid.isin(pgc_ids)]
+    noh_right = right[~right.catalogid.isin(pgc_ids)]
+    
+    # Combine columns        
     noh = pd.concat([noh_left, noh_right], sort=True)
     del noh_left, noh_right
     return noh
 
 
-def mono_noh(where=None, cc20=True):
+def mono_noh(where=None):
     '''
+    To determine mono not on hand, remove all stereo catalogids from all dg ids
     returns a dataframe of just mono imagery not on hand (stereo removed)
     where:    sql query
-    cc20:     restrict to cc20 only
     '''
-    # Get all not on hand
-    all_noh = query_footprint('dg_imagery_index_all_notonhand_cc20', where=where)
-    # Get all stereopairs
-    all_pairs = list(all_noh.stereopair)
-    mono_noh = all_noh[(~all_noh.catalogid.isin(all_pairs)) & (all_noh[all_noh.stereopair == 'NONE'])]
+    # All stereo catalogids in one column
+    all_stereo = 'dg_stereo_catalogids_with_pairname'
+    all_stereo = query_footprint(all_stereo, where=where)
+    
+    # All ids
+    all_mono_stereo = query_footprint('index_dg', where=where)
+    
+    # Remove stereo
+    mono_noh = all_mono_stereo[~all_mono_stereo['catalogid'].isin(all_stereo['catalogid'])]
+    
     return mono_noh
 
 

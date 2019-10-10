@@ -13,23 +13,6 @@ import pickle
 import sys
 
 
-##### Environment settings
-#wd = r'C:\Users\disbr007\projects\coastline'
-#arcpy.env.workspace = r'C:\Users\disbr007\projects\coastline\coastline.gdb'
-#arcpy.env.overwriteOutput = True
-#
-#
-##### Runtime settings
-#src = 'nasa'
-#cand_n = '{}_global_coastline_candidates'.format(src)
-##cand_n = 'mfp_both_poles'
-#final_candidates = '{}_global_coastline_candidates_seaice_AP'.format(src)
-#concentraion_field = 'sea_ice_concentration'
-### To update look-up-tables with any new sea-ice rasters - True,
-### else False to use pickled versions
-#update_luts = False 
-
-
 def coastline_sea_ice(src, initial_candidates, final_candidates, wd, gdb, ice_threshold, update_luts=False):
     #### Logging
     logger = logging.getLogger()

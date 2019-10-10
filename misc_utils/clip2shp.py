@@ -59,7 +59,7 @@ def translate(shp_path, rasters, out_dir, out_suffix='_trans'):
     projWin = get_shp_bounds(shp_path)
     translate_rasters(rasters, projWin=projWin, out_dir=out_dir, out_suffix=out_suffix)
     
-#
+##
 #if __name__ == '__main__':
 #    parser = argparse.ArgumentParser()
 #    
@@ -69,7 +69,7 @@ def translate(shp_path, rasters, out_dir, out_suffix='_trans'):
 #    parser.add_argument('--out_suffix', type=str, help='Suffix to add to clipped rasters.')
 #    
 #    args = parser.parse_args()
-    
+#    
 #    print(args)
 #    
 #    shp_path = args.shape_path
@@ -78,9 +78,10 @@ def translate(shp_path, rasters, out_dir, out_suffix='_trans'):
 #    out_suffix = args.out_suffix
 #    
 #    translate(shp_path, rasters, out_dir, out_suffix)
-#    
+##    
 
-translate(r'E:\disbr007\tarfala\storg_bounds_prj.shp', 
-          [r'E:\disbr007\tarfala\dems\WV01_20140528_10200100306AFE00_102001002D1E8A00_2m\WV01_20140528_10200100306AFE00_102001002D1E8A00_seg1_2m_dem.tif'],
-          r'E:\disbr007\tarfala\dems_storg', 
-          'storg')
+translate(r'E:\disbr007\umn\ms_proj_2019jul05\data\scratch\nuth_small_aoi.shp', 
+          [r'V:\pgc\data\scratch\jeff\coreg\data\pairs\WV02_20120222-WV02_20160311\WV02_20120222_103001001109C500_1030010011108600_seg1_2m_matchtag.tif',
+           r'V:\pgc\data\scratch\jeff\coreg\data\pairs\WV02_20120222-WV02_20160311\WV02_20160311_1030010053625700_103001005350B300_seg1_2m_matchtag.tif'],
+          r'E:\disbr007\umn\ms_proj_2019jul05\data\scratch', 
+          '_nuth')

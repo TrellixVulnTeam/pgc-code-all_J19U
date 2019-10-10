@@ -5,18 +5,29 @@ Created on Fri Feb 15 13:45:51 2019
 @author: disbr007
 """
 import os
-import imageio, argparse
+import imageio
+import argparse
+
 
 def make_gif(prj_path, out_name, ext, duration=1.5):
-    images = []
+    """
+    Create a gif from a give path, considering only
+    those files that end with ext. Scenes are displayed
+    for duration.
+    """
     print('Images to combine: ')
+    image_paths = []
     for file_name in os.listdir(prj_path):
         if file_name.endswith(ext):
             file_path = os.path.join(prj_path, file_name)
-            print(file_path)
-            images.append(imageio.imread(file_path))
-            
+            image_paths.append(file_path)
+    image_paths.sort()
+    images = [imageio.imread(f) for f in image_paths]
+    # images.append(imageio.imread(file_path))
+    print('Ordered file paths: ')
+    print(image_paths)
     imageio.mimsave(os.path.join(prj_path, '{}.gif'.format(out_name)), images, duration=duration)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
