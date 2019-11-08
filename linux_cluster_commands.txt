@@ -15,3 +15,4 @@ python /mnt/agic/storage00/agic/private/agic_common/scripts/imagery_utils/pgc_or
 for f in raw/*; do echo $f;done
 
 source /home/junt0015/gdal2.2.4/init-gdal.sh 
+

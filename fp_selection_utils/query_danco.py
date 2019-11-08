@@ -12,6 +12,20 @@ import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine#, inspect, MetaData
 
+
+# create logger with 'spam_application'
+logger = logging.getLogger('query_danco')
+logger.setLevel(logging.DEBUG)
+# create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.ERROR)
+# create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(ch)
+
+
 ## Credentials for logging into danco
 creds = []
 with open(r"C:\code\pgc-code-all\cred.txt", 'r') as cred:
@@ -23,6 +37,8 @@ def list_danco_footprint():
     '''
     queries the danco footprint database, returns all layer names in list
     '''
+    global logger
+    logger.debug('Listing danco.footprint databse tables...')
     try:
         danco = "danco.pgc.umn.edu"
         connection = psycopg2.connect(user = creds[0],
@@ -38,7 +54,7 @@ def list_danco_footprint():
     
     
     except (Exception, psycopg2.Error) as error :
-        logging.debug("Error while connecting to PostgreSQL", error)
+        logger.debug("Error while connecting to PostgreSQL", error)
     
     
     finally:
@@ -46,13 +62,15 @@ def list_danco_footprint():
         # Close database connection.
         if (connection):
             connection.close()
-            logging.debug("PostgreSQL connection closed.")
+            logger.debug("PostgreSQL connection closed.")
 
 
 def list_danco_db(db):
     '''
     queries the danco footprint database, returns all layer names in list
     '''
+    global logger
+    logger.debug('Listing danco.{} tables...'.format(db))
     try:
         danco = "danco.pgc.umn.edu"
         connection = psycopg2.connect(user = creds[0],
@@ -69,7 +87,7 @@ def list_danco_db(db):
     
     
     except (Exception, psycopg2.Error) as error :
-        logging.debug("Error while connecting to PostgreSQL", error)
+        logger.debug("Error while connecting to PostgreSQL", error)
     
     
     finally:
@@ -77,7 +95,7 @@ def list_danco_db(db):
         # Close database connection.
         if (connection):
             connection.close()
-            logging.debug("PostgreSQL connection closed.")
+            logger.debug("PostgreSQL connection closed.")
             
             
             
@@ -89,14 +107,16 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
     where: sql where clause     - e.g.: "acqdate > '2015-01-21'"
     columns: list of column names to load
     '''
+    global logger
+    logger.debug('Querying danco.{}.{}'.format(db, layer))
     try:
         db_tables = list_danco_db(db)
         
         if layer not in db_tables:
-            logging.warning('{} not found in {}'.format(layer, db))
+            logger.warning('{} not found in {}'.format(layer, db))
         
         ## Temp solution to use sandwhich instance
-        danco = instance
+#        danco = instance
 #        danco = "danco.pgc.umn.edu"
 #        connection = psycopg2.connect(user = creds[0],
 #                                      password = creds[1],
@@ -135,16 +155,13 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
             return df
 #
     except (Exception, psycopg2.Error) as error :
-        logging.debug("Error while connecting to PostgreSQL", error)
+        logger.debug("Error while connecting to PostgreSQL", error)
     
     finally:
         # Close database connection.
         if (connection):
             connection.close()
-            logging.debug("PostgreSQL connection closed.")
-
-
-
+            logger.debug("PostgreSQL connection closed.")
 
 
 def footprint_fields(layer):
@@ -269,10 +286,3 @@ def all_IK01(where=None, onhand=None):
         df = query_footprint('index_ge', where=where)
     
     return df
-    
-
-
-
-
-
-

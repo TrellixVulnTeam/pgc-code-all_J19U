@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+b# -*- coding: utf-8 -*-
 """
 Created on Tue Aug 27 15:36:40 2019
 
@@ -9,7 +9,7 @@ Clip raster to shapefile extent. Must be in the same projection.
 from osgeo import ogr, gdal, osr
 import os, logging, argparse
 
-from gdal_tools import ogr_reproject, get_shp_SR, get_raster_SR
+from gdal_tools import ogr_reproject, get_shp_sr, get_raster_sr
 
 
 gdal.UseExceptions()
@@ -29,64 +29,43 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-def translate_rasters(rasters, projWin, out_dir, out_suffix='trans'):
+def warp_rasters(rasters, shp_p, out_dir, out_suffix='clip'):
     """
-    Take a list of rasters and translates (clips) them to the minimum bounding box.
+    Take a list of rasters and warps (clips) them to the shapefile feature
+    bounding box.
     TODO: 
         Rewrite to use gdal.Warp with -clip_to_cutline arguments
     """
-    # Translate (clip) to minimum bounding box
-    translated = {}
+    warped = {}
     for raster_p in rasters:
         if not out_dir:
             out_dir == os.path.dirname(raster_p)
-        logger.info('Translating {}...'.format(raster_p))
+        logger.info('Clipping {}...'.format(os.path.basename(raster_p)))
         raster_out_name = '{}_{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
         raster_op = os.path.join(out_dir, raster_out_name)
 
         raster_ds = gdal.Open(raster_p)
-        translated[raster_out_name] = gdal.Translate(raster_op, raster_ds, projWin=projWin)
+        warp_options = gdal.WarpOptions(cutlineDSName=shp_p, )
+        warped[raster_out_name] = gdal.Warp(raster_op, raster_ds, options=warp_options)
 
-    return translated
-
-
-def get_shp_bounds(shp_path):
-    """
-    Get the bounds of a shapefile. Will return bounds of all features.
-    TODO: Add params.
-    """
-    data_source = ogr.Open(shp_path, 0)
-    layer = data_source.GetLayer()
-    ulx, lrx, lry, uly = layer.GetExtent()
-#   Ordered for gdal_translate
-    projWin = [ulx, uly, lrx, lry]
-
-    del layer
-    del data_source
-
-    logger.debug('Shapefile projWin: {}'.format(projWin))
-
-    return projWin
+    return warped
 
 
-def translate(shp_path, rasters, out_dir, out_suffix='trans'):
+def warp(shp_path, rasters, out_dir, out_suffix='clip'):
     """
     Wrapper function.
     TODO: Write more.
     """
-    # Check for common projection between shapefile and first raster
-    shp_SR = get_shp_SR(shp_path)
-    raster_SR = get_raster_SR(rasters[0])
-#    print('shp epsg: {}'.format(shp_SR))
-#    print('raster epsg: {}'.format(raster_SR))
-    
-    if shp_SR != raster_SR:
+    # Check for common spatial reference between shapefile and first raster
+    shp_sr = get_shp_sr(shp_path)
+    raster_sr = get_raster_sr(rasters[0])
+    # Reproject if not same spatial reference
+    if shp_sr != raster_sr:
         logger.info('''Spatial references do not match... 
-                    Reprojecting shp from \n{}\n to...\n {}'''.format(shp_SR, raster_SR))
-        shp_path = ogr_reproject(input_shp=shp_path, to_SR=raster_SR, in_mem=False)
+                    Reprojecting shp from to match raster...'''.format(shp_sr, raster_sr))
+        shp_path = ogr_reproject(input_shp=shp_path, to_sr=raster_sr, in_mem=False)
 #    
-    projWin = get_shp_bounds(shp_path)
-    translate_rasters(rasters, projWin=projWin, out_dir=out_dir, out_suffix=out_suffix)
+    warp_rasters(rasters, shp_path, out_dir=out_dir, out_suffix=out_suffix)
 
 
 if __name__ == '__main__':
@@ -96,7 +75,7 @@ if __name__ == '__main__':
 	parser.add_argument('shape_path', type=str, help='Shape to clip rasters to.')
 	parser.add_argument('rasters', nargs='*', help='Rasters to clip.')
 	parser.add_argument('out_dir', type=os.path.abspath, help='Directory to write clipped rasters to.')
-	parser.add_argument('--out_suffix', type=str, default='trans', help='Suffix to add to clipped rasters.')
+	parser.add_argument('--out_suffix', type=str, default='clip', help='Suffix to add to clipped rasters.')
 	parser.add_argument('--raster_ext', type=str, default='.tif', help='Ext of input rasters.')
 	parser.add_argument('--dryrun', action='store_true', help='Prints inputs without running.')
 	args = parser.parse_args()
@@ -117,11 +96,4 @@ if __name__ == '__main__':
 		print('Output directory:\n{}'.format(out_dir))
 
 	else:
-		translate(shp_path, rasters, out_dir, out_suffix)
-
-
-# translate(r'E:\disbr007\umn\ms_proj_2019jul05\data\scratch\nuth_small_aoi.shp',
-#           [r'V:\pgc\data\scratch\jeff\coreg\data\pairs\WV02_20120222-WV02_20160311\WV02_20120222_103001001109C500_1030010011108600_seg1_2m_matchtag.tif',
-#            r'V:\pgc\data\scratch\jeff\coreg\data\pairs\WV02_20120222-WV02_20160311\WV02_20160311_1030010053625700_103001005350B300_seg1_2m_matchtag.tif'],
-#           r'E:\disbr007\umn\ms_proj_2019jul05\data\scratch',
-#           '_nuth')
+		warp(shp_path, rasters, out_dir, out_suffix)

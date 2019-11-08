@@ -17,7 +17,7 @@ try:
     from id_parse_utils import pgc_index_path
     imagery_index = pgc_index_path()
 except ImportError:
-    imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28'
+    imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019oct14.gdb\pgcImageryIndexV6_2019oct14'
     print('Could not load updated index. Using last known path: {}'.format(imagery_index))
     
 def read_ids(ids_file, sep=None, stereo=False):

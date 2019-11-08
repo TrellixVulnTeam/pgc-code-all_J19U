@@ -51,18 +51,34 @@ def fill_dates(df, freq, date_col=None, date_index=False):
 def create_month_col(df, date_col, abbrev=False):
     '''takes a dataframe and it's date column and creates a column with the month, optionally as
     an abbreviation'''
+    df['temp_date'] = df[date_col]
+    date_col = 'temp_date'
     df[date_col] = pd.to_datetime(df[date_col])
 #    print(df[date_col])
 #    print(df.dtypes)
     df['Month'] = df[date_col].dt.month
     if abbrev == True:
         df['Month'] = df['Month'].apply(lambda x: calendar.month_abbr[x])
-   
+    df.drop(columns=[date_col], inplace=True)
+    
      
 def create_year_col(df, date_col):
     '''takes a dataframe and it's date column and creates a column with the year'''
+    df['temp_date'] = df[date_col]
+    date_col = 'temp_date'
     df[date_col] = pd.to_datetime(df[date_col])
     df['Year'] = df[date_col].dt.year
+    df.drop(columns=[date_col], inplace=True)
+
+
+def create_day_col(df, date_col):
+    '''takes a dataframe and it's date column and creates a column with the day of the month'''
+    df['temp_date'] = df[date_col]
+    date_col = 'temp_date'
+    df[date_col] = pd.to_datetime(df[date_col])
+    df['Day'] = df[date_col].dt.day
+    df.drop(columns=[date_col], inplace=True)
+    
 
 
 def convert_datetime_to_string(df):
