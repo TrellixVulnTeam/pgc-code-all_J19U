@@ -9,7 +9,7 @@ Clip raster to shapefile extent. Must be in the same projection.
 from osgeo import ogr, gdal, osr
 import os, logging, argparse
 
-from gdal_tools import ogr_reproject, get_shp_SR, get_raster_SR
+from gdal_tools import ogr_reproject, get_shp_sr, get_raster_sr
 
 
 gdal.UseExceptions()
@@ -27,27 +27,6 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 ch.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(ch)
-
-
-def translate_rasters(rasters, projWin, out_dir, out_suffix='trans'):
-    """
-    Take a list of rasters and translates (clips) them to the minimum bounding box.
-    TODO: 
-        Rewrite to use gdal.Warp with -clip_to_cutline arguments
-    """
-    # Translate (clip) to minimum bounding box
-    translated = {}
-    for raster_p in rasters:
-        if not out_dir:
-            out_dir == os.path.dirname(raster_p)
-        logger.info('Translating {}...'.format(raster_p))
-        raster_out_name = '{}_{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
-        raster_op = os.path.join(out_dir, raster_out_name)
-
-        raster_ds = gdal.Open(raster_p)
-        translated[raster_out_name] = gdal.Translate(raster_op, raster_ds, projWin=projWin)
-
-    return translated
 
 
 def get_shp_bounds(shp_path):
@@ -69,21 +48,40 @@ def get_shp_bounds(shp_path):
     return projWin
 
 
+def translate_rasters(rasters, projWin, out_dir, out_suffix='trans'):
+    """
+    Take a list of rasters and translates (clips) them to the projWin.
+    """
+    # Translate (clip) to minimum bounding box
+    translated = {}
+    for raster_p in rasters:
+        if not out_dir:
+            out_dir == os.path.dirname(raster_p)
+        logger.info('Translating {}...'.format(raster_p))
+        raster_out_name = '{}_{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
+        raster_op = os.path.join(out_dir, raster_out_name)
+
+        raster_ds = gdal.Open(raster_p)
+        translated[raster_out_name] = gdal.Translate(raster_op, raster_ds, projWin=projWin)
+
+    return translated
+
+
 def translate(shp_path, rasters, out_dir, out_suffix='trans'):
     """
     Wrapper function.
     TODO: Write more.
     """
     # Check for common projection between shapefile and first raster
-    shp_SR = get_shp_SR(shp_path)
-    raster_SR = get_raster_SR(rasters[0])
+    shp_SR = get_shp_sr(shp_path)
+    raster_SR = get_raster_sr(rasters[0])
 #    print('shp epsg: {}'.format(shp_SR))
 #    print('raster epsg: {}'.format(raster_SR))
     
     if shp_SR != raster_SR:
         logger.info('''Spatial references do not match... 
                     Reprojecting shp from \n{}\n to...\n {}'''.format(shp_SR, raster_SR))
-        shp_path = ogr_reproject(input_shp=shp_path, to_SR=raster_SR, in_mem=False)
+        shp_path = ogr_reproject(input_shp=shp_path, to_sr=raster_SR, in_mem=False)
 #    
     projWin = get_shp_bounds(shp_path)
     translate_rasters(rasters, projWin=projWin, out_dir=out_dir, out_suffix=out_suffix)

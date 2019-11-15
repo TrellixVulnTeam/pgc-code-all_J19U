@@ -96,8 +96,8 @@ def det_server_path(row):
 logger = logging.getLogger('ahap_upload')
 logger.setLevel(logging.DEBUG)
 # create file handler
-#fh = logging.FileHandler(log)
-#fh.setLevel(logging.DEBUG)
+fh = logging.FileHandler(log)
+fh.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
@@ -105,20 +105,13 @@ if verbose:
     ch.setLevel(logging.DEBUG)
 # create formatter and add it to the handlers
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#fh.setFormatter(formatter)
+fh.setFormatter(formatter)
 ch.setFormatter(formatter)
 # add the handlers to the logger
-#logger.addHandler(fh)
+logger.addHandler(fh)
 logger.addHandler(ch)
 
 logger.debug('Log file created at: {}'.format(log))
-
-# Create file to log files that were uploaded to server
-upload_log = 'ahap_upload_progress.txt'
-if not os.path.exists(upload_log):
-    with open(upload_log) as ul:
-        ul.write('')
-
 
 #### Determine which letter drives are imagery drives
 if not parse_drives:
@@ -193,32 +186,30 @@ offline = drives_df[drives_df['online']==False]
 logger.info('Image files on drives not on server: {}'.format(len(offline)))
 
 
-#### Copy missing paths to server       
-# TODO: fix this first level loop -- ['drive'] doesn't exist 
-with open(upload_log, 'a') as ul:
-    for letter_drive in offline['drive'].unique():
-        # Count of total offline files for progress bar
-        offline_count = len(offline[offline['drive']==letter_drive])
+#### Copy missing paths to server
+for letter_drive in offline['drive'].unique():
+    offline_count = len(offline[offline['drive']==letter_drive])
+    usgs_drive = offline['src_drive'].unique()[0]
+    logger.debug('Image files on drive {} not on server: {}'.format(letter_drive[:2], 
+                                                              offline_count))
+    logger.info('Transfering from drive: {} -- {}'.format(letter_drive[:2], usgs_drive))
+    for src, dst in tqdm(zip(offline[offline['drive']==letter_drive]['drive_path'], 
+                             offline[offline['drive']==letter_drive]['server_path']),
+                         total=offline_count):
+        dst_dir = os.path.dirname(dst)
+        if not os.path.exists(dst_dir):
+            logger.debug('Making directories: {}'.format(dst_dir))
+#            if not dryrun:
+#                os.makedirs(dst_dir)
+#        if not dryrun:
+#            shutil.copyfile(src, dst)
+        logger.debug('Copied {} \n to {}'.format(src, dst))
+        # TODO os.stat to confirm transfer?
+    logger.info('Completed transferring: {}'.format(letter_drive[:2]))
+    if not dryrun:
+        with open(r'C:\code\pgc-code-all\ahap_utils\ahap_copier.py', 'a') as master_log:
+            master_log.write(usgs_drive)
         
-        usgs_drive = offline['src_drive'].unique()[0]
-        logger.debug('Image files on drive {} not on server: {}'.format(letter_drive[:2], 
-                                                                  offline_count))
-        logger.info('Transfering from drive: {} -- {}'.format(letter_drive[:2], usgs_drive))
-        for src, dst in tqdm(zip(offline[offline['drive']==letter_drive]['src'], 
-                                 offline[offline['drive']==letter_drive]['server_path']),
-                             total=offline_count):
-            dst_dir = os.path.dirname(dst)
-            if not os.path.exists(dst_dir):
-                logger.debug('Making directories: {}'.format(dst_dir))
-                if not dryrun:
-                    os.makedirs(dst_dir)
-            if not dryrun:
-                shutil.copyfile(src, dst)
-                ul.write(src)
-            logger.debug('Copied {} \n to {}'.format(src, dst))
-            # TODO os.stat to confirm transfer?
-        logger.info('Completed transferring: {}'.format(letter_drive[:2]))
-            
 
 #if __name__ == '__main__':
 #    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

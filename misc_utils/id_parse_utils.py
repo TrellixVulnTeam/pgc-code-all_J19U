@@ -8,10 +8,25 @@ Created on Mon Feb  4 12:54:01 2019
 import geopandas as gpd
 import pandas as pd
 #import numpy as np
-import os, tqdm
+import os, tqdm, logging
 
 from dataframe_utils import determine_id_col, determine_stereopair_col
 #from ids_order_sources import get_ordered_ids
+
+
+## Set up logging
+logger = logging.getLogger('id_parse_utils')
+
+formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
+logging.basicConfig(filename=r'E:\disbr007\scratch\fp_density.log', 
+                    filemode='w', 
+                    format='%(asctime)s -- %(levelname)s: %(message)s', 
+                    level=logging.DEBUG)
+
+lso = logging.StreamHandler()
+lso.setLevel(logging.INFO)
+lso.setFormatter(formatter)
+logger.addHandler(lso)
 
 
 def type_parser(filepath):
@@ -94,7 +109,23 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
             sp_ids = get_stereopair_ids(df)
             for sp_id in sp_ids:
                 ids.append(sp_id)
+    # SHP
+    elif file_type == 'shp':
+        df = gpd.read_file(ids_file)
+        if field:
+            ids = list(df[field].unique())
+        else:
+            id_fields = ['catalogid', 'catalog_id', 'CATALOGID', 'CATALOG_ID']
+            field = [x for x in id_fields if x in list(df)]
+            if len(field) != 1:
+                logger.error('Unable to read IDs, no known ID fields found.')
+            else:
+                field = field[0]
+            ids = [df[field].unique()]
+
+    # PKL
     elif file_type == 'pkl':
+        logger.warning('Loading IDs from pkl, not sure if this works...')
         df = pd.read_pickle(ids_file)
         if len(df.columns) > 1:
             ids = list(df[df.columns[0]])
@@ -104,6 +135,7 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
             print('No columns found in pickled dataframe.')
     else:
         print('Unsupported file type... {}'.format(file_type))
+
     return ids
 
 
@@ -275,17 +307,18 @@ def ge_ids2dg_ids(ids):
     return converted_ids, not_conv_ids
 
 
-def pgc_index_path():
+def pgc_index_path(ids=False):
     '''
     Returns the path to the most recent pgc index from a manually updated
     text file containing the path.
     '''
     with open(r'C:\code\pgc-code-all\pgc_index_path.txt', 'r') as src:
         content = src.readlines()
+    if not ids:
         index_path = content[0]
+    if ids:
+        index_path = content[1]
     return index_path
-
-
 
 
 def locate_ids(df, cat_id_field):
@@ -313,4 +346,58 @@ def locate_ids(df, cat_id_field):
     ordered_ids = set(get_ordered_ids()) #order sheets
     
     df['location'] = df[cat_id_field].apply(lambda x: locate_id(x, pgc_ids, nasa_ids, ordered_ids))
+
+
+def mfp_ids():
+    """
+    Returns all catalogids in the current masterfootprint.
+    """
+    ids_path = pgc_index_path(ids=True)
+    ids = read_ids(ids_path)
+    return ids
+
+
+def remove_mfp(src):
+    """
+    Takes an input src of ids and removes all 
+    ids that are on hand.
+    src: list of ids
+    """
+    logging.info('Removing IDs in masterfootprint...')
+    print('removing mfp...')
+    src_ids = set(src)
+    onhand_ids = set(mfp_ids())
+    not_mfp = list(src_ids - onhand_ids)
+    print('IDs removed: {}'.format((len(src_ids)-len(not_mfp))))
     
+    return not_mfp
+
+
+def remove_ordered(src):
+    """
+    Takes an input src of ids and removes all
+    ids that have been ordered.
+    src: list of ids
+    """
+    logging.info('Removing IDs in order sheets...')
+    print('removing ordered...')
+    src_ids = set(src)
+    ordered_p = r'E:\disbr007\imagery_orders\ordered\all_ordered.txt'
+    ordered = set(read_ids(ordered_p))
+    
+    not_ordered = list(src_ids - ordered)
+    print('IDs removed: {}'.format((len(src_ids)-len(not_ordered))))
+    
+    return not_ordered
+
+
+def remove_onhand(src):
+    """
+    Takes an input src of ids and removes all
+    ids that are either in the mfp or ordered.
+    src: list of ids
+    """
+    not_mfp = remove_mfp(src)
+    not_mfp_ordered = remove_ordered(not_mfp)
+    
+    return not_mfp_ordered

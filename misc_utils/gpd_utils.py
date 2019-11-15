@@ -239,7 +239,7 @@ def grid_poly_row(row, nrows, ncols):
             
     return feat_cells
 
-
+    
 #gdb = r'E:\disbr007\general\geocell\geocell.gdb'
 #gp = r'one_degree_geocell_north_america'
 #grid = gpd.read_file(gdb, layer=gp, driver='OpenFileGDB')

@@ -8,6 +8,7 @@ Created on Fri Dec  7 12:09:11 2018
 import pandas as pd
 import geopandas as gpd
 import os, datetime, sys, argparse, re
+import pprint
 
 from id_parse_utils import date_words
 
@@ -252,11 +253,24 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
     gsheet_dict = {}
     
     for k in all_platforms_dict:
-        gsheet_dict[k] = all_platforms_dict[k]['g_sheet']
+#        gsheet_dict[k] = all_platforms_dict[k]['g_sheet']
+        gsheet_dict.update(all_platforms_dict[k]['g_sheet'])
     
-    gsheet_df = pd.DataFrame.from_dict(gsheet_dict)
-    gsheet_df['count'] = gsheet_df.sum(axis=1) 
-    gsheet_df = gsheet_df['count']
+    gsheet_df = pd.Series(gsheet_dict, name='count')
+    gsheet_df = pd.DataFrame(gsheet_df)
+#    print(gsheet_df)
+#    print(gsheet_df)
+#    gsheet_df['count'] = gsheet_df.sum(axis=1) 
+#    gsheet_df = gsheet_df['count']
+    # Sort by platform, then sheet number
+    gsheet_df['plat'] = gsheet_df.index.str[0:4]
+    gsheet_df['sort'] = gsheet_df.index.str[9:11]
+    gsheet_df['sort'] = gsheet_df['sort'].str.strip('o')
+    print(gsheet_df.head())
+    gsheet_df['sort'] = gsheet_df['sort'].astype(int)
+    gsheet_df.sort_values(['plat','sort'], inplace=True)
+    gsheet_df.drop('sort', axis=1)
+    
     gsheet_writer = pd.ExcelWriter(gsheet_path, engine='xlsxwriter')
     gsheet_df.to_excel(gsheet_writer, index=True, sheet_name='Sheet1')
     gsheet_writer.save()

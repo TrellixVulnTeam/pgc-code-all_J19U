@@ -6,13 +6,28 @@ Created on Fri Jun  7 09:42:51 2019
 Gets all ids that have been added to orders from the lists provided to Paul.
 """
 
-import pandas as pd
+import logging
 import os, tqdm, argparse, datetime
+import pandas as pd
 
-from id_parse_utils import read_ids, write_ids
+from id_parse_utils import read_ids, write_ids, date_words
 
 
-ordered_ids_path = r'E:\disbr007\imagery_orders\ordered\all_ordered.pkl'
+#### Logging setup
+# create logger
+logger = logging.getLogger('ahap_upload')
+logger.setLevel(logging.DEBUG)
+# create file handler
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+# create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(ch)
+
+
+ordered_ids_path = r'E:\disbr007\imagery_orders\ordered\all_ordered_{}.pkl'.format(date_words(today=True))
 
 
 def id_order_loc_update():
@@ -21,7 +36,8 @@ def id_order_loc_update():
     '''
     global ordered_ids_path
     # Directory holding sheets of orders - copied from the server location manually
-    sheets_dir = r'E:\disbr007\imagery_orders\NGA'
+    sheets_dir = r'E:\disbr007\imagery_orders'
+#    sheets_dir = r'V:\pgc\data\common\pgc_imagery_orders\NGA'
     
     ## Walk directory and create df of ids and source order
     # Initiate master df to store ids and sources
@@ -45,6 +61,9 @@ def id_order_loc_update():
                     exception_count += 1
     all_orders = pd.DataFrame(all_ids, columns=['ids', 'order', 'created'])
     all_orders.to_pickle(ordered_ids_path)
+    logger.info('Pickle created at {}'.format(ordered_ids_path))
+    ordered_text = r'E:\disbr007\imagery_orders\ordered\all_ordered.txt'.format(date_words(today=True))
+    write_ids(list(all_orders['ids']), ordered_text)
     return all_orders
 
 
@@ -84,23 +103,29 @@ def lookup_id_order(txt_file, all_orders=None, write_missing=False):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("input_ids", type=str, 
+    parser.add_argument("--input_ids", type=str, 
                         help="Text file containing ids, one per line.")
     parser.add_argument("--write_missing", action="store_true",
                         help="write ids not in an order to a seperate txt file.")
     parser.add_argument("-u", "--update_orders_source", action="store_true", 
                         help="update the local copy of order sheets before looking up ids.")
+    parser.add_argument("--update_only", action="store_true",
+                        help="update ordered list files")
     args = parser.parse_args()
 
-    # If update flag is specified, update order source .pkl (improve to not reload all, just update new 
-    # (date based?)), # else use stored .pkl 
-    if args.update_orders_source:
-        if args.write_missing:
-            lookup_id_order(args.input_ids, id_order_loc_update(), write_missing=True)
-        else:
-            lookup_id_order(args.input_ids, id_order_loc_update())
+    if args.update_only:
+        id_order_loc_update()
+        
     else:
-        if args.write_missing:
-            lookup_id_order(args.input_ids, write_missing=True)
+        # If update flag is specified, update order source .pkl (improve to not reload all, just update new 
+        # (date based?)), # else use stored .pkl 
+        if args.update_orders_source:
+            if args.write_missing:
+                lookup_id_order(args.input_ids, id_order_loc_update(), write_missing=True)
+            else:
+                lookup_id_order(args.input_ids, id_order_loc_update())
         else:
-            lookup_id_order(args.input_ids)
+            if args.write_missing:
+                lookup_id_order(args.input_ids, write_missing=True)
+            else:
+                lookup_id_order(args.input_ids)
