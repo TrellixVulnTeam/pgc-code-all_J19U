@@ -1,192 +1,190 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Oct 30 12:13:03 2019
+Created on Fri Nov 15 13:49:34 2019
 
 @author: disbr007
-AHAP Imagery Copier
-Copies imagery from server to local location based on selection shapefile.
-Input: shapefile exported from either AHAP_Photo_Extents or AHAP_Flightlines with
-       joined paths from danco imagery databse: imagery.sde.usgs_index_aerial_image_archive
-       or without joined paths (requires geopandas for connecting to danco table).
 """
 
 import os
 import logging
+import shutil
 
-from osgeo import ogr
-import tqdm
+import geopandas as gpd
+from tqdm import tqdm
 
-from get_creds import get_creds
-from gdal_tools import load_danco_table
+from query_danco import query_footprint
 
 
-# create logger with 'spam_application'
-logger = logging.getLogger()
+#### Logging setup
+# create logger
+logger = logging.getLogger('ahap_copier')
 logger.setLevel(logging.DEBUG)
+# create file handler
+log = 'ahap_copier.log'
+fh = logging.FileHandler(log)
+fh.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.INFO)
 # create formatter and add it to the handlers
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+fh.setFormatter(formatter)
 ch.setFormatter(formatter)
 # add the handlers to the logger
+logger.addHandler(fh)
 logger.addHandler(ch)
+logger.debug('Log file created at: {}'.format(log))
 
 
-## TODO: Choose medium res or high res for selection - different filepaths - user input
-res = 'high'
-if res == 'high':
-    resolution = 'high_res'
-elif res == 'med':
-    resolution = 'med_res'
-else:
-    logger.error('Resolution not found: {}'.format(res))
-    
-    
-driver = ogr.GetDriverByName('ESRI Shapefile')
-
-join_left = 'PHOTO_ID'
-join_right = 'UNIQUE_ID'
-right_fields = ['UNIQUE_ID', 'FILENAME', 'FILEPATH']
-
-#### Join selection to table with drives
-# Path to selection shapefile 
-## TODO: Convert to user input
+## Inputs
 selection_p = r'E:\disbr007\UserServicesRequests\Projects\jclark\3948\ahap\selected_ahap_photo_extents.shp'
+dst_dir = r'C:\temp\ahap'
+src_loc = 'drives'
+DRYRUN = True
 
-# Open shapefile and get lyr, feature count, geom_type
-ds_selection = ogr.Open(selection_p)
-lyr_selection = ds_selection.GetLayer(0)
-feat_count = lyr_selection.GetFeatureCount()
-geom_type = lyr_selection.GetGeomType()
-srs_selection = lyr_selection.GetSpatialRef()
+## Params
+SERVER_LOC = os.path.normpath(r'V:\pgc\data\aerial\usgs\ahap\photos')
+PHOTO_EXTENTS = 'Photo_Extents'
+FLIGHTLINES = 'Flightlines'
+CAMPAIGN = 'AHAP'
+JOIN_SEL = 'PHOTO_ID'
+JOIN_FP = 'UNIQUE_ID'
+FP = 'usgs_index_aerial_image_archive'
+DB = 'imagery'
+FILEPATH = 'filepath'
+FILENAME = 'filename'
+SRC_DRIVE = 'src_drive'
 
-# Determine selection type based on presence of 'PHOTO_ID' field
-lyr_defn = lyr_selection.GetLayerDefn()
-fields_selection = [lyr_defn.GetFieldDefn(i).GetName() for i in range(lyr_defn.GetFieldCount())]
+DRIVE_PATH = 'drive_path'
+RELATIVE_PATH = 'relative_path'
+SERVER_PATH = 'server_path'
+FROM_DRIVE = 'drives'
+FROM_SERVER = 'server'
+DST_PATH = 'dst'
+SRC_PATH = 'src'
 
-if "PHOTO_ID" in fields_selection:
-    sel_type = 'Photo_Extents'
+## Load selection
+selection = gpd.read_file(selection_p)
+selection_unique_ids = list(selection[JOIN_SEL].unique())
+selection_unique_ids_str = str(selection_unique_ids).replace('[', '').replace(']', '')
+## Determine type of selection input
+selection_fields = list(selection)
+if "PHOTO_ID" in selection_fields:
+    selection_type = PHOTO_EXTENTS
 else:
-    sel_type = 'Flightlines'
-
-# Get all values in left layer join field
-left_unique = [lyr_selection.GetFeature(i).GetField(join_left) for i in range(feat_count)]
-
-
-### Table with paths (right side of join)
-db_server = 'danco.pgc.umn.edu'
-db_name = 'imagery'
-db_user, db_pw = get_creds()
-conn_str = "PG: host={} dbname={} user={} password={}".format(db_server, db_name, db_user, db_pw)
-
-db_tbl = 'sde.usgs_index_aerial_image_archive'
-
-#conn = ogr.Open(conn_str)
-# join is done via sql
-left_unique_str = str(left_unique).replace('[', '').replace(']', '')
-# campaign = 'AHAP'?
-where = """({}.{} IN ({})) AND ({}.series = '{}')""".format(db_tbl, join_right, left_unique_str, db_tbl, resolution)
-
-lyr_table, _lyr_conn = load_danco_table(db_name, db_tbl, where=where, load_fields=right_fields, username=db_user, password=db_pw)
-
-# Layer defn (right)
-lyr_tbl_defn = lyr_table.GetLayerDefn()
-# Layer field names (right)
-lyr_tbl_fields = [lyr_tbl_defn.GetFieldDefn(i).GetName() for i in range(lyr_tbl_defn.GetFieldCount())]
-
-
-### Join by creating new layer in memory
-## Create datasource
-# memory path
-#mem_p = '/vsimem/ahap_copier_temp.shp'
-mem_p = r'C:\temp\ahap_copier_testing2.shp'
-if os.path.exists(mem_p):
-    driver.DeleteDataSource(mem_p)
-mem_ds = driver.CreateDataSource(mem_p)
-out_lyr = mem_ds.CreateLayer("temp", srs=srs_selection, geom_type=ogr.wkbMultiPolygon)
-
-# Add empty fields from selection (left) shapefile
-for i in range(lyr_defn.GetFieldCount()):
-    field_dfn = lyr_defn.GetFieldDefn(i)
-    out_lyr.CreateField(field_dfn)
+    selection_type = FLIGHTLINES
     
-# Add empty fields from selection (right) table
-for i in range(lyr_tbl_defn.GetFieldCount()):
-    field_dfn = lyr_tbl_defn.GetFieldDefn(i)
-    out_lyr.CreateField(field_dfn)
+
+## Load aerial source table
+# Build where clause, including selecting only ids in selection
+where = "(sde.{}.{} IN ({}))".format(FP, JOIN_FP, selection_unique_ids_str)
+aia = query_footprint(FP, db=DB, table=True, where=where)
+# Convert path to os style -- only necessary for windows
+aia[DRIVE_PATH] = aia[FILEPATH].apply(os.path.normpath)
+
+
+## Get drive paths
+drive_paths = aia[DRIVE_PATH].unique()
+
+
+## Build server paths
+def create_relative_paths(row):
+    """
+    Create relative path for each row
+    """
+    global FILENAME
+    # Determine series subdir (high or low)
+    if row['series'] == 'high_res':
+        resolution = 'high'
+    elif row['series'] == 'medium_res':
+        resolution = 'low'
+
+    relative_path = os.path.join(resolution, row[FILENAME])
     
-# Populate fields from input selection
-out_lyr_defn = out_lyr.GetLayerDefn()
+    return relative_path
 
-# Looping over input (left) features and adding values and adding matching join values
-for i in tqdm.tqdm(range(lyr_selection.GetFeatureCount())):
-    # Get feature in selection (left)
-    feat_selection = lyr_selection.GetFeature(i)
+
+def find_drive_location(row, active_drives):
+    """
+    Check if each row (file) is on any of the active drives.
+    If so return that drive letter.
+    """
+    # TODO: Figure out how to handle missing files -> subset aia before copying
+    global DRIVE_PATH
+    for letter in active_drives:
+        filepath = os.path.join(letter, row[DRIVE_PATH])
+        if os.path.exists(filepath):
+            return filepath
+        else:
+            return 'NOT_MOUNTED'
+            
+            
     
-    # Get join field value in left
-    left_id = feat_selection.GetField(join_left)
-    out_feat = ogr.Feature(out_lyr_defn)
-    
-    # Fields from left
-    for field in fields_selection:
-        out_feat.SetField(field, feat_selection.GetField(field))
-    
-    ## Fields from right
-    # Reduce right to just feature that matches current left feature join field (left_id)
-    lyr_table.SetAttributeFilter("{} = '{}'".format(join_right, left_id))
-    # There should only be one feature, another way to access feature in lyr_table??
-    for feature in lyr_table:
-#        print(feature.GetField(join_right))
-        # Loop over each field in right and add values
-        for field in lyr_tbl_fields:
-            if field in fields_selection:
-                pass
-            else:
-                out_feat.SetField(field, feature.GetField(field))
-    
-    # Geometry
-    geom = feat_selection.GetGeometryRef()
-    out_feat.SetGeometry(geom)
-    # Create new feature
-    
-    out_lyr.CreateFeature(out_feat)
+
+aia[RELATIVE_PATH] = aia.apply(lambda x: create_relative_paths(x), axis=1)
+aia[SERVER_PATH] = aia.apply(lambda x: os.path.join(SERVER_LOC, x[RELATIVE_PATH]), axis=1)
+
+
+## Get src drives 
+src_drives = list(aia[SRC_DRIVE].unique())
+logger.info('Drives required for selection: {}'.format(src_drives))
+
+
+## Retrieve
+# Get all active drives
+def get_active_drives():
+    """
+    List all active drives.
+    """
+    drive_list = []
+    for drive in range(ord('A'), ord('Z')):
+        if os.path.exists(chr(drive) + ':'):
+            drive_list.append(chr(drive) + ':')
+    return drive_list
+
+
+active_drives = get_active_drives()
+active_drives = [d for d in active_drives if os.path.ismount(d)]
+
+## Get aerial imagery drives
+# first level subdirectories on drives are ./hsm/ or ./AHAP Tif files
+aerial_imagery_subdirs = ['hsm{}'.format(x) for x in range(0,10)]
+aerial_imagery_subdirs.append('AHAP Tif files')
+# Check if either of the subdir patterns exist on mounted drives
+ahap_drives = [d for d in active_drives 
+                 if True in [os.path.exists(os.path.join(d, sd)) 
+                             for sd in aerial_imagery_subdirs]]
+
+
+aia[DST_PATH] = aia.apply(lambda x: os.path.join(dst_dir, x[RELATIVE_PATH]), axis=1)
+if src_loc == FROM_DRIVE:
+    aia[SRC_PATH] = aia[DRIVE_PATH]
+elif src_loc == FROM_SERVER:
+    aia[SRC_PATH] = aia[SERVER_PATH]
+
+for src, dst in tqdm(zip(aia[DRIVE_PATH], aia[DST_PATH])):
+    # Make directory tree if necessary
+    dst_dir = os.path.dirname(dst)
+    if not os.path.exists(dst_dir):
+        logger.debug('Making directories: {}'.format(dst_dir))
+        if not DRYRUN:
+            os.makedirs(dst_dir)
+        else:
+            logger.info('Making directores: {}'.format(dst_dir))
+        if not DRYRUN:
+            shutil.copyfile(src, dst)
+            logger.debug('Copied {} \n to {}'.format(src, dst))
+        else:
+            logger.info('Copying {} -> {}'.format(src, dst))
+   
+        # TODO os.stat to confirm transfer?
+#    logger.info('Completed transferring: {}'.format(letter_drive[:2]))
 
 
 
-#### List necessary drives
-# Windows
-base_path = r'V:\pgc\data\aerial\usgs\ahap\photos'
-res_path = os.path.join(base_path, res)
-
-drive_paths = []
-
-for feat in out_lyr:
-    # Get drive
-    drive = feat.GetField('src_drive')
-
-    # Get path parts
-    roll = feat.GetField('ORDERING_I')
-    filename = feat.GetField('filename')
-    photo_id = feat.Getfield('unique_id')
-    
-    # Create path
-    drive_paths.append(os.path.join('AHAP Tif files', roll, photo_id))
-
-
-out_feat = None
-out_lyr = None
-mem_ds = None
-
-
-#### Upload from drives to server (seperate script)
 
 
 
-#### Pull from server
 
-
-
-#### Pull from drives
 
 

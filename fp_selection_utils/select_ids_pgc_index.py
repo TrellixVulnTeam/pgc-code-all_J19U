@@ -143,24 +143,13 @@ def mfp_subset(lon_min, lat_min, lon_max, lat_max):
         df = gpd.read_file(index_path, driver='OpenFileGDB', layer=layer)
         yield df
 
-results = []
-while mfp_subset():
-    df['new_col'] = old_df.apply(fxn)
-    df = df[df['new_col']==1]
-    results.append(df)
-    
-pd.concat(results)
-
 def yeilder():
     i = 0
     while True:
         
         yield i
         i + i
-    
-for x in yeilder():
-    print(x)
-    print(x+100)
+
     
 #if __name__ == '__main__':
 #    parser = argparse.ArgumentParser()

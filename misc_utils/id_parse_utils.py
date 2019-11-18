@@ -363,12 +363,12 @@ def remove_mfp(src):
     ids that are on hand.
     src: list of ids
     """
-    logging.info('Removing IDs in masterfootprint...')
-    print('removing mfp...')
+    logging.info('Removing IDs in master footprint...')
+    logger.info('Removing mfp ids...')
     src_ids = set(src)
     onhand_ids = set(mfp_ids())
     not_mfp = list(src_ids - onhand_ids)
-    print('IDs removed: {}'.format((len(src_ids)-len(not_mfp))))
+    logger.info('IDs removed: {}'.format((len(src_ids)-len(not_mfp))))
     
     return not_mfp
 
@@ -380,13 +380,13 @@ def remove_ordered(src):
     src: list of ids
     """
     logging.info('Removing IDs in order sheets...')
-    print('removing ordered...')
+    logger.info('Removing ordered...')
     src_ids = set(src)
     ordered_p = r'E:\disbr007\imagery_orders\ordered\all_ordered.txt'
     ordered = set(read_ids(ordered_p))
     
     not_ordered = list(src_ids - ordered)
-    print('IDs removed: {}'.format((len(src_ids)-len(not_ordered))))
+    logger.info('IDs removed: {}'.format((len(src_ids)-len(not_ordered))))
     
     return not_ordered
 
