@@ -96,7 +96,7 @@ def update_rasters(last_update, north=True, south=True):
 
     
     
-update_rasters('2019-01-01')
+# update_rasters('2019-01-01')
 
 
 def resample_nodata(f_p, nd1, nd2, nd3, nd4, out_path, out_nodata):
@@ -227,9 +227,3 @@ if __name__ == '__main__':
     out_nodata = args.out_nodata
     
     resample_loop(sea_ice_dir, out_dir=out_dir, last_update=last_update, out_nodata=out_nodata)
-    
-#sea_ice_p = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\south\daily'
-#out_dir = r'C:\Users\disbr007\projects\coastline\noaa_sea_ice\south\resampled_nd\daily\geotiff'
-
-## Control which rasters to resample - only those since last update
-#last_update_year, last_update_month, last_update_day = 1994, 0, 0

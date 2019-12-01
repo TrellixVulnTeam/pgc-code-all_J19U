@@ -119,7 +119,7 @@ if __name__ == '__main__':
                         help='''The path to the AOI shp file. If providing coordinates or placename, the path
                         to write the new AOI shapefile to.''')
     parser.add_argument('out_path', type=os.path.abspath, help='Path to write selection shp file.')
-    parser.add_argument('--prod_code', type=str, default=None,
+    parser.add_argument('--prod_code', type=str, default=['M1BS', 'P1BS'],
                         help='Prod code to select. E.g. P1BS, M1BS')
     parser.add_argument('--sensors', nargs='+', default=['IK01', 'GE01', 'WV01', 'WV02', 'WV03'],
                         help='Sensors to include.')

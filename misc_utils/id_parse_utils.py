@@ -315,9 +315,10 @@ def pgc_index_path(ids=False):
     with open(r'C:\code\pgc-code-all\pgc_index_path.txt', 'r') as src:
         content = src.readlines()
     if not ids:
-        index_path = content[0]
+        index_path = content[0].strip('\n')
     if ids:
-        index_path = content[1]
+        index_path = content[1].strip('\n')
+    logger.debug('PGC index path loaded: {}'.format(index_path))
     return index_path
 
 

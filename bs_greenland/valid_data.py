@@ -35,18 +35,24 @@ logger.addHandler(ch)
 #logger.debug('Log file created at: {}'.format(log))
 
 
-def valid_data(gdal_ds, write_valid=False, out_path=None):
+def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
     """
     Takes a gdal datasource and determines the number of
     valid pixels in it. Optionally, writing out the valid
-    data as a binary raster. Assumes only one band in the
-    input gdal datasource.
-    gdal_ds      :    osgeo.gdal.Dataset
-    write_valid  :    True to write binary raster, must supply out_path
-    out_path     :    Path to write binary raster
+    data as a binary raster.
+    gdal_ds      (osgeo.gdal.Dataset):    osgeo.gdal.Dataset
+    write_valid  (boolean)           :    True to write binary raster, 
+                                          must supply out_path
+    out_path     (str)               :    Path to write binary raster
+
+    Writes 
+    (Optional) Valid data mask as raster
+
+    Returns
+    Tuple:  Count of valid pixels, count of total pixels
     """
-    # Get raster band - assumes only 1
-    rb = gdal_ds.GetRasterBand(1)
+    # Get raster band
+    rb = gdal_ds.GetRasterBand(band_number)
     no_data_val = rb.GetNoDataValue()
     arr = rb.ReadAsArray()
     # Create mask showing only valid data as 1's
@@ -80,16 +86,23 @@ def valid_data(gdal_ds, write_valid=False, out_path=None):
 
 def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_path=None):
     """
-    Rasterize a ogr datasource to the extent, projection, resolution, etc of a given
+    Rasterize a ogr datasource to the extent, projection, resolution of a given
     gdal datasource object. Optionally write out the rasterized product.
     ogr_ds           :    osgeo.ogr.DataSource
     gdal_ds          :    osgeo.gdal.Dataset
     write_rasterised :    True to write rasterized product, must provide out_path
     out_path         :    Path to write rasterized product
+    
+    Writes
+    Rasterized dataset to file.
+
+    Returns
+    osgeo.gdal.Dataset
+    or
+    None
     """
     # TODO: Add ability to provide field in ogr_ds to use to burn into raster.
     ## Get DEM attributes
-#    dem_ds = gdal.Open(clip_dem)
     dem_no_data_val = gdal_ds.GetRasterBand(1).GetNoDataValue()
     dem_sr = gdal_ds.GetProjection()
     dem_gt = gdal_ds.GetGeoTransform()
@@ -125,32 +138,3 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
         return out_ds
     else:
         out_ds = None
-
-
-prj_dir = r'E:\disbr007\projects\boise_greenland_dems\testing' 
-out_dir = os.path.join(prj_dir, 'clipped')
-
-box_p = os.path.join(prj_dir, 'term_poly.shp')
-shp_ds = ogr.Open(box_p)
-
-dem_p = os.path.join(prj_dir, 'SETSM_W1W1_20140421_102001002E4EBC00_102001002F144200_seg4_2m_v3.0_dem.tif')
-
-#trans = translate(box_p, [dem_p], out_dir=out_dir, out_suffix='poly_trans')
-warped = warp_rasters(box_p, [dem_p], out_dir, out_suffix='poly_clip_crop2cutline')
-
-out_path = os.path.join(prj_dir, 'dem_mask.tif')
-# Get number of valid pixels in each ds
-for name, ds in warped.items():
-    valid_pixels, total_pixels = valid_data(ds, write_valid=True, out_path=out_path)
-    mem_p = os.path.join(prj_dir, 'rasterized.tif')
-    mem_ds = rasterize_shp2raster_extent(shp_ds, ds, write_rasterized=False, out_path=mem_p)
-    
-    mem_rb = mem_ds.GetRasterBand(1)
-    mem_arr = mem_rb.ReadAsArray()
-    mem_valid_count = len(mem_arr[mem_arr==1])
-    
-    mem_ds = None
-    dem_ds = None
-    
-    dem_valid = valid_pixels / mem_valid_count
-    print(dem_valid)
