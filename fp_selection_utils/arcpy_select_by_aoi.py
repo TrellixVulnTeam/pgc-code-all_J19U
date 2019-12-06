@@ -92,14 +92,22 @@ def select_footprints(aoi, imagery_index, overlap_type, search_distance, prod_co
     return selection
 
 
-def select_dates(src, min_year=1990, max_year=2100, months=[0]):
+def select_footprints_byid(selector, id_field='catalog_id'):
+    """
+    Select from master footprint based on selector.
+    """
+    
+
+def select_dates(src, min_year, max_year, months, min_date, max_date):
     """
     Select by years and months
     """
     year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
     month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
     month_sql = " OR ".join(month_terms)
-    sql = """({}) AND ({})""".format(year_sql, month_sql)
+    date_sql = """(acq_time >= '{}') AND (acq_time <= '{}')""".format(min_date, max_date)
+    sql = """({}) AND ({}) AND ({})""".format(year_sql, month_sql, date_sql)
+    print(sql)
 
     ## Faster by far than SelectByAttributes
     selection = arcpy.MakeFeatureLayer_management(src, where_clause=sql)
@@ -126,6 +134,8 @@ if __name__ == '__main__':
     parser.add_argument('--min_year', type=str, help='Earliest year to include.')
     parser.add_argument('--max_year', type=str, help='Latest year to include')
     parser.add_argument('--months', nargs='+', help='Months to include. E.g. 01 02 03')
+    parser.add_argument('--min_date', type=str, help='Earliest date to include. Eg. "2016" or "2016-01-15"')
+    parser.add_argument('--max_date', type=str, help='Earliest date to include. Eg. "2019" or "2019-10-15"')
     parser.add_argument('--max_cc', type=int, help='Max cloudcover to include.')
     parser.add_argument('--overlap_type', type=str, default='INTERSECT',
                         help='''Type of select by location to perform. Must be one of:
@@ -138,6 +148,8 @@ if __name__ == '__main__':
                         help='Longitude, latitude pairs. x1,y1 x2,y2 x3,y3, etc.' )
     parser.add_argument('--place_name', type=str, default=None,
                         help='Select by Antarctic placename from acan danco DB.')
+    parser.add_argument('--aoi_selection', type=str, default=None,
+                        help='Apply a select by attributes to the aoi layer. E.g. "FID = 1"')
 
     args = parser.parse_args()
 
@@ -148,11 +160,14 @@ if __name__ == '__main__':
     min_year = args.min_year
     max_year = args.max_year
     months = args.months
+    min_date = args.min_date
+    max_date = args.max_date
     max_cc = args.max_cc
     overlap_type = args.overlap_type
     search_distance = args.search_distance
     coordinate_pairs = args.coordinate_pairs
     place_name = args.place_name
+    aoi_selection = args.aoi_selection
 
     ## If coordinate pairs create shapefile
     if coordinate_pairs:
@@ -161,6 +176,11 @@ if __name__ == '__main__':
     ## If place name provided, use as AOI layer
     if place_name: 
         place_name_AOI(place_name, aoi_path)
+
+    if aoi_selection:
+        print(aoi_selection)
+        aoi_path = arcpy.MakeFeatureLayer_management(aoi_path, where_clause=aoi_selection)
+
 
     ## Inital selection by location
     selection = select_footprints(aoi_path,
@@ -181,7 +201,8 @@ if __name__ == '__main__':
         where += """(cloudcover <= {})""".format(max_cc)
     if prod_code:
         where = check_where(where)
-        where += """(prod_code = '{}')""".format(prod_code)
+        prod_code_str = str(prod_code)[1:-1]
+        where += """(prod_code in ({}))""".format(prod_code_str)
     ## Selection by sensor if specified
     if sensors:
         where = check_where(where)
@@ -191,14 +212,24 @@ if __name__ == '__main__':
     selection = arcpy.MakeFeatureLayer_management(selection, where_clause=where)
 
     ## Selection by date if specified
-    if None in (min_year, max_year, months):
+    if None in (min_year, max_year, months, min_date, max_date):
         if min_year is None:
             min_year = '1900'
         if max_year is None:
             max_year = '2100'
         if months is None:
             months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
-    selection = select_dates(selection, min_year=min_year, max_year=max_year, months=months)
+        if min_date is None:
+            min_date = '1900'
+        if max_date is None:
+            max_date = '2100'
+
+    selection = select_dates(selection, 
+                             min_year=min_year, 
+                             max_year=max_year, 
+                             months=months,
+                             min_date=min_date, 
+                             max_date=max_date)
 
     # Print number of selected features
     result = arcpy.GetCount_management(selection)

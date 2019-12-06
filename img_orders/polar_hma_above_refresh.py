@@ -35,7 +35,7 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
     Uses a refresh region shortname to return relevent region names in AOI shapefile.
     refresh_region: string, supported types ['polar_hma_above', 'nonpolar', 'global']
     '''
-    supported_refreshes = ['polar_hma_above', 'nonpolar', 'global']
+    supported_refreshes = ['polar_hma_above', 'nonpolar', 'global', 'polar']
     if refresh_region in supported_refreshes:
         if refresh_region == 'polar_hma_above':
             regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 
@@ -45,6 +45,8 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
         elif refresh_region == 'global':
             regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'HMA', 
                        'Nonpolar', 'ABoVE Nonpolar', 'Nonpolar Ice']
+        elif refresh_region == 'polar':
+            regions = ['Antarctica', 'Arctic', 'ABoVE Polar']
     else:
         print("""Refresh region unrecognized, supported refresh regions 
               include {}""".format(supported_refreshes))
@@ -136,7 +138,7 @@ if __name__ == '__main__':
                         help="Date of last refresh: yyyy-mm-dd")
     parser.add_argument("refresh_region", type=str, 
                         help="""Type of refresh, supported types: 
-                            'polar_hma_above', 'nonpolar', 'global'""")
+                            'polar_hma_above', 'nonpolar', 'global', 'polar'""")
     parser.add_argument("refresh_imagery", type=str, 
                         help="""Type of imagery to refresh, supported types: 
                             'mono_stereo', 'mono', 'stereo'""")
@@ -180,7 +182,7 @@ if __name__ == '__main__':
     logger.info('IDs found: {}'.format(len(selection)))
     agg = {'catalogid':'count', 'acqdate':['min', 'max'], 'cloudcover':['min', 'max'], 'y1':['min', 'max']}
     selection_summary = selection.groupby('platform').agg(agg)
-    logger.info('Summary:\n{}'.format(selection_summary))
+    logger.info('Summary:\n{}\n'.format(selection_summary))
 
     
     if not dryrun:

@@ -266,7 +266,7 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
     gsheet_df['plat'] = gsheet_df.index.str[0:4]
     gsheet_df['sort'] = gsheet_df.index.str[9:11]
     gsheet_df['sort'] = gsheet_df['sort'].str.strip('o')
-    print(gsheet_df.head())
+    print(gsheet_df)
     gsheet_df['sort'] = gsheet_df['sort'].astype(int)
     gsheet_df.sort_values(['plat','sort'], inplace=True)
     gsheet_df.drop('sort', axis=1)
@@ -277,10 +277,6 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
     write_master(dataframe, project_path, project_base, output_suffix, order_date, keep_swir)
     print('IDs written to sheets: {}'.format(ids_written))
     return all_platforms_dict
-
-#input_file = r"E:\disbr007\imagery_orders\test\catalogs_to_reorder.txt" # for debugging
-#out_suffix = 'test_order_chop'
-#create_sheets(input_file, out_suffix)
 
 
 if __name__ == '__main__':

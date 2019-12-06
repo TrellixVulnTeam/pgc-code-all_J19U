@@ -109,7 +109,7 @@ def build_where(platforms, min_year, max_year, months, max_cc, min_cc,
                     where += ' AND {}'.format(months_str)
         else:
             if col_dict['arg_value'] != None:
-                arg_where = "({} {} '{}')".format(col_dict['field'], col_dict['arg_comparison'], col_dict['arg_value'])
+                arg_where = "({} {} {})".format(col_dict['field'], col_dict['arg_comparison'], col_dict['arg_value'])
                 if not where:
                     where += arg_where
                 else:
@@ -119,7 +119,7 @@ def build_where(platforms, min_year, max_year, months, max_cc, min_cc,
     return where
     
 
-def load_src(layer, where, columns):
+def load_src(layer, where, columns, write_source=False):
     """
     Load danco layer specified with where clause and columns provided.
     """
@@ -127,7 +127,9 @@ def load_src(layer, where, columns):
     logger.info('Loading source footprint (with any provided SQL)...')
     logger.info('Loading {}...'.format(layer))
     src = query_footprint(layer=layer, where=where, columns=columns)
-    
+    logger.debug('Loaded source features before selection: {}'.format(len(src)))
+    if write_source is True:
+        src.to_file(r'C:\temp\src.shp')
     return src
 
 
@@ -148,7 +150,8 @@ def make_selection(selector, src, selection_method):
     elif selection_method == 'ID':
         logger.info('Selecting by ID')
         selection = src[src['catalogid'].isin(selector)]
-        
+    
+    logger.debug('Selected features: {}'.format(len(selection)))
     return selection
 
 
@@ -156,13 +159,12 @@ def remove_mfp_selection(selection):
     """
     Removes ids in the master footprint from the given selection
     """
-    logger.info(type(selection))
+    logger.debug('Selector type: {}'format(type(selection)))
     if type(selection) in (list, set):
         selection = remove_mfp(selection)
     # Assume dataframe
     else:
-        selection = selection[selection['catalogid'].isin(remove_mfp(selection))]
-    logger.info(type(selection))
+        selection = selection[selection['catalogid'].isin(remove_mfp(list(selection['catalogid'])))]
     return selection
 
 
@@ -199,10 +201,10 @@ def main(args):
     months    = args.months
     min_cc    = args.min_cc
     max_cc    = args.max_cc
-    min_x1    = args.min_x1
-    max_x1    = args.max_x1
-    min_y1    = args.min_y1
-    max_y1    = args.max_y1
+    min_x1    = args.min_long
+    max_x1    = args.max_long
+    min_y1    = args.min_lat
+    max_y1    = args.max_lat
     
     ## Determine selection method - by location or by ID
     selection_method = determine_selection_method(selector_path, by_id)
@@ -263,10 +265,10 @@ if __name__ == '__main__':
     parser.add_argument('--min_cc', type=int, help='Minimum cloudcover to include.')
     parser.add_argument('--max_cc', type=int, help='Max cloudcover to include.')
     
-    parser.add_argument('--min_x1', type=int, help='Minimum x (longitude) of footprints - in DD.')
-    parser.add_argument('--max_x1', type=int, help='Maximum x (longitude) of footprints - in DD.')
-    parser.add_argument('--min_y1', type=int, help='Minimum y (latitude) of footprints - in DD.')
-    parser.add_argument('--max_y1', type=int, help='Maximum y (latitude) of footprints - in DD.')
+    parser.add_argument('--min_long', type=int, help='Minimum x (longitude) of footprints - in DD.')
+    parser.add_argument('--max_long', type=int, help='Maximum x (longitude) of footprints - in DD.')
+    parser.add_argument('--min_lat', type=int, help='Minimum y (latitude) of footprints - in DD.')
+    parser.add_argument('--max_lat', type=int, help='Maximum y (latitude) of footprints - in DD.')
     
     parser.add_argument('--additional_where', type=str, default=None,
                         help='''Any additional SQL where clause to limit the 
