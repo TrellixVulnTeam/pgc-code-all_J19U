@@ -150,7 +150,7 @@ def write_ids(ids, out_path, header=None, ext='txt'):
             f.write('{}{}'.format(header, sep))
         for each_id in ids:
             f.write('{}{}'.format(each_id, sep))
-
+            
 
 def combine_ids(*id_lists, write_path=None):
     '''

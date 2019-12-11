@@ -9,22 +9,26 @@ CDED Mosaicker based on AOI
 import geopandas as gpd
 import os, zipfile, tqdm, subprocess
 
+from osgeo import gdal
+
 selected_res = 'cded_50k'
 driver = 'ESRI_Shapefile'
-aoi_path = r'E:\disbr007\umn\ms_proj_2019jul05\data\scratch\cded_mosaic_sel.shp'
+aoi_path = r'E:\disbr007\general\elevation\cded\50k_mosaics\illa_sel.shp'
 #project_path = r"E:\disbr007\UserServicesRequests\Projects\1542_CO_State_sendrowski\3750"
 project_path = os.path.dirname(aoi_path)
 
 ## Choose 50k or 250k
-cded_50k_index_path = r"Y:\public\elevation\dem\CDED_Canada\index\decoupage_snrc50k_2.shp"
-cded_250k_index_path = r"Y:\public\elevation\dem\CDED_Canada\index\decoupage_snrc250k_2.shp"
+cded_50k_index_path = r'V:\pgc\data\elev\dem\cded\index\decoupage_snrc50k_2.shp'
+cded_250k_index_path = r'V:\pgc\data\elev\dem\cded\index\decoupage_snrc250k_2.shp'
 
 if selected_res == 'cded_50k':
     index_path = cded_50k_index_path
-    tiles_path = r"Y:\public\elevation\dem\CDED_Canada\50k_dem"
+#    tiles_path = r"Y:\public\elevation\dem\CDED_Canada\50k_dem"
+    tiles_path = r'V:\pgc\data\elev\dem\cded\50k_dem'
 elif selected_res == 'cded_250k':
     index_path = cded_250k_index_path
-    tiles_path = r"Y:\public\elevation\dem\CDED_Canada\250k_dem"
+#    tiles_path = r"Y:\public\elevation\dem\CDED_Canada\250k_dem"
+    tiles_path = r'V:\pgc\data\elev\dem\cded\250k_dem'
 else:
     print('Index footprint not found')
 
@@ -74,13 +78,17 @@ def run_subprocess(command):
     print('Output: {}'.format(output))
     print('Err: {}'.format(error))
 
-dems_path = r'E:\disbr007\general\elevation\cded\50k_mosaics\cded_banks.vrt'
+#dems_path = r'E:\disbr007\general\elevation\cded\50k_mosaics\cded_banks.vrt'
+dems_path = os.path.join(local_tiles_path,r'*.dem')
 #command = 'gdalbuildvrt mosaic.vrt {}'.format(dems_path)
-local_tiles_path = r'E:\disbr007\umn\ms_proj_2019jul05\data\scratch\CDED_tiles'
-command = 'gdalbuildvrt mosaic.vrt {}'.format(os.path.join(local_tiles_path,'*dem'))
+#local_tiles_path = r'E:\disbr007\umn\ms_proj_2019jul05\data\scratch\CDED_tiles'
+command = 'gdalbuildvrt illa_mosaic.vrt {}'.format(dems_path)
 #run_subprocess('gdalbuildvrt mosaic.vrt {}'.format(os.path.join(local_tiles_path, r'*.dem')))
 #run_subprocess('gdalbuildvrt mosaic.vrt {}'.format(dems_path))
 run_subprocess(command)
 
-
-
+dems = os.listdir(local_tiles_path)
+dems = [d for d in dems if d.endswith('.dem')]
+dems = [os.path.join(local_tiles_path, d) for d in dems]
+ds = gdal.BuildVRT(r'E:\disbr007\general\elevation\cded\50k_mosaics\illa\illa_cded_mosaic.tif', dems)
+ds = None
