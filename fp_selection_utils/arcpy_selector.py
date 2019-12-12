@@ -113,7 +113,7 @@ def create_points(coords, shp_path):
 
 
 
-def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance):
+def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field):
     if input_type == 'shp':
         logger.info('Loading index...')
         idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
@@ -164,28 +164,32 @@ def write_shp(selection, out_path):
 
 if __name__ == '__main__':
     ## Default arguments
-    argdef_prod_code = ['M1BS', 'P1BS']
-    argdef_min_year = '1900'
-    argdef_max_year = '9999'
-    argdef_months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
-    argdef_overlap_type = 'INTERSECT'
-    argdef_search_distance = 0
-    argdef_place_name = None
+    argdef_sensors          = ['QB01', 'IK01', 'GE01', 'WV01', 'WV02', 'WV03']
+    argdef_prod_code        = ['M1BS', 'P1BS']
+    argdef_min_year         = '1900'
+    argdef_max_year         = '9999'
+    argdef_months           = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+    argdef_overlap_type     = 'INTERSECT'
+    argdef_search_distance  = 0
+    argdef_place_name       = None
+    argdef_coordinate_pairs = None
+    argdef_id_field         = 'CATALOG_ID'
     
-    parser = argparse.ArgumentParser()
+
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     
     parser.add_argument('out_path', type=os.path.abspath, help='Path to write selection shp file.')
     parser.add_argument('-s', '--selector_path', type=str, 
                         help='''The path to the selector to use. This can be an AOI .shp file or 
                         .txt file of ids. If .txt, --id_field is required. If providing coordinates 
                         or placename, the path to write the created AOI shapefile to.''')
-    parser.add_argument('--id_field', type=str,
+    parser.add_argument('--id_field', type=str, default=argdef_id_field,
                         help='''If using a .txt file of ids for the selection, specify here the 
                         type of ids in the .txt.: 
                         e.g.: CATALOG_ID, SCENE_ID, etc.''')
     parser.add_argument('--prod_code', type=str, default=argdef_prod_code,
                         help='Prod code to select. E.g. P1BS, M1BS')
-    parser.add_argument('--sensors', nargs='+', default=['IK01', 'GE01', 'WV01', 'WV02', 'WV03'],
+    parser.add_argument('--sensors', nargs='+', default=argdef_sensors,
                         help='Sensors to include.')
     parser.add_argument('--min_year', type=str, default=argdef_min_year, 
                         help='Earliest year to include.')
@@ -198,16 +202,18 @@ if __name__ == '__main__':
     parser.add_argument('--overlap_type', type=str, default=argdef_overlap_type,
                         help='''Type of select by location to perform. Must be one of:
                             the options available in ArcMap. E.g.: 'INTERSECT', 'WITHIN',
-                            'CROSSED_BY_OUTLINE_OF', etc. Default = 'INTERSECT' ''')
+                            'CROSSED_BY_OUTLINE_OF', etc.''')
     parser.add_argument('--search_distance', type=str, default=argdef_search_distance,
-                        help='''Search distance for overlap_types that support. Default = 0
+                        help='''Search distance for overlap_types that support.
                         E.g. "10 Kilometers"''')
-    parser.add_argument('--coordinate_pairs', nargs='*', 
+    parser.add_argument('--coordinate_pairs', nargs='*', default=argdef_coordinate_pairs,
                         help='Longitude, latitude pairs. x1,y1 x2,y2 x3,y3, etc.' )
     parser.add_argument('--place_name', type=str, default=argdef_place_name,
                         help='Select by Antarctic placename from acan danco DB.')
 
     args = parser.parse_args()
+
+    logger.info('Argparse: {}'.format(args))
 
     out_path = args.out_path
     selector_path = args.selector_path
@@ -229,7 +235,7 @@ if __name__ == '__main__':
         create_points(coordinate_pairs, selector_path)
 
     ## If place name provided, use as AOI layer
-    if place_name: 
+    if place_name is not None: 
         place_name_AOI(place_name, selector_path)
 
 
@@ -238,33 +244,34 @@ if __name__ == '__main__':
                                   input_type = determine_input_type(selector_path),
                                   imagery_index=imagery_index,
                                   overlap_type=overlap_type,
-                                  search_distance=search_distance)
+                                  search_distance=search_distance,
+                                  id_field=id_field)
 #                                      prod_code=prod_code)
     
     ## Initialize an empty where clause
     where = ''
-    ## CC20 if specified
-    if max_cc:
-        where = check_where(where)
-        where += """(cloudcover <= {})""".format(max_cc)
-    ## PROD_CODE if sepcified
-    if prod_code:
-        where = check_where(where)
-        prod_code_str = str(prod_code)[1:-1]
-        where += """(prod_code IN ({}))""".format(prod_code_str)
-    ## Selection by sensor if specified
-    if sensors:
-        where = check_where(where)
-        sensors_str = str(sensors)[1:-1]
-        where += """(sensor IN ({}))""".format(sensors_str)
-    ## Time selection
-    if min_year!=argdef_min_year or max_year!=argdef_max_year or months!=argdef_months:
-        where = check_where(where)
-        year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
-        month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
-        month_sql = " OR ".join(month_terms)
-        where += """({}) AND ({})""".format(year_sql, month_sql)
-    logger.info('Where clause for feature selection: {}'.format(where))
+    # ## CC20 if specified
+    # if max_cc:
+    #     where = check_where(where)
+    #     where += """(cloudcover <= {})""".format(max_cc)
+    # ## PROD_CODE if sepcified
+    # if prod_code:
+    #     where = check_where(where)
+    #     prod_code_str = str(prod_code)[1:-1]
+    #     where += """(prod_code IN ({}))""".format(prod_code_str)
+    # ## Selection by sensor if specified
+    # if sensors:
+    #     where = check_where(where)
+    #     sensors_str = str(sensors)[1:-1]
+    #     where += """(sensor IN ({}))""".format(sensors_str)
+    # ## Time selection
+    # if min_year!=argdef_min_year or max_year!=argdef_max_year or months!=argdef_months:
+    #     where = check_where(where)
+    #     year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
+    #     month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
+    #     month_sql = " OR ".join(month_terms)
+    #     where += """({}) AND ({})""".format(year_sql, month_sql)
+    # logger.info('Where clause for feature selection: {}'.format(where))
     
     
     selection = arcpy.MakeFeatureLayer_management(selection, where_clause=where)

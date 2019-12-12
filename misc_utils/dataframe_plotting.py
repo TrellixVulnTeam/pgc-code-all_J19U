@@ -56,7 +56,7 @@ def y_fmt(y, pos):
 
 
 #### Plot by month function start
-def plot_timeseries_agg(df, date_col, id_col, freq):
+def plot_timeseries_agg(df, date_col, id_col, freq, ax=None):
     dfc = copy.deepcopy(df)
     dfc[date_col] = pd.to_datetime(dfc[date_col])
     dfc.set_index(date_col, inplace=True)
@@ -68,14 +68,15 @@ def plot_timeseries_agg(df, date_col, id_col, freq):
     # Formatting
     formatter = FuncFormatter(y_fmt)
     
-    fig, ax = plt.subplots(nrows=1, ncols=1)
+    if ax is None:
+        fig, ax = plt.subplots(nrows=1, ncols=1)
     dfc_agg.plot.area(y=id_col, ax=ax)
     ax.yaxis.set_major_formatter(formatter)
     
     return dfc_agg
     
 
-def plot_timeseries_stacked(df, date_col, id_col, category_col, freq, percentage=False):
+def plot_timeseries_stacked(df, date_col, id_col, category_col, freq, ax=None, percentage=False):
     '''
     Plots an aggregrated stacked area chart the percentrage of id_col in each category_col
     '''
@@ -92,8 +93,8 @@ def plot_timeseries_stacked(df, date_col, id_col, category_col, freq, percentage
     ## Remove NaNs
     dfc_agg.fillna(value=0, inplace=True)
     
-    
-    fig, ax = plt.subplots(nrows=1, ncols=1)
+    if ax is None:
+        fig, ax = plt.subplots(nrows=1, ncols=1)
     if percentage == True:
         percent = dfc_agg.apply(lambda x: x / x.sum(), axis=1) * 100
         percent.plot.area(ax=ax)
@@ -105,7 +106,12 @@ def plot_timeseries_stacked(df, date_col, id_col, category_col, freq, percentage
     plt.setp(ax.xaxis.get_minorticklabels(), 'rotation', 90)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
     ax.xaxis.set_major_locator(mdates.MonthLocator(3))
-#    ax.set(xlabel='')
     
     return dfc_agg, percent
     
+
+def plot_cloudcover(df, cloudcover_col, ax=None):
+    """
+    Plots cloudcover histogram.
+    """
+    df.hist(column=cloudcover_col, edgecolor='white', ax=ax)

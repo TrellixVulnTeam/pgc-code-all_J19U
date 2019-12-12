@@ -1,3 +1,6 @@
+pushd
+popd/
+
 screen from home dir
 module load gdal
 

@@ -139,13 +139,18 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
     return ids
 
 
-def write_ids(ids, out_path, header=None):
+def write_ids(ids, out_path, header=None, ext='txt'):
+    if ext == 'txt':
+        sep = '\n'
+    elif ext == 'csv':
+        sep = ',\n'
+    
     with open(out_path, 'w') as f:
         if header:
-            f.write('{}\n'.format(header))
+            f.write('{}{}'.format(header, sep))
         for each_id in ids:
-            f.write('{}\n'.format(each_id))
-
+            f.write('{}{}'.format(each_id, sep))
+            
 
 def combine_ids(*id_lists, write_path=None):
     '''
@@ -367,8 +372,11 @@ def remove_mfp(src):
     logging.info('Removing IDs in master footprint...')
     logger.info('Removing mfp ids...')
     src_ids = set(src)
+    logger.debug('src_ids: {}'.format(list(src_ids)[:10]))
     onhand_ids = set(mfp_ids())
+    logger.debug('onhand ids: {}'.format(list(onhand_ids)[:10]))
     not_mfp = list(src_ids - onhand_ids)
+    logger.debug('not mfp ids: {}'.format(list(not_mfp)[:10]))
     logger.info('IDs removed: {}'.format((len(src_ids)-len(not_mfp))))
     
     return not_mfp

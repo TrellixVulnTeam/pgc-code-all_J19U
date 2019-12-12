@@ -71,6 +71,7 @@ def write_shp(selection, selector, out_name):
     print('Shapefile of selected features created at: {}'.format(out_shp_path))
     return out_shp
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('selector', type=str, 
@@ -89,8 +90,7 @@ if __name__ == '__main__':
         ext = os.path.splitext(selector)[1]
         if ext == '.txt':
             ids = read_ids(selector)
-        # elif ext == '.shp':
-            # selector = select_footprints_by_location(selector)
+
         else:
             err = 'Selector filetype not recognized: {}'.format(selector)
             sys.exit(err)
