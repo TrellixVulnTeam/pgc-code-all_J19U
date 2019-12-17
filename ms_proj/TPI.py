@@ -18,16 +18,16 @@ import argparse
 import numpy as np
 import os
 
-import gdal
+from osgeo import gdal
 from tqdm import tqdm
 
 # -------------- INPUT -----------------
-win_size = 121
-elevation_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\2017_DEM_masked.utm.tif"
+# win_size = 121
+# elevation_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\2017_DEM_masked.utm.tif"
 # elevation_model = r"E:/disbr007/umn/ms_proj/data/2019apr19_umiat_detach_zone/dems/2m/masked/WV02_2014_DEM_masked_trans.tif"
-output_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\2017_TPIv2_{}.tif".format(win_size)
+# output_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\2017_TPIv2_{}.tif".format(win_size)
 # output_model = r"E:/disbr007/umn/ms_proj/data/2019apr19_umiat_detach_zone/dems/2m/masked/2014_TPIv2_{}.tif".format(win_size)
-count_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\count{}.tif".format(win_size)
+# count_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\count{}.tif".format(win_size)
 
 
 def calc_TPI(win_size, elevation_model, output_model=None, count_model=None):
