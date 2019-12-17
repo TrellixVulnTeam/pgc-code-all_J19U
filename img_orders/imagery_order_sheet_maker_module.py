@@ -199,6 +199,7 @@ def write_master(dataframe, outpath, outnamebase, output_suffix, order_date, kee
         if len_b4 != len_after:
             print('\nRemoved SWIR: {}\n'.format(len_b4-len_after))
     dataframe.sort_index(inplace=True)
+    dataframe.sort_values(by='catalogid', inplace=True)
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
 
 
@@ -266,7 +267,7 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
     gsheet_df['plat'] = gsheet_df.index.str[0:4]
     gsheet_df['sort'] = gsheet_df.index.str[9:11]
     gsheet_df['sort'] = gsheet_df['sort'].str.strip('o')
-    print(gsheet_df)
+    # print(gsheet_df)
     gsheet_df['sort'] = gsheet_df['sort'].astype(int)
     gsheet_df.sort_values(['plat','sort'], inplace=True)
     gsheet_df.drop('sort', axis=1)

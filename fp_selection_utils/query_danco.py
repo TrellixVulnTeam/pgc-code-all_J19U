@@ -15,7 +15,7 @@ from sqlalchemy import create_engine#, inspect, MetaData
 
 # create logger with 'spam_application'
 logger = logging.getLogger('query_danco')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
 ch.setLevel(logging.ERROR)
@@ -170,7 +170,7 @@ def footprint_fields(layer, db='footprint'):
     Gets fields in a danco layer by loading with an SQL
     query that returns only one result (for speed).
     '''
-    logging.warning('footprint_fields function depreciated. Use "layer_fields" instead.')
+    logger.warning('footprint_fields function depreciated. Use "layer_fields" instead.')
     footprint = query_footprint(layer, db=db, where="objectid = 1")
     fields = list(footprint)
     return fields
@@ -181,12 +181,32 @@ def layer_fields(layer, db):
     Gets fields in a danco layer by loading with an SQL
     query that returns only one result (for speed).
     '''
-    footprint = query_footprint(layer, db=db, table=True, where="objectid = 1")
-    fields = list(footprint)
+    layer = query_footprint(layer, db=db, table=True, where="objectid = 1")
+    fields = list(layer)
     return fields
 
 
+def layer_crs(layer, db):
+    """
+    Returns the crs of the given layer in the given db.
+    
+    Parameters
+    ----------
+    layer : str
+        table name in danco db.
+    db : str
+        database name in danco.
 
+    Returns
+    -------
+    dict : crs of layer.
+    """
+    layer = query_footprint(layer=layer, db=db, where="objectid = 1")
+    crs = layer.crs
+    
+    return crs
+    
+    
 def stereo_noh(where=None):
     '''
     Returns a dataframe with all intrack stereo not on hand as individual rows, 

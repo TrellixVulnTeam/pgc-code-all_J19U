@@ -70,10 +70,10 @@ def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
             rows, cols, depth = mask.shape
         driver = gdal.GetDriverByName('GTiff')
         
-        dst_ds = driver.Create(out_path, ds.RasterXSize, ds.RasterYSize, 1, rb.DataType)
-        dst_ds.SetGeoTransform(ds.GetGeoTransform())
+        dst_ds = driver.Create(out_path, gdal_ds.RasterXSize, gdal_ds.RasterYSize, 1, rb.DataType)
+        dst_ds.SetGeoTransform(gdal_ds.GetGeoTransform())
         out_prj = osr.SpatialReference()
-        out_prj.ImportFromWkt(ds.GetProjectionRef())
+        out_prj.ImportFromWkt(gdal_ds.GetProjectionRef())
         dst_ds.SetProjection(out_prj.ExportToWkt())
         for i in range(depth):
             b = i+1
@@ -110,8 +110,8 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     y_max = dem_gt[3]
     x_res = dem_gt[1]
     y_res = dem_gt[5]
-    x_sz = ds.RasterXSize
-    y_sz = ds.RasterYSize
+    x_sz = gdal_ds.RasterXSize
+    y_sz = gdal_ds.RasterYSize
     x_max = x_min + x_res * x_sz
     y_min = y_max + y_res * y_sz
     
@@ -125,7 +125,7 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
             os.remove(out_path)
     driver = gdal.GetDriverByName('GTiff')
     
-    out_ds = driver.Create(mem_p, x_sz, y_sz, 1, gdal.GDT_Float32)
+    out_ds = driver.Create(out_path, x_sz, y_sz, 1, gdal.GDT_Float32)
     out_ds.SetGeoTransform((x_min, x_res, 0, y_min, 0, -y_res))
     out_ds.SetProjection(dem_sr)
 #    band = out_ds.GetRasterBand(1)
