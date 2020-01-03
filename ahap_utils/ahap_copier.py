@@ -346,7 +346,7 @@ if __name__ == '__main__':
     parser.add_argument('-hr', '--high_resolution', action='store_true',
                         help='''Flag to specify copying high-resolution series. 
                                 Can be used in conjunction with -m''')
-    parser.add_argument('-m', '--medium_resolution', action='store_true',
+    parser.add_argument('-mr', '--medium_resolution', action='store_true',
                         help='''Flag to specify copying high-resolution series. 
                                 Can be used in conjunction with -h''')
     parser.add_argument('-l', '--list_drives', action='store_true',

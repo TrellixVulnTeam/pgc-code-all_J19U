@@ -8,7 +8,9 @@ Select DEM footprints that intersect AOI vector file.
 
 import argparse
 import logging
+import numpy as np
 import os
+import subprocess
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -35,7 +37,15 @@ AOI_PATH = r'E:\disbr007\UserServicesRequests\Projects\kbollen\TerminusBoxes\Gre
 # Identifying field for individual features in AOI - this will allow repeat footprints
 # if the footprint is in multiple features
 AOI_FEAT = 'BoxID'
+DST_DIR = r'C:\temp\greenland_dems'
+DEM_COPY_LOC = r'C:\code\cloned_repos\pgcdemtools\copy_dems.py'
+PYTHON2 = r'C:\OSGeo4W64\bin\python.exe'
 
+## PARAMS
+SUBDIR = 'subdir'
+FILEPATH = 'filepath' # field containing unix filepath
+FILENAME = 'filename' # created field holding just filename
+ 
 
 def select_dems(aoi_path, out_path, aoi_feat=None):
     """
@@ -91,10 +101,35 @@ def select_dems(aoi_path, out_path, aoi_feat=None):
     return dems
 
 
+def create_subdir(BoxID):
+    bid = str(BoxID).zfill(3)
+    first = bid[0]
+    subdir = '{}00'.format(first)
+    return subdir
+
+    
 ## Select all DEMs over AOI features, allowing for repeats
 dems = select_dems(AOI_PATH, out_path=None, aoi_feat=AOI_FEAT)
+dems[SUBDIR] = dems['BoxID'].apply(lambda x: create_subdir(x))
 
 
+#### TRANSFER FILES
+for subdir in dems[SUBDIR].unique():
+    subdir_dems = dems[dems[SUBDIR]==subdir]
+    dst_subdir = os.path.join(DST_DIR, subdir) 
+    if not os.path.exists(dst_subdir):
+        os.makedirs(dst_subdir)
+    ## Write selection out as shapefile
+    out_shp = os.path.join(dst_subdir, 'footprint_{}.shp'.format(subdir))
+    subdir_dems.to_file(out_shp)
+    ## Call pgc's dem_copy.py
+    cmd = """{} {} {} {} --dryrun""".format(PYTHON2, DEM_COPY_LOC, out_shp, dst_subdir)
+    print(cmd)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = proc.communicate()
+    logger.info('Stdout: {}\n\n'.format(stdout))
+    logger.info('Stderr: {}\n\n'.format(stderr))
+    
 
 # if __name__ == '__main__':
 #     parser = argparse.ArgumentParser()

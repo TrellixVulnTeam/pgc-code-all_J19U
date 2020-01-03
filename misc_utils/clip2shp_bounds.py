@@ -17,7 +17,7 @@ ogr.UseExceptions()
 
 
 # create logger with 'spam_application'
-logger = logging.getLogger('clip2shp')
+logger = logging.getLogger('clip2shp_bounds')
 logger.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()

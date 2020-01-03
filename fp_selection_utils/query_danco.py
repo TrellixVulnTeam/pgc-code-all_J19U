@@ -164,14 +164,14 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
             logger.debug("PostgreSQL connection closed.")
 
 
-def footprint_fields(layer, db='footprint'):
+def footprint_fields(layer, db='footprint', table=False):
     '''
     DEPREC. -- Use layer_fields
     Gets fields in a danco layer by loading with an SQL
     query that returns only one result (for speed).
     '''
     logger.warning('footprint_fields function depreciated. Use "layer_fields" instead.')
-    footprint = query_footprint(layer, db=db, where="objectid = 1")
+    footprint = query_footprint(layer, db=db, table=table, where="objectid = 1")
     fields = list(footprint)
     return fields
 

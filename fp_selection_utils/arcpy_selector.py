@@ -141,18 +141,18 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
     return selection
 
 
-#def select_dates(src, min_year, max_year, months):
-#    """
-#    Select by years and months
-#    """
-#    year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
-#    month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
-#    month_sql = " OR ".join(month_terms)
-#    sql = """({}) AND ({})""".format(year_sql, month_sql)
+def select_dates(src, min_year, max_year, months):
+    """
+    Select by years and months
+    """
+    year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
+    month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
+    month_sql = " OR ".join(month_terms)
+    sql = """({}) AND ({})""".format(year_sql, month_sql)
 
-    ## Faster by far than SelectByAttributes
-#    selection = arcpy.MakeFeatureLayer_management(src, where_clause=sql)
-#    return selection
+    # Faster by far than SelectByAttributes
+    selection = arcpy.MakeFeatureLayer_management(src, where_clause=sql)
+    return selection
 
 
 def write_shp(selection, out_path):
@@ -250,34 +250,34 @@ if __name__ == '__main__':
     
     ## Initialize an empty where clause
     where = ''
-    # ## CC20 if specified
-    # if max_cc:
-    #     where = check_where(where)
-    #     where += """(cloudcover <= {})""".format(max_cc)
-    # ## PROD_CODE if sepcified
-    # if prod_code:
-    #     where = check_where(where)
-    #     prod_code_str = str(prod_code)[1:-1]
-    #     where += """(prod_code IN ({}))""".format(prod_code_str)
-    # ## Selection by sensor if specified
-    # if sensors:
-    #     where = check_where(where)
-    #     sensors_str = str(sensors)[1:-1]
-    #     where += """(sensor IN ({}))""".format(sensors_str)
-    # ## Time selection
-    # if min_year!=argdef_min_year or max_year!=argdef_max_year or months!=argdef_months:
-    #     where = check_where(where)
-    #     year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
-    #     month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
-    #     month_sql = " OR ".join(month_terms)
-    #     where += """({}) AND ({})""".format(year_sql, month_sql)
-    # logger.info('Where clause for feature selection: {}'.format(where))
+    ## CC20 if specified
+    if max_cc:
+        where = check_where(where)
+        where += """(cloudcover <= {})""".format(max_cc)
+    ## PROD_CODE if sepcified
+    if prod_code:
+        where = check_where(where)
+        prod_code_str = str(prod_code)[1:-1]
+        where += """(prod_code IN ({}))""".format(prod_code_str)
+    ## Selection by sensor if specified
+    if sensors:
+        where = check_where(where)
+        sensors_str = str(sensors)[1:-1]
+        where += """(sensor IN ({}))""".format(sensors_str)
+    ## Time selection
+    if min_year!=argdef_min_year or max_year!=argdef_max_year or months!=argdef_months:
+        where = check_where(where)
+        year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
+        month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
+        month_sql = " OR ".join(month_terms)
+        where += """({}) AND ({})""".format(year_sql, month_sql)
+    logger.info('Where clause for feature selection: {}'.format(where))
     
     
     selection = arcpy.MakeFeatureLayer_management(selection, where_clause=where)
 
-#    ## Selection by date if specified
-#    selection = select_dates(selection, min_year=min_year, max_year=max_year, months=months)
+    ## Selection by date if specified
+    selection = select_dates(selection, min_year=min_year, max_year=max_year, months=months)
 
     # Print number of selected features
     result = arcpy.GetCount_management(selection)

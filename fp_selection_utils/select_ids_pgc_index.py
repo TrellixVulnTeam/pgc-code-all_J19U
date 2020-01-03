@@ -38,7 +38,7 @@ index_path = r'C:\pgc_index\pgcImageryIndexV6_2019jun06_LAT30_LON60.gdb'
 def select_from_mfp(ids_of_int_path, field):
     '''
     ## TO DO: Add lat / lon ranges to reduce number of footprints to search ##
-    Selects given IDs from the masterfootprint
+    Selects given IDs from the master footprint
     '''
     global index_path
     ## Get all ids of interest

@@ -4,11 +4,24 @@ with in memory writing ability.
 """
 
 import os
+import logging
 import posixpath
 
 from osgeo import gdal, ogr, osr
 
 from get_creds import get_creds
+
+
+logger = logging.getLogger('gdal_tools')
+logger.setLevel(logging.DEBUG)
+# create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+# create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(ch)
 
 
 ogr.UseExceptions()
@@ -33,11 +46,15 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
 		output_shp = os.path.join('vsimem', '{}_prj'.format(input_shp_name))
 		# Convert windows path to unix path (required for gdal in-memory)
 		output_shp = output_shp.replace(os.sep, posixpath.sep)
-
-	driver = ogr.GetDriverByName('ESRI Shapefile')  # autodetect driver???
-
+	
+	
+	driver = auto_detect_ogr_driver(input_shp)
+ 	# driver = ogr.GetDriverByName('ESRI Shapefile')  # autodetect driver???
+	
+	
 	# output SpatialReference
 	outSpatialRef = to_sr
+	
 
 	# get the input layer
 	inDataSet = driver.Open(input_shp)
@@ -50,15 +67,15 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
 	# create the output layer
 	outputShapefile = output_shp
 	if os.path.exists(outputShapefile):
-	    driver.DeleteDataSource(outputShapefile)
+		driver.DeleteDataSource(outputShapefile)
 	outDataSet = driver.CreateDataSource(outputShapefile)
 	outLayer = outDataSet.CreateLayer(output_shp, geom_type=ogr.wkbMultiPolygon)
 
 	# add fields
 	inLayerDefn = inLayer.GetLayerDefn()
 	for i in range(0, inLayerDefn.GetFieldCount()):
-	    fieldDefn = inLayerDefn.GetFieldDefn(i)
-	    outLayer.CreateField(fieldDefn)
+		fieldDefn = inLayerDefn.GetFieldDefn(i)
+		outLayer.CreateField(fieldDefn)
 
 	# get the output layer's feature definition
 	outLayerDefn = outLayer.GetLayerDefn()
@@ -66,21 +83,21 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
 	# loop through the input features
 	inFeature = inLayer.GetNextFeature()
 	while inFeature:
-	    # get the input geometry
-	    geom = inFeature.GetGeometryRef()
-	    # reproject the geometry
-	    geom.Transform(coordTrans)
-	    # create a new feature
-	    outFeature = ogr.Feature(outLayerDefn)
-	    # set the geometry and attribute
-	    outFeature.SetGeometry(geom)
-	    for i in range(0, outLayerDefn.GetFieldCount()):
-	        outFeature.SetField(outLayerDefn.GetFieldDefn(i).GetNameRef(), inFeature.GetField(i))
-	    # add the feature to the shapefile
-	    outLayer.CreateFeature(outFeature)
-	    # dereference the features and get the next input feature
-	    outFeature = None
-	    inFeature = inLayer.GetNextFeature()
+		# get the input geometry
+		geom = inFeature.GetGeometryRef()
+		# reproject the geometry
+		geom.Transform(coordTrans)
+		# create a new feature
+		outFeature = ogr.Feature(outLayerDefn)
+		# set the geometry and attribute
+		outFeature.SetGeometry(geom)
+		for i in range(0, outLayerDefn.GetFieldCount()):
+			outFeature.SetField(outLayerDefn.GetFieldDefn(i).GetNameRef(), inFeature.GetField(i))
+		# add the feature to the shapefile
+		outLayer.CreateFeature(outFeature)
+		# dereference the features and get the next input feature
+		outFeature = None
+		inFeature = inLayer.GetNextFeature()
 
 	# Save and close the shapefiles
 	inDataSet = None
@@ -103,42 +120,43 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
 
 
 def get_shp_sr(in_shp):
-    """
-    Get the crs of in_shp.
-    in_shp: path to shapefile
-    """
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-    ds = driver.Open(in_shp)
-    lyr = ds.GetLayer()
-    srs = lyr.GetSpatialRef()
+	"""
+	Get the crs of in_shp.
+	in_shp: path to shapefile
+	"""
+	# driver = ogr.GetDriverByName('ESRI Shapefile')
+	driver = auto_detect_ogr_driver(in_shp)
+	ds = driver.Open(in_shp)
+	lyr = ds.GetLayer()
+	srs = lyr.GetSpatialRef()
 
-    return srs
+	return srs
 
 
 def get_raster_sr(raster):
-    """
-    Get the crs of raster.
-    raster: path to raster.
-    """
-    ds = gdal.Open(raster)
-    prj = ds.GetProjection()
-    print(prj)
-    print('\n\n')
-    srs = osr.SpatialReference(wkt=prj)
+	"""
+	Get the crs of raster.
+	raster: path to raster.
+	"""
+	ds = gdal.Open(raster)
+	prj = ds.GetProjection()
+	print(prj)
+	print('\n\n')
+	srs = osr.SpatialReference(wkt=prj)
 
-    return srs
+	return srs
 
 
 def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'], username=get_creds()[0], password=get_creds()[1]):
 	"""
 	Load a table from danco.pgc.umn.edu. The reference to the connection datasource
 	must be return or the Layer becomes NULL.
-	db_name    :    str    name of database holding table    'footprint', 'imagery', 'etc'
-	db_tbl     :    str    name of database table to load    'sde.usgs_index_aerial_image_archive'
-	where      :    str    WHERE portion of SQL statement    '{db_tbl}.{field} IN ('val1', 'val2')
-	load_fields:    list   fields in db_tbl to load          ['field1', 'field2']
-	username   :    str    username for connecting danco
-	password   :    str    password for connecting danco
+	db_name	:	str	name of database holding table	'footprint', 'imagery', 'etc'
+	db_tbl	 :	str	name of database table to load	'sde.usgs_index_aerial_image_archive'
+	where	  :	str	WHERE portion of SQL statement	'{db_tbl}.{field} IN ('val1', 'val2')
+	load_fields:	list   fields in db_tbl to load		  ['field1', 'field2']
+	username   :	str	username for connecting danco
+	password   :	str	password for connecting danco
 
 	returns osgeo.ogr.Layer, osgeo.ogr.DataSource
 	"""
@@ -158,3 +176,44 @@ def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'], username=g
 	print('SQL selection: {}'.format(lyr.GetFeatureCount()))
 
 	return lyr, conn
+
+
+def auto_detect_ogr_driver(ogr_ds):
+	"""
+	Autodetect the appropriate driver for an OGR datasource.
+	
+
+	Parameters
+	----------
+	ogr_ds : OGR datasource
+		Path to OGR datasource.
+
+	Returns
+	-------
+	OGR driver.
+	"""
+	# OGR driver lookup table
+	driver_lut = {'json': 'GeoJSON',
+				  'shp' : 'ESRI Shapefile',
+				  # TODO: Add more
+				  }
+	
+	# Check if in-memory datasource
+	if 'vsimem' in ogr_ds:
+		driver_name = 'Memory'
+	
+	# Check if extension in look up table
+	try:
+		ext = os.path.basename(ogr_ds).split('.')[1]
+		if ext in driver_lut.keys():
+			driver_name = driver_lut[ext]
+		else:
+			logger.info('Unsupported extension {}'.format(ext))
+	except:
+		logger.info('Unable to locate OGR driver for {}'.format(ogr_ds))
+		driver_name = None
+	
+	driver = ogr.GetDriverByName(driver_name)
+	
+	return driver
+	
