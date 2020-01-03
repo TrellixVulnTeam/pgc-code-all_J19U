@@ -22,7 +22,8 @@ logger = create_logger('multi_clip2shp',
                        handler_level='DEBUG')
 
 
-def multi_clip2shp(aoi_master, raster_parent_dir, clipped_dir=None, return_rasters=False):
+def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
+                   clipped_dir=None, return_rasters=False):
     """
     Take an aoi master OGR file with polygons for multiple AOIs and clips rasters in
     subdirectories in raster_parent_dir to the aoi corresponding to the subdirectory name.
@@ -65,7 +66,7 @@ def multi_clip2shp(aoi_master, raster_parent_dir, clipped_dir=None, return_raste
     for sd in subdirs:
         logger.info('Working on subdirectory: {}'.format(sd))
         # Select only aoi matching the current subdirectory and write (deleted later)
-        aoi = aoi_master[aoi_master['subfolder']==int(sd)]
+        aoi = aoi_master[aoi_master[subfolder]==int(sd)]
         aoi_outpath = os.path.join(os.path.dirname(raster_parent_dir), 'prj_files', 'temp', 'aoi_{}.shp'.format(sd))
         if not os.path.exists(os.path.dirname(aoi_outpath)):
             os.makedirs(os.path.dirname(aoi_outpath))
