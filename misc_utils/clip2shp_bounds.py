@@ -6,10 +6,10 @@ Created on Tue Aug 27 15:36:40 2019
 Clip raster to shapefile extent. Must be in the same projection.
 """
 
-from osgeo import ogr, gdal, osr
+from osgeo import ogr, gdal
 import os, logging, argparse
 
-from gdal_tools import ogr_reproject, get_shp_sr, get_raster_sr
+from gdal_tools import check_sr
 
 
 gdal.UseExceptions()
@@ -57,26 +57,6 @@ def warp_rasters(shp_p, rasters, out_dir, out_suffix='clip'):
         logger.debug('Clipped raster created at {}'.format(raster_op))
         
     return warped
-
-
-def check_sr(shp_p, raster_p, reproject=False):
-    """
-    Check that spatial reference of shp and raster are the same.
-    Optionally reproject in memory.
-    """
-     # Check for common spatial reference between shapefile and first raster
-    shp_sr = get_shp_sr(shp_p)
-    raster_sr = get_raster_sr(raster_p)
-    
-    if shp_sr != raster_sr:
-        sr_match = False
-    if sr_match == False and reproject == True:
-        logger.info('''Spatial references do not match... 
-                    Reprojecting shp to match raster...'''.format(shp_sr, raster_sr))
-        shp_p = ogr_reproject(input_shp=shp_p, to_sr=raster_sr, in_mem=False)
-        sr_match = True
-    
-    return sr_match
     
 
 #def warp(shp_path, rasters, out_dir, out_suffix='clip'):

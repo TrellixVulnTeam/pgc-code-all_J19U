@@ -147,6 +147,27 @@ def get_raster_sr(raster):
 	return srs
 
 
+def check_sr(shp_p, raster_p, reproject=False):
+    """
+    Check that spatial reference of shp and raster are the same.
+    Optionally reproject in memory.
+    """
+     # Check for common spatial reference between shapefile and first raster
+    shp_sr = get_shp_sr(shp_p)
+    raster_sr = get_raster_sr(raster_p)
+    
+    if shp_sr != raster_sr:
+        sr_match = False
+    if sr_match == False and reproject == True:
+        logger.info('''Spatial references do not match... 
+                    Reprojecting shp to match raster...'''.format(shp_sr, raster_sr))
+        logger.info('{} >>> {}'.format(shp_sr, raster_sr))
+        shp_p = ogr_reproject(input_shp=shp_p, to_sr=raster_sr, in_mem=False)
+        sr_match = True
+    
+    return sr_match
+
+
 def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'], username=get_creds()[0], password=get_creds()[1]):
 	"""
 	Load a table from danco.pgc.umn.edu. The reference to the connection datasource
