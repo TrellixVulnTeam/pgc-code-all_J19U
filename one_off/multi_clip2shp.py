@@ -66,7 +66,7 @@ def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
     for sd in subdirs:
         logger.info('Working on subdirectory: {}'.format(sd))
         # Select only aoi matching the current subdirectory and write (deleted later)
-        aoi = aoi_master[aoi_master[subfolder]==int(sd)]
+        aoi = aoi_master[aoi_master[subfolder_field]==int(sd)]
         aoi_outpath = os.path.join(os.path.dirname(raster_parent_dir), 'prj_files', 'temp', 'aoi_{}.shp'.format(sd))
         if not os.path.exists(os.path.dirname(aoi_outpath)):
             os.makedirs(os.path.dirname(aoi_outpath))
@@ -105,5 +105,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
-    multi_clip2shp(args.aoi_path, args.raster_parent_dir)
+    multi_clip2shp(args.aoi_path, args.raster_directory)
     
