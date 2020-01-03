@@ -27,9 +27,7 @@ from logging_utils import create_logger
 # # add the handlers to the logger
 # logger.addHandler(ch)
 
-logger = create_logger('multi_clip2shp',
-                       handler_type='sh',
-                       handler_level='INFO')
+
 
 # Inputs
 PRJ_DIR = r'V:\pgc\data\scratch\jeff\deliverables\4056_jclark'
@@ -37,6 +35,11 @@ RAW_DIR = os.path.join(PRJ_DIR, 'raw')
 CLIP_DIR = os.path.join(PRJ_DIR, 'clipped')
 AOIS = os.path.join(PRJ_DIR, 'BITE_buffers.shp')
 
+
+# Create logger
+logger = create_logger('multi_clip2shp',
+                       handler_type='sh',
+                       handler_level='DEBUG')
 
 # Load AOI polygons
 aoi_master = gpd.read_file(AOIS)
@@ -66,6 +69,7 @@ for sd in subdirs:
                    for f in files 
                    if f.endswith('.tif') or f.endswith('.ntf')]
     
-    warp_rasters(aoi_outpath, rasters=rasters, out_dir=out_subdir)
-    
+    logger.debug('Number of rasters: {}'.format(len(rasters)))
+    logger.debug('Using {} as clip boundary...'.format(os.path.basename(aoi_outpath)))
+    # warp_rasters(aoi_outpath, rasters=rasters, out_dir=out_subdir)
         
