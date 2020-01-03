@@ -102,8 +102,11 @@ if __name__ == '__main__':
                         help='Path to directory holding subdirectories of rasters')
     parser.add_argument('aoi_path', type=os.path.abspath,
                         help='Path to AOI file with polygons to clip to.')
+    parser.add_argument('subfolder_field', type=str,
+                        help='''Name of field in AOI file that corresponds
+                                to subdirectory names.''')
 
     args = parser.parse_args()
     
-    multi_clip2shp(args.aoi_path, args.raster_directory)
+    multi_clip2shp(args.aoi_path, args.raster_directory, args.subfolder_field)
     
