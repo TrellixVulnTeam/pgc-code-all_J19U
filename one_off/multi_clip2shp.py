@@ -23,7 +23,8 @@ logger = create_logger('multi_clip2shp',
 
 
 def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
-                   clipped_dir=None, return_rasters=False):
+                   clipped_dir=None, return_rasters=False,
+                   dryrun=False):
     """
     Take an aoi master OGR file with polygons for multiple AOIs and clips rasters in
     subdirectories in raster_parent_dir to the aoi corresponding to the subdirectory name.
@@ -86,8 +87,11 @@ def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
         logger.debug('Using {} as clip boundary...'.format(os.path.basename(aoi_outpath)))
         
         # Perform clipping for current subdirectory
-        clipped_subdir_rasters = warp_rasters(aoi_outpath, rasters=rasters, out_dir=out_subdir)
-        
+        if not dryrun:
+            clipped_subdir_rasters = warp_rasters(aoi_outpath, rasters=rasters, out_dir=out_subdir)
+        else:
+            logger.info('Clipping to aoi: {}'.format(aoi_outpath))
+            logger.info('Rasters: {}'.format(rasters))
         # Add dictionary of clipped paths and GDAL datasources to master dict
         if return_rasters is True:
             clipped.extend(clipped_subdir_rasters)
@@ -105,8 +109,11 @@ if __name__ == '__main__':
     parser.add_argument('subfolder_field', type=str,
                         help='''Name of field in AOI file that corresponds
                                 to subdirectory names.''')
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Prints actions only.')
 
     args = parser.parse_args()
     
-    multi_clip2shp(args.aoi_path, args.raster_directory, args.subfolder_field)
+    multi_clip2shp(args.aoi_path, args.raster_directory, args.subfolder_field,
+                   args.dryrun)
     

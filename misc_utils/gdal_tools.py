@@ -140,8 +140,6 @@ def get_raster_sr(raster):
 	"""
 	ds = gdal.Open(raster)
 	prj = ds.GetProjection()
-	print(prj)
-	print('\n\n')
 	srs = osr.SpatialReference(wkt=prj)
 
 	return srs
@@ -155,13 +153,14 @@ def check_sr(shp_p, raster_p, reproject=False):
      # Check for common spatial reference between shapefile and first raster
     shp_sr = get_shp_sr(shp_p)
     raster_sr = get_raster_sr(raster_p)
+    logger.info('Raster SR: {}'.format(raster_sr))
     
     if shp_sr != raster_sr:
         sr_match = False
     if sr_match == False and reproject == True:
         logger.info('''Spatial references do not match... 
                     Reprojecting shp to match raster...'''.format(shp_sr, raster_sr))
-        logger.info('{} >>> {}'.format(shp_sr, raster_sr))
+        logger.info('Shape SR: \n{} \n>>>\nRaster SR:\n{}'.format(shp_sr, raster_sr))
         shp_p = ogr_reproject(input_shp=shp_p, to_sr=raster_sr, in_mem=False)
         sr_match = True
     
