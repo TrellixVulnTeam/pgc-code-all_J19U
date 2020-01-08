@@ -5,15 +5,19 @@ Created on Fri Jan 18 09:25:18 2019
 @author: disbr007
 """
 
-import pandas as pd
+import argparse
 import os
+import pandas as pd
 
-def remove_symbols(coords_src):
+
+def remove_symbols(coords):
     # If string assume to be path to csv/excel
-    if type(coords_src) == str:
-        coords = pd.read_csv(coords_src, encoding="ISO-8859-1")
+    if type(coords) == str:
+        coords = pd.read_csv(coords, encoding="ISO-8859-1")
     # Else assume DF
-    coords = coords_src
+    coords = coords.replace('°', ' ', regex=True)
+    coords = coords.replace('°', ' ', regex=True)
+    coords = coords.replace('º', ' ', regex=True)
     coords = coords.replace('°', ' ', regex=True)
     coords = coords.replace('"', ' ', regex=True)
     coords = coords.replace("'", ' ', regex=True)
@@ -60,19 +64,30 @@ def conv_direction(in_coord):
     deg, minutes, seconds, direct = in_coord.split(' ')
     return direct
 
-#excel_path = r"E:\disbr007\change_detection\initial_site_selection.csv"
+
+# if __name__ == '__main__':
+#     parser = argparse.Argument_Parser()
+#     parser.add_argument('csv', type=str,help='Path to csv to convert.')
+
+#     args = parser.parse_args()
+
+
+
+excel_path = r"C:\temp\sites_dms.csv"
+sites = pd.read_csv(excel_path, encoding="ISO-8859-1")
+
+sites = remove_symbols(sites)
 #
-#sites = remove_symbols(excel_path)
-#
-#coord_cols = ['Lat', 'Lon']
-#for col in coord_cols:
-#    col_name = '{} DD'.format(col)
-##    col_dir = '{} Direction'.format(col[:3])
-#    sites['Dir'] = sites.apply(lambda x: conv_direction(x[col]), axis=1)
-#    sites[col_name] = sites.apply(lambda x: dms_to_dd(x[col], x['Dir']), axis=1)
-#   
-#
-#out_excel_path = os.path.join(os.path.dirname(excel_path), '{}_converted.xls'.format(os.path.splitext(os.path.basename(excel_path))[0]))
-#excel_writer = pd.ExcelWriter(out_excel_path)
-#sites.to_excel(excel_writer, 'coords', index=True)
-#excel_writer.save()
+coord_cols = ['Latitude', 'Longitude']
+for col in coord_cols:
+    col_name = '{}_DD'.format(col)
+    sites[col_name] = sites[col]
+    # col_dir = '{} Direction'.format(col[:3])
+    sites['{}_Dir'.format(col)] = sites.apply(lambda x: conv_direction(x[col_name]), axis=1)
+    sites[col_name] = sites.apply(lambda x: dms_to_dd(x[col_name], x['{}_Dir'.format(col)]), axis=1)
+  
+
+out_excel_path = os.path.join(os.path.dirname(excel_path), '{}_converted.csv'.format(os.path.splitext(os.path.basename(excel_path))[0]))
+# excel_writer = pd.ExcelWriter(out_excel_path)
+sites.to_csv(out_excel_path)
+# excel_writer.save()

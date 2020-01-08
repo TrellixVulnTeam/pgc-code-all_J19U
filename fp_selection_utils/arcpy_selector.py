@@ -128,6 +128,7 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
     
     elif input_type == 'txt':
         ## Initial selection by id
+        logger.info('Reading in IDs...')
         ids = read_ids(selector_path)
         ids_str = str(ids)[1:-1]
         where = """{} IN ({})""".format(id_field, ids_str)
@@ -213,7 +214,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logger.info('Argparse: {}'.format(args))
+    # logger.info('Argparse: {}'.format(args))
 
     out_path = args.out_path
     selector_path = args.selector_path
@@ -271,7 +272,7 @@ if __name__ == '__main__':
         month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
         month_sql = " OR ".join(month_terms)
         where += """({}) AND ({})""".format(year_sql, month_sql)
-    logger.info('Where clause for feature selection: {}'.format(where))
+    logger.debug('Where clause for feature selection: {}'.format(where))
     
     
     selection = arcpy.MakeFeatureLayer_management(selection, where_clause=where)
@@ -283,5 +284,7 @@ if __name__ == '__main__':
     result = arcpy.GetCount_management(selection)
     count = int(result.getOutput(0))
     logger.info('Selected features: {}'.format(count))
-
-    write_shp(selection, out_path)
+    if count != 0:
+        write_shp(selection, out_path)
+    else:
+        logger.info('No matching features found, skipping writing.')

@@ -38,7 +38,7 @@ def select_AHAP(AOI_P, repeat=False, write=None):
     PHOTO_ID = 'PHOTO_ID'
     # Identified in AHAP photos table
     UNIQUE_ID = 'unique_id'
-    
+            
     
     # Load danco AHAP imagery table
     logger.info('Reading AHAP danco table and shapefile...')

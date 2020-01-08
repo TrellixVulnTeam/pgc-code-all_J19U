@@ -16,11 +16,6 @@ import pandas as pd
 from dataframe_utils import create_year_col, create_month_col, create_day_col
 
 
-shp_p = r'E:\disbr007\UserServicesRequests\Projects\llarocca\selected_scenes.shp'
-date_col = 'acq_time'
-#out_p = r''
-#overwrite = False
-
 def main(shp_p, date_col, out_p=None, overwrite=False):
     ## Set up logging
     logger = logging.getLogger()

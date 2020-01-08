@@ -12,27 +12,11 @@ import numpy as np
 from osgeo import gdal, ogr, osr
 
 from clip2shp_bounds import warp_rasters
+from logging_utils import create_logger
 
 
 #### Logging setup
-# create logger
-logger = logging.getLogger('valid_data')
-logger.setLevel(logging.DEBUG)
-# create file handler
-#fh = logging.FileHandler(log)
-#fh.setLevel(logging.DEBUG)
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#fh.setFormatter(formatter)
-ch.setFormatter(formatter)
-# add the handlers to the logger
-#logger.addHandler(fh)
-logger.addHandler(ch)
-
-#logger.debug('Log file created at: {}'.format(log))
+logger = create_logger('valid_data', 'sh', 'INFO')
 
 
 def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
@@ -45,12 +29,18 @@ def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
                                           must supply out_path
     out_path     (str)               :    Path to write binary raster
 
-    Writes 
-    (Optional) Valid data mask as raster
+    Writes     (Optional) Valid data mask as raster
 
     Returns
     Tuple:  Count of valid pixels, count of total pixels
     """
+    # Check if gdal_ds is a file or already opened datasource
+    if isinstance(gdal_ds, gdal.Dataset):
+        pass
+    elif os.path.exists(gdal_ds):
+        gdal_ds = gdal.Open(gdal_ds)
+    else:
+        logger.warning('{} is neither path to gdal datasource or open datasource')
     # Get raster band
     rb = gdal_ds.GetRasterBand(band_number)
     no_data_val = rb.GetNoDataValue()

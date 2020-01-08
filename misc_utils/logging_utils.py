@@ -5,12 +5,12 @@ Created on Fri Jan  3 10:50:59 2020
 @author: disbr007
 Logging module helper functions
 """
-
+import os
 import logging
 
 
-logger_name = 'logger_name'
-handler_type = logging.StreamHandler() # fxn arg = 'sh' or 'fh'
+# logger_name = 'logger_name'
+# handler_type = logging.StreamHandler() # fxn arg = 'sh' or 'fh'
 
 
 def logging_level_int(logging_level):
@@ -69,6 +69,8 @@ def create_logger(logger_name, handler_type,
         ht = logging.StreamHandler()
     elif handler_type == 'fh':
         ht = logging.FileHandler(filename)
+        # if os.path.exists(filename):
+        #     os.remove(filename)
     else:
         print('Unrecognized handler_type argument.')
     desired_level = logging_level_int(handler_level)

@@ -39,7 +39,6 @@ with open(IDS_PATH, 'r') as src:
 aois_m = []
 cids_m = []
 for aoi, cids in aois_master.items():
-    print(aoi)
     # print(cids)
     for c in cids:
         # print(c)
@@ -55,7 +54,7 @@ aois_shp['subfolder'] = aois_shp['subfolder'].astype(str)
 master = aois_ids.merge(aois_shp, how='left', left_on='AOI', right_on='subfolder')
 master = master.set_geometry('geometry')
 # Write out shapefile with geometry of each buffer, and one entry per ID requested
-master.to_file(os.path.join(PRJ_DIR, 'IDs_buffers_master.shp'))
+# master.to_file(os.path.join(PRJ_DIR, 'IDs_buffers_master.shp'))
 
 # mfp_selection = gpd.read_file(MFP_SEL)
 # master_selection = mfp_selection.merge(master, 

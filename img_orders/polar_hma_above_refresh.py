@@ -48,11 +48,11 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
         elif refresh_region == 'polar':
             regions = ['Antarctica', 'Arctic', 'ABoVE Polar']
     else:
-        print("""Refresh region unrecognized, supported refresh regions 
-              include {}""".format(supported_refreshes))
+        logger.warning("""Refresh region unrecognized, supported refresh regions 
+                          include: {}""".format(supported_refreshes))
         regions = None
     return regions
-    
+
 
 def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, sensors):
     '''

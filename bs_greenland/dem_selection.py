@@ -18,31 +18,25 @@ from shapely.geometry import Point
 
 from query_danco import query_footprint, layer_crs
 from select_danco import select_danco, build_where
+from logging_utils import create_logger
 
 
+logger = create_logger('dem_selection', 'sh', 'INFO')
 
-#### Logging setup
-logger = None # Remove any logger's from previous runs
-logger = logging.getLogger('dem_selection')
-logger.propagate = False
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-logger.addHandler(ch)
+# ## INPUTS
+# AOI_PATH = r'E:\disbr007\UserServicesRequests\Projects\kbollen\TerminusBoxes\GreenlandPeriph_BoxesUpdated.shp'
+# # Identifying field for individual features in AOI - this will allow repeat footprints
+# # if the footprint is in multiple features
+# AOI_FEAT = 'BoxID'
+# DST_DIR = r'C:\temp\greenland_dems'
+# SEL_PATH = os.path.join(DST_DIR, 'master_dem_selection.shp')
 
-## INPUTS
-AOI_PATH = r'E:\disbr007\UserServicesRequests\Projects\kbollen\TerminusBoxes\GreenlandPeriph_BoxesUpdated.shp'
-# Identifying field for individual features in AOI - this will allow repeat footprints
-# if the footprint is in multiple features
-AOI_FEAT = 'BoxID'
-DST_DIR = r'C:\temp\greenland_dems'
-DEM_COPY_LOC = r'C:\code\cloned_repos\pgcdemtools\copy_dems.py'
-PYTHON2 = r'C:\OSGeo4W64\bin\python.exe'
+## Using PGC copy script
+# DEM_COPY_LOC = r'C:\code\cloned_repos\pgcdemtools\copy_dems.py'
+# PYTHON2 = r'C:\OSGeo4W64\bin\python.exe'
 
 ## PARAMS
-SUBDIR = 'subdir'
+SUBDIR = 'subdir' # name of field containing name of subdirectory
 FILEPATH = 'filepath' # field containing unix filepath
 FILENAME = 'filename' # created field holding just filename
  
@@ -82,7 +76,7 @@ def select_dems(aoi_path, out_path, aoi_feat=None):
     
     #### LOAD DEM footprints over AOI
     logger.info('Loading DEM footprints over AOI...')
-    
+    # Drop duplicates only if same aoi_feat and filepath
     dems = select_danco(DEM_FP,
                         selector_path=aoi_path,
                         min_x1=minx-2,
@@ -90,11 +84,12 @@ def select_dems(aoi_path, out_path, aoi_feat=None):
                         max_x1=maxx+2,
                         max_y1=maxy+2,
                         drop_dup=[aoi_feat, 'filepath'])
+    
     # Convert both back to original crs of AOI
     aoi = aoi.to_crs(aoi_original_crs)
     dems = dems.to_crs(aoi.crs)
 
-    #### WRITE SELECTION
+    #### WRITE selection shapefile
     if out_path is not None:
         dems.to_file(out_path)
     
@@ -108,13 +103,17 @@ def create_subdir(BoxID):
     return subdir
 
     
-## Select all DEMs over AOI features, allowing for repeats
-dems = select_dems(AOI_PATH, out_path=None, aoi_feat=AOI_FEAT)
-dems[SUBDIR] = dems['BoxID'].apply(lambda x: create_subdir(x))
+# ## Select all DEMs over AOI features, allowing for repeats if overlap 
+# ## multiple AOIs
+# dems = select_dems(AOI_PATH, out_path=None, aoi_feat=AOI_FEAT)
+# ## Create a subdirectory field, based on grouping BoxID by 100's [000, 100, etc.]
+# ## TODO: decide if this is desired directory structure
+# dems[SUBDIR] = dems['BoxID'].apply(lambda x: create_subdir(x))
+# dems.to_file(SEL_PATH)
 
 
 #### TRANSFER FILES
-for subdir in dems[SUBDIR].unique():
+# for subdir in dems[SUBDIR].unique():
     subdir_dems = dems[dems[SUBDIR]==subdir]
     dst_subdir = os.path.join(DST_DIR, subdir) 
     if not os.path.exists(dst_subdir):
@@ -131,15 +130,20 @@ for subdir in dems[SUBDIR].unique():
     logger.info('Stderr: {}\n\n'.format(stderr))
     
 
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
     
-#     parser.add_argument('aoi', type=str,
-#                         help='Path to aoi vector file.')
-#     parser.add_argument('--out_path', type=str,
-#                         help='Path to write selected DEMs to.')
+    parser.add_argument('aoi', type=os.path.abspath,
+                        help='Path to aoi vector file.')
+    parser.add_argument('out_path', type=os.path.abspath,
+                        help='Path to write selected DEMs footprint to.')
+    parser.add_argument('--aoi_id', type=str, default=None,
+                        help='''Unique field in AOI to allow for duplicating DEMS
+                                if the DEM intersects more than one AOI.''')
     
-#     args = parser.parse_args()
+    args = parser.parse_args()
     
-#     select_dems(args.aoi, args.out_path)
+    select_dems(args.aoi, 
+                out_path=args.out_path,
+                aoi_feat=args.aoi_id)
     

@@ -10,23 +10,14 @@ from osgeo import ogr, gdal
 import os, logging, argparse
 
 from gdal_tools import check_sr
+from logging_utils import create_logger
 
 
 gdal.UseExceptions()
 ogr.UseExceptions()
 
 
-# create logger with 'spam_application'
-logger = logging.getLogger('clip2shp_bounds')
-logger.setLevel(logging.DEBUG)
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(ch)
+logger = create_logger('clip2shp_bounds', 'sh')
 
 
 def warp_rasters(shp_p, rasters, out_dir, out_suffix='clip'):
@@ -58,25 +49,6 @@ def warp_rasters(shp_p, rasters, out_dir, out_suffix='clip'):
         
     return warped
     
-
-#def warp(shp_path, rasters, out_dir, out_suffix='clip'):
-#    """
-#    Wrapper function.
-#    TODO: Write more.
-#    """
-#    # Check for common spatial reference between shapefile and first raster
-#    shp_sr = get_shp_sr(shp_path)
-#    raster_sr = get_raster_sr(rasters[0])
-#    # Reproject if not same spatial reference
-#    if shp_sr != raster_sr:
-#        logger.info('''Spatial references do not match... 
-#                    Reprojecting shp to match raster...'''.format(shp_sr, raster_sr))
-#        shp_path = ogr_reproject(input_shp=shp_path, to_sr=raster_sr, in_mem=False)
-##    
-#    warped = warp_rasters(rasters, shp_path, out_dir=out_dir, out_suffix=out_suffix)
-#    
-#    return warped
-
 
 if __name__ == '__main__':
 

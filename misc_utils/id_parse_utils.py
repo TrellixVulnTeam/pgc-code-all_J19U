@@ -12,21 +12,23 @@ import os, tqdm, logging
 
 from dataframe_utils import determine_id_col, determine_stereopair_col
 #from ids_order_sources import get_ordered_ids
+from logging_utils import create_logger
 
 
 ## Set up logging
-logger = logging.getLogger('id_parse_utils')
+logger = create_logger('id_parse_utils', 'sh')
+# logger = logging.getLogger('id_parse_utils')
 
-formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
-logging.basicConfig(filename=r'E:\disbr007\scratch\fp_density.log', 
-                    filemode='w', 
-                    format='%(asctime)s -- %(levelname)s: %(message)s', 
-                    level=logging.DEBUG)
+# formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
+# logging.basicConfig(filename=r'E:\disbr007\scratch\fp_density.log', 
+#                     filemode='w', 
+#                     format='%(asctime)s -- %(levelname)s: %(message)s', 
+#                     level=logging.DEBUG)
 
-lso = logging.StreamHandler()
-lso.setLevel(logging.INFO)
-lso.setFormatter(formatter)
-logger.addHandler(lso)
+# lso = logging.StreamHandler()
+# lso.setLevel(logging.INFO)
+# lso.setFormatter(formatter)
+# logger.addHandler(lso)
 
 
 def type_parser(filepath):
@@ -173,9 +175,17 @@ def compare_ids(ids1_path, ids2_path, write_path=False):
     '''
     Takes two text files of ids, writes out unique to list 1, unique to list 2 and overlap
     '''
-    # Get names for printing
-    ids1_name = os.path.basename(ids1_path)
-    ids2_name = os.path.basename(ids2_path)
+    if isinstance(ids1_path, str):
+        # Get names for printing
+        ids1_name = os.path.basename(ids1_path)
+    else:
+        ids1_name = 'ids1'
+
+    if isinstance(ids2_path, str):
+        ids2_name = os.path.basename(ids2_path)
+    else:
+        ids2_name = 'ids2'
+
     # Read in both ids as sets
     ids1 = set(read_ids(ids1_path))
     ids2 = set(read_ids(ids2_path))
@@ -199,8 +209,10 @@ def compare_ids(ids1_path, ids2_path, write_path=False):
         for id_list in [(ids1_path, ids1_u), (ids2_path, ids2_u)]:
             out_dir = os.path.dirname(id_list[0])
             name = os.path.basename(id_list[0]).split('.')[0]
-            write_ids(id_list[1], os.path.join(out_dir, '{}_unique.txt'.format(name)))
-        write_ids(ids_c, os.path.join(out_dir, 'common.txt'))
+            if len(id_list[1]) != 0:
+                write_ids(id_list[1], os.path.join(out_dir, '{}_unique.txt'.format(name)))
+        if len(ids_c) != 0:
+            write_ids(ids_c, os.path.join(out_dir, 'common.txt'))
     
     return ids1_u, ids2_u, ids_c
 
@@ -369,7 +381,7 @@ def remove_mfp(src):
     ids that are on hand.
     src: list of ids
     """
-    logging.info('Removing IDs in master footprint...')
+    logger.info('Removing IDs in master footprint...')
     logger.info('Removing mfp ids...')
     src_ids = set(src)
     logger.debug('src_ids: {}'.format(list(src_ids)[:10]))
@@ -388,7 +400,7 @@ def remove_ordered(src):
     ids that have been ordered.
     src: list of ids
     """
-    logging.info('Removing IDs in order sheets...')
+    logger.info('Removing IDs in order sheets...')
     logger.info('Removing ordered...')
     src_ids = set(src)
     ordered_p = r'E:\disbr007\imagery_orders\ordered\all_ordered.txt'
@@ -410,3 +422,48 @@ def remove_onhand(src):
     not_mfp_ordered = remove_ordered(not_mfp)
     
     return not_mfp_ordered
+
+
+def parse_filename(filename, att, fullpath=False):
+    """
+    Parses a PGC renamed file name and returns the requested 
+    attribute.
+    filename : STR
+        A PGC renamed raster filename
+    att : STR
+        Attribute to return, one of: 
+            'catalog_id', 'scene_id', 'prod_code', 'platform'
+            'acq_time', 'date', 'date_words'
+    fullpath : BOOLEAN
+        Whether filename is a fullpath or just a basename
+    """
+    if fullpath == True:
+        filename = os.path.basename(filename)
+    try:
+        # Parse filename
+        scene_id = filename.split('.')[0]
+        first, prod_code, _third = scene_id.split('-')
+        platform, _date, catalogid, _date_words = first.split('_')
+        date = '{}-{}-{}'.format(_date[:4], _date[4:6], _date[6:8])
+        acq_time = '{}T{}:{}:{}'.format(date, _date[8:10], _date[10:12], _date[12:14])
+        date_words = _date_words[:8]
+    
+        att_lut = {'scene_id': scene_id,
+                   'prod_code': prod_code,
+                   'platform': platform,
+                   'catalog_id': catalogid,
+                   'date': date,
+                   'acq_time': acq_time,
+                   'date_words': date_words}
+        try:
+            requested_att = att_lut[att]
+        except KeyError as e:
+            logger.warning('Requested attribute "{}" not found.'.format(att))
+            logger.error(e)
+            requested_att = None
+    except Exception as e:
+        logger.warning('Error with file {}'.format(filename))
+        logger.error(e)
+        requested_att = None
+    
+    return requested_att

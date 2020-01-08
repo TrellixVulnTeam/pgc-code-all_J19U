@@ -58,9 +58,10 @@ def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
     
     
     # List imagery subdirectories
-    subdirs = os.listdir(raster_parent_dir)
-    
-    
+    # subdirs = os.listdir(raster_parent_dir)
+    subdirs = [sd for sd in os.listdir(raster_parent_dir) 
+               if os.path.isdir(os.path.join(raster_parent_dir, sd))]
+    logger.debug('Subdirectories found: {}'.format(subdirs))    
     # Loop over imagery subdirectories and clip to appropriate AOI
     if return_rasters is True:
         # Create master dictionary of clipped raster paths and GDAL objects
