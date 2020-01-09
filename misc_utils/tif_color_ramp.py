@@ -29,7 +29,7 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-def colormap_png(tif, cmap, png_out, exact=False):
+def colormap_png(tif, cmap, out_png, exact=False, overwrite=False):
     """
     Calls gdaldem color-relief to create a PNG with colors corresponding to
     values in cmap text file.
@@ -54,14 +54,18 @@ def colormap_png(tif, cmap, png_out, exact=False):
     out_png : STR
 
     """
-    cmd = ['gdaldem', 'color-relief', tif, cmap, png_out, 
-            '-nearest_color_entry', '-of', 'PNG', '-alpha']
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    out, err = p.communicate()
-    logger.info(out)
-    logger.debug(err)
-    
-    return png_out
+    # TODO: Check this logic for overwriting...
+    if overwrite or not os.path.exists(out_png):
+        cmd = ['gdaldem', 'color-relief', tif, cmap, out_png, 
+                '-nearest_color_entry', '-of', 'PNG', '-alpha']
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        out, err = p.communicate()
+        logger.info(out)
+        logger.debug(err)
+    else:
+        out_png = None
+
+    return out_png
 
 
 def main(args):
