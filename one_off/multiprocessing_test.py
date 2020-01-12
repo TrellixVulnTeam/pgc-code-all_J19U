@@ -1,34 +1,37 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jan  8 12:25:39 2020
+Created on Thu Jan  9 11:19:29 2020
 
 @author: disbr007
 """
 
+import os
+import shutil
 import time
 
-import multiprocessing as mp
+from threading import Thread
 from multiprocessing import Pool
 
 
-def move_fxn(src, dst):
-    print(src,'-->', dst)
-    time.sleep(0.1)
+def fxn(src, dst):
+    shutil.copy2(src, dst)
+    time.sleep(5)
+    return 'success'
 
-num_cpus = mp.cpu_count()
-print('CPUs: {}'.format(num_cpus))
 
-srcs = [1,2,3,4,5,6]
-dsts = ['a','b','c','d','e','f']
+prj_dir = r'C:\temp\mp_test'
+srcs = [os.path.join(prj_dir, 'src_master', f) for f in os.listdir(os.path.join(prj_dir, 'src_master'))]
+dsts = [os.path.join(prj_dir, 'dst_master', f) for f in os.listdir(os.path.join(prj_dir, 'src_master'))]
 
-movers = zip(srcs, dsts)
+x = zip(srcs, dsts)
 
-jobs = []
+# threads = []
+# for src, dst in x:
+#     t = Thread(target=fxn, args = (src, dst,))
+#     t.start()
 
-for src, dst in movers:
-    p = mp.Process(target=move_fxn, args=(src, dst))
-    jobs.append(p)
-    p.start()
-    
-for j in jobs:
-    j.join()
+p = Pool(processes=4)
+results = p.map(fxn, x)
+
+p.close()
+p.join()

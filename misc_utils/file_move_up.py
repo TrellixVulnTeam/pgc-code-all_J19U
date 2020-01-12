@@ -83,7 +83,7 @@ if __name__ == '__main__':
                         help='Path to parent directory to parse, and level to move/copy to.')
     parser.add_argument('--move', action='store_true',
                         help='True to MOVE, False to copy')
-    parser.add_argument('--omit_ending', type=str,
+    parser.add_argument('--omit_ending', nargs='+',
                         help='Omit files from move if the have this ending.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print commands without running.')
@@ -92,5 +92,5 @@ if __name__ == '__main__':
     
     file_move_up(parent_dir=args.parent_directory,
                  move=args.move,
-                 omit_ending=args.omit_ending,
+                 omit_ending=tuple(args.omit_ending),
                  dryrun=args.dryrun)

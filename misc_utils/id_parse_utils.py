@@ -4,11 +4,14 @@ Created on Mon Feb  4 12:54:01 2019
 
 @author: disbr007
 """
+import logging
+import re
+import os
 
+import tqdm
 import geopandas as gpd
 import pandas as pd
 #import numpy as np
-import os, tqdm, logging
 
 from dataframe_utils import determine_id_col, determine_stereopair_col
 #from ids_order_sources import get_ordered_ids
@@ -345,25 +348,28 @@ def locate_ids(df, cat_id_field):
     df: dataframe containing catalogids
     cat_id_field: field name with catalogids
     '''
-    def locate_id(each_id, pgc_ids, nasa_ids, ordered_ids):
-        '''
-        Returns where a single id is located.
-        '''
-        if each_id in pgc_ids:
-            location = 'pgc'
-        elif each_id in nasa_ids:
-            location = 'nasa'
-        elif each_id in ordered_ids:
-            location = 'ordered'
-        else:
-            location = 'unknown'
-        return location
+    logger.error("""locate_ids function in id_parse_utils not functional, 
+                    circular dependency with get_ordered_ids function in 
+                    ids_order_source.py""")
+    # def locate_id(each_id, pgc_ids, nasa_ids, ordered_ids):
+    #     '''
+    #     Returns where a single id is located.
+    #     '''
+    #     if each_id in pgc_ids:
+    #         location = 'pgc'
+    #     elif each_id in nasa_ids:
+    #         location = 'nasa'
+    #     elif each_id in ordered_ids:
+    #         location = 'ordered'
+    #     else:
+    #         location = 'unknown'
+    #     return location
 
-    pgc_ids = set(read_ids(r'C:\pgc_index\catalog_ids.txt')) # mfp
-    nasa_ids = set(read_ids(r'C:\pgc_index\nga_inventory_canon20190505\nga_inventory_canon20190505_CATALOG_ID.txt')) # nasa
-    ordered_ids = set(get_ordered_ids()) #order sheets
+    # pgc_ids = set(read_ids(r'C:\pgc_index\catalog_ids.txt')) # mfp
+    # nasa_ids = set(read_ids(r'C:\pgc_index\nga_inventory_canon20190505\nga_inventory_canon20190505_CATALOG_ID.txt')) # nasa
+    # ordered_ids = set(get_ordered_ids()) #order sheets
     
-    df['location'] = df[cat_id_field].apply(lambda x: locate_id(x, pgc_ids, nasa_ids, ordered_ids))
+    # df['location'] = df[cat_id_field].apply(lambda x: locate_id(x, pgc_ids, nasa_ids, ordered_ids))
 
 
 def mfp_ids():
@@ -464,6 +470,7 @@ def parse_filename(filename, att, fullpath=False):
     except Exception as e:
         logger.warning('Error with file {}'.format(filename))
         logger.error(e)
+        raise e
         requested_att = None
     
     return requested_att

@@ -9,21 +9,15 @@ import argparse
 import os
 import sys
 
-from id_parse_utils import read_ids, write_ids
+from id_parse_utils import read_ids, write_ids, parse_filename
 from logging_utils import create_logger
-
-# Args
-# ids_path = r'E:\disbr007\UserServicesRequests\Projects\bjones\1653\CatalogProducts_catalogids.txt' # Text file -- add support for comparing dirs
-# check_dir = r'V:\pgc\userftp\bmjones\4042_2019dec10\QB02\ortho'
-# write_path = r'V:\pgc\userftp\bmjones\4042_2019dec10\QB02\missing_from_ortho.txt'
-# write = True # Write included / not included IDs to text file
-# id_of_int = 'CATALOG_ID' # or CATALOG_ID, SCENE_ID
 
 
 logger = create_logger('id_verify.py', 'sh')
 
 
 def imagery_directory_IDs(img_dir, id_of_int):
+
     """
     Parses the filenames of imagery in a given directory and returns a list of
     the specified ID type.
@@ -35,37 +29,14 @@ def imagery_directory_IDs(img_dir, id_of_int):
     Returns:
     (set) : list of IDs
     """
-    # STRING LITERALS
-    CATALOG_ID = 'CATALOG_ID'
-    SCENE_ID = 'SCENE_ID'
-    PLATFORM = 'platform'
-    PROD_CODE = 'prod_code'
-    # PARSE IDS FROM CHECK DIR
-    check_dir_parsed = {}
+    # PARSE IDS FROM IMG_DIR
+    dir_ids = []
     for root, dirs, files in os.walk(img_dir):
         for f in files:
             if f.endswith(('tif', 'ntf')):
-                try:
-                    # Parse filename
-                    scene_id = f.split('.')[0]
-                    first, prod_code, _third = scene_id.split('-')
-                    platform, _date, catalogid, _date_words = first.split('_')
-                except ValueError as e:
-                    logger.error('Unable to parse filename: {}'.format(f))
-                    logger.error(e)
-                    sys.exit()
-                # Add to storage dict
-                check_dir_parsed[f] = {}
-        
-                check_dir_parsed[f][CATALOG_ID] = catalogid
-                check_dir_parsed[f][SCENE_ID] = scene_id
-                check_dir_parsed[f][PROD_CODE] = prod_code
-                check_dir_parsed[f][PLATFORM] = platform
-    
-    # Get ID of interest from check dir
-    dir_ids = []
-    for filename, f_dict in check_dir_parsed.items():
-        dir_ids.append(f_dict[id_of_int])
+               img_id_of_int = parse_filename(f, id_of_int) 
+               dir_ids.append(img_id_of_int)
+    # Keep only unique
     dir_ids = set(dir_ids)
     
     return dir_ids
@@ -105,7 +76,7 @@ def get_ids(source, id_of_int, field=None):
     return source_ids
 
 
-def id_verify(source, compare2=None, id_of_int='CATALOG_ID', 
+def id_verify(source, id_of_int, compare2=None, 
               source_field=None, compare2_field=None,
               write_path=None, write=False):
     """
@@ -122,7 +93,7 @@ def id_verify(source, compare2=None, id_of_int='CATALOG_ID',
     Returns
     (list) : missing ids
     """
-    
+    logger.info(id_of_int)
     # LOAD SOURCE IDS
     source_ids = get_ids(source, id_of_int, field=source_field)
     logger.info("{}'s found in source: {}".format(id_of_int, len(source_ids)))

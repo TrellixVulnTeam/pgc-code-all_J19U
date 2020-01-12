@@ -12,6 +12,7 @@ import numpy as np
 from osgeo import gdal, ogr, osr
 
 from clip2shp_bounds import warp_rasters
+from gdal_tools import auto_detect_ogr_driver
 from logging_utils import create_logger
 
 
@@ -91,6 +92,16 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     or
     None
     """
+    # If datasources are not open, open them
+    if isinstance(ogr_ds, ogr.DataSource):
+        pass
+    else:
+        ogr_ds = ogr.Open(ogr_ds)
+        
+    if isinstance(gdal_ds, gdal.Dataset):
+        pass
+    else:
+        gdal_ds = gdal.Open(gdal_ds)
     # TODO: Add ability to provide field in ogr_ds to use to burn into raster.
     ## Get DEM attributes
     dem_no_data_val = gdal_ds.GetRasterBand(1).GetNoDataValue()
@@ -118,9 +129,9 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     out_ds = driver.Create(out_path, x_sz, y_sz, 1, gdal.GDT_Float32)
     out_ds.SetGeoTransform((x_min, x_res, 0, y_min, 0, -y_res))
     out_ds.SetProjection(dem_sr)
-#    band = out_ds.GetRasterBand(1)
-#    band.SetNoDataValue(dem_no_data_val) # fix to get no_data_val before(?) clipping rasters
-#    band.FlushCache()
+    band = out_ds.GetRasterBand(1)
+    band.SetNoDataValue(dem_no_data_val) # fix to get no_data_val before(?) clipping rasters
+    band.FlushCache()
     
     gdal.RasterizeLayer(out_ds, [1], ogr_lyr, burn_values=[1])    
     
@@ -128,3 +139,38 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
         return out_ds
     else:
         out_ds = None
+        return out_path
+
+
+def valid_data_aoi(aoi, raster):
+    """
+    Compute percentage of valid pixels given an AOI.
+    """
+    aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=True, out_path=r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.tif')
+    aoi_valid_pixels, aoi_total_pixels = valid_data(aoi_gdal_ds)
+    # Pixels outside bounding box of AOI
+    boundary_pixels = aoi_total_pixels - aoi_valid_pixels
+    
+    valid_pixels, total_pixels = valid_data(raster)
+    possible_valid_pixels = total_pixels - boundary_pixels
+    valid_perc = valid_pixels / possible_valid_pixels
+    
+    aoi_gdal_ds = None
+    raster = None
+    
+    return valid_perc
+
+
+    
+# tr = r'E:\disbr007\UserServicesRequests\Projects\kbollen\dems\WV02_20130423_103001002272C900_1030010021137100_seg1_2m_dem_clip1.tif'
+# aoi = r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.shp'
+# aoi_gdal_ds = rasterize_shp2raster_extent(aoi, tr, write_rasterized=True, out_path=r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.tif')
+# aoi_valid_pixels, aoi_total_pixels = valid_data(aoi_gdal_ds)
+# # Pixels outside bounding box of AOI
+# boundary_pixels = aoi_total_pixels - aoi_valid_pixels
+
+# valid_pixels, total_pixels = valid_data(tr)
+# possible_valid_pixels = total_pixels - boundary_pixels
+# valid_perc = valid_pixels / possible_valid_pixels
+
+# print(valid_perc)

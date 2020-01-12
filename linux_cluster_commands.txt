@@ -22,3 +22,6 @@ source /home/junt0015/gdal2.2.4/init-gdal.sh
 ## fc.py with Erik's check wrapper, auto tape copy, etc
 python ~/pgc_scripts/check_fc.py -tm link -i ~/scratch/projects/osu/chunli/DaiTerHyd/deliv7_TananaRiverProfiles_20190930/select/pgcImageryIndexV6_2019aug28_alaska_selection.shp -o ~/scratch/projects/osu/chunli/DaiTerHyd/deliv7_TananaRiverProfiles_20190930/imagery/ -loc s_filepath --auto-tape-copy -t ~/scratch/_transfer/fc_temp
 
+Check log file:
+ortho job:
+<job_name>.o<job_number>

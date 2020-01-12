@@ -112,22 +112,23 @@ def create_subdir(BoxID):
 # dems.to_file(SEL_PATH)
 
 
-#### TRANSFER FILES
+# #### TRANSFER FILES
+# TODO: Fix this -- copy dems not working
 # for subdir in dems[SUBDIR].unique():
-    subdir_dems = dems[dems[SUBDIR]==subdir]
-    dst_subdir = os.path.join(DST_DIR, subdir) 
-    if not os.path.exists(dst_subdir):
-        os.makedirs(dst_subdir)
-    ## Write selection out as shapefile
-    out_shp = os.path.join(dst_subdir, 'footprint_{}.shp'.format(subdir))
-    subdir_dems.to_file(out_shp)
-    ## Call pgc's dem_copy.py
-    cmd = """{} {} {} {} --dryrun""".format(PYTHON2, DEM_COPY_LOC, out_shp, dst_subdir)
-    print(cmd)
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
-    logger.info('Stdout: {}\n\n'.format(stdout))
-    logger.info('Stderr: {}\n\n'.format(stderr))
+#     subdir_dems = dems[dems[SUBDIR]==subdir]
+#     dst_subdir = os.path.join(DST_DIR, subdir) 
+#     if not os.path.exists(dst_subdir):
+#         os.makedirs(dst_subdir)
+#     ## Write selection out as shapefile
+#     out_shp = os.path.join(dst_subdir, 'footprint_{}.shp'.format(subdir))
+#     subdir_dems.to_file(out_shp)
+#     ## Call pgc's dem_copy.py
+#     cmd = """{} {} {} {} --dryrun""".format(PYTHON2, DEM_COPY_LOC, out_shp, dst_subdir)
+#     print(cmd)
+#     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#     stdout, stderr = proc.communicate()
+#     logger.info('Stdout: {}\n\n'.format(stdout))
+#     logger.info('Stderr: {}\n\n'.format(stderr))
     
 
 if __name__ == '__main__':
@@ -143,7 +144,6 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    select_dems(args.aoi, 
-                out_path=args.out_path,
-                aoi_feat=args.aoi_id)
-    
+    dems = select_dems(args.aoi, 
+                       out_path=args.out_path,
+                       aoi_feat=args.aoi_id)
