@@ -91,8 +91,8 @@ for bid in aoi.BoxID.unique():
     print(ctr)
     aoi_temp_p = os.path.join(temp_dir, 'aoi_temp{}.shp'.format(bid))
     out_prj_shp = os.path.join(temp_dir, 'prj', 'aoi_temp{}_prj.shp'.format(bid))
-    if not os.path.exists(out_prj_shp):
-        os.makedirs(out_prj_shp)
+    if not os.path.exists(os.path.dirname(out_prj_shp)):
+        os.makedirs(os.path.dirname(out_prj_shp))
     
     # Selection of DEMs for the current BoxID
     s_bid = selection[selection.BoxID==bid]
