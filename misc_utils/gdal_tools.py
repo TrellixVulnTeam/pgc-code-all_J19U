@@ -41,39 +41,36 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
     if driver.GetName() == 'Memory':
         input_shp_name = 'mem_lyr'
         in_mem = True
-    else:
-        # Get names of from input shapefile path for output shape
-        # !
-        # input_shp_name = os.path.basename(input_shp).split('.')[0]
-        input_shp_name = os.path.basename(input_shp)
-        input_shp_dir = os.path.dirname(input_shp)
-    
-    # Default output shapefile name and location -- same as input
-    if output_shp is None and in_mem is False:
-        # TODO: Fix this
-        output_shp = os.path.join(input_shp_dir, input_shp_name)
-    # In memory output
-    if output_shp is None and in_mem is True:
-        output_shp = os.path.join('/vsimem', 'mem_lyr.shp'.format(input_shp_name))
-        # Convert windows path to unix path (required for gdal in-memory)
-        output_shp = output_shp.replace(os.sep, posixpath.sep)
-    
-    # Get the input layer
-    # TODO: Improve the logic around in Memory Layers
-    if driver.GetName() == 'Memory':
         # If driver is Memory assume an ogr.DataSource is being passed
         # as input_shp
         inLayer = input_shp.GetLayer(0)
     else:
+        # Get the input layer
+        # Get names of from input shapefile path for output shape
+        input_shp_name = os.path.basename(input_shp)
+        input_shp_dir = os.path.dirname(input_shp)
         inDataSet = driver.Open(input_shp)
         inLayer = inDataSet.GetLayer(0)
     
+    # Get the source spatial reference
     inSpatialRef = inLayer.GetSpatialRef()
 
     # create the CoordinateTransformation
     coordTrans = osr.CoordinateTransformation(inSpatialRef, to_sr)
 
-    # create the output layer
+
+    # Create the output layer
+    # Default output shapefile name and location -- same as input
+    if output_shp is None and in_mem is False:
+        # TODO: Fix this
+        output_shp = os.path.join(input_shp_dir, input_shp_name)
+    # In memory output
+    elif in_mem is True:
+        output_shp = os.path.join('/vsimem', 'mem_lyr.shp'.format(input_shp_name))
+        # Convert windows path to unix path (required for gdal in-memory)
+        output_shp = output_shp.replace(os.sep, posixpath.sep)
+
+    # Check if output exists
     if os.path.exists(output_shp):
         remove_shp(output_shp)
         # driver.DeleteDataSource(output_shp)
@@ -127,7 +124,9 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
         file.close()
 
     # Save and close the shapefiles
+    inLayer = None
     inDataSet = None
+    outLayer = None
     outDataSet = None
         
     return output_shp
@@ -145,6 +144,8 @@ def get_shp_sr(in_shp):
         ds = driver.Open(in_shp)
         lyr = ds.GetLayer()
     srs = lyr.GetSpatialRef()
+    lyr = None
+    ds = None
     return srs
 
 
@@ -156,7 +157,8 @@ def get_raster_sr(raster):
     ds = gdal.Open(raster)
     prj = ds.GetProjection()
     srs = osr.SpatialReference(wkt=prj)
-
+    prj = None
+    ds = None
     return srs
 
 

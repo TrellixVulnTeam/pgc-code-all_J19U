@@ -13,12 +13,12 @@ import numpy as np
 from tqdm import tqdm
 
 from valid_data import valid_data, valid_data_aoi
-from gdal_tools import check_sr
+from gdal_tools import remove_shp
 from clip2shp_bounds import warp_rasters
 from logging_utils import create_logger
 
 
-logger = create_logger('selection_valid_data.py', 'sh', 'DEBUG')
+# logger = create_logger('selection_valid_data.py', 'sh', 'DEBUG')
 
 
 def create_subdir(BoxID):
@@ -70,10 +70,10 @@ else:
     record = False
 
 
-ctr = 0 # counter for testing
-record = False # for testing
+# ctr = 0 # counter for testing
+# record = False # for testing
 
-# Iterate over each polygon in the AOI shapefile
+# Iterate over each polygon in the AOI shapefile and write
 for bid in tqdm(aoi.BoxID.unique()):
     # AOI for current BoxID
     aoi_bid = aoi[aoi.BoxID==bid]    
@@ -81,14 +81,14 @@ for bid in tqdm(aoi.BoxID.unique()):
     aoi_temp_p = os.path.join(temp_dir, 'aoi_temp{}.shp'.format(bid))
     if not os.path.exists(aoi_temp_p):
         aoi_bid.to_file(aoi_temp_p)
-    ctr+=1
-    if ctr >= 2:
-        break
+    # ctr+=1
+    # if ctr >= 1:
+        # break
     
 ctr = 0
 
 for bid in aoi.BoxID.unique():
-    print(ctr)
+    print('BoxID: {}'.format(bid))
     aoi_temp_p = os.path.join(temp_dir, 'aoi_temp{}.shp'.format(bid))
     out_prj_shp = os.path.join(temp_dir, 'prj', 'aoi_temp{}_prj.shp'.format(bid))
     if not os.path.exists(os.path.dirname(out_prj_shp)):
@@ -97,7 +97,7 @@ for bid in aoi.BoxID.unique():
     # Selection of DEMs for the current BoxID
     s_bid = selection[selection.BoxID==bid]
     
-    s_bid = s_bid[:10] # SUBSET for testing
+    # s_bid = s_bid # SUBSET for testing
     
     # Create path to dems on windows
     s_bid['dem_path'] = s_bid.apply(lambda x: os.path.join(x['win_path'], x['dem_name']), axis=1)
@@ -117,7 +117,7 @@ for bid in aoi.BoxID.unique():
     if not os.path.exists(subdir_bid):
         os.makedirs(subdir_bid)
     
-    warp_rasters(aoi_temp_p, rasters, subdir_bid, out_suffix='_clip{}'.format(bid),
+    wr = warp_rasters(aoi_temp_p, rasters, subdir_bid, out_suffix='_clip{}'.format(bid),
                  out_prj_shp=out_prj_shp)
 
     # Create outpath
@@ -128,18 +128,27 @@ for bid in aoi.BoxID.unique():
     
     master = pd.concat([master, s_bid], sort=True)
     
-    os.remove(aoi_temp_p)
+    remove_shp(out_prj_shp)
     
-    ctr += 1
-    if ctr >= 2:
-        break
+    # Remove clipped rasters
+    # Permission error
+    # clipped_rasters = [r for r in wr.keys()]
+    # wr = None
+    # for r in wr:
+        # os.remove(r)
+    
+    # ctr += 1
+    # if ctr >= 1:
+        # break
+
     
 # Write master record of clipped DEMs
 master.to_csv(os.path.join(prj_dir, MASTER_OUT))
 
 # Statistics
 counts = pd.DataFrame({'BoxID': [x for x in master['BoxID'].unique()]})
-for val in [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]:
+for val in [0.4, 0.45, 0.5, 0.55, 0.6, 0.65,
+            0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]:
     # val_words = round(val, 1)
     master['valid_{}'.format(val)] = master['valid_data'].apply(lambda x: x >= val)
     val_ct = master[master['valid_{}'.format(val)]==True].groupby(['BoxID']).agg({'dem_name':'count'})
@@ -147,3 +156,18 @@ for val in [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]:
     counts = counts.merge(val_ct, how='left', on='BoxID')
 
 counts.to_csv(os.path.join(prj_dir, COUNTS_OUT))
+
+
+
+## CLEAN UP 
+boxes = gpd.read_file(aoi_path)
+boxes = boxes[['BoxID', 'geometry']]
+boxes.drop_duplicates(subset='BoxID', inplace=True)
+
+final = boxes.merge(counts, on='BoxID')
+final.to_file(os.path.join(prj_dir, 'valid_counts.shp'))
+
+# master_clean = master[cols]
+
+# final = master_clean.merge(boxes, on='BoxID', how='left')
+

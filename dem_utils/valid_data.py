@@ -92,6 +92,7 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     or
     None
     """
+    logger.debug('Rasterizing OGR DataSource: {}'.format(ogr_ds))
     # If datasources are not open, open them
     if isinstance(ogr_ds, ogr.DataSource):
         pass
@@ -147,6 +148,7 @@ def valid_data_aoi(aoi, raster):
     Compute percentage of valid pixels given an AOI. The raster must be clipped to the AOI to 
     return valid results.
     """
+    logger.debug('Finding percent of {} valid pixels in {}'.format(raster, aoi))
     aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=True, out_path=r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.tif')
     aoi_valid_pixels, aoi_total_pixels = valid_data(aoi_gdal_ds)
     # Pixels outside bounding box of AOI
@@ -155,6 +157,7 @@ def valid_data_aoi(aoi, raster):
     valid_pixels, total_pixels = valid_data(raster)
     possible_valid_pixels = total_pixels - boundary_pixels
     valid_perc = valid_pixels / possible_valid_pixels
+    valid_perc = valid_perc*100
     
     aoi_gdal_ds = None
     raster = None
@@ -162,7 +165,7 @@ def valid_data_aoi(aoi, raster):
     return valid_perc
 
 
-def valid_percent_clip(aoi, raster):
+def valid_percent_clip(aoi, raster, out_dir=None):
     """
     Clip a raster in memory to the aoi, and get the percent of non-NoData pixels in the AOI.
 
@@ -172,15 +175,19 @@ def valid_percent_clip(aoi, raster):
         Path to shapefile of AOI.
     raster : os.path.abspath
         Path to raster to check number of valid pixels.
+    out_dir : os.path.abspath
+        Path to place clipped DEMs if in-memory is not desired.
 
     Returns
     -------
     FLOAT : percentage of valid pixels
 
     """
-    clipped_path = warp_rasters(aoi, rasters=raster, in_mem=True)[0]
+    if out_dir is None:
+        in_mem = True
+    clipped_path = warp_rasters(aoi, rasters=raster, in_mem=in_mem, out_dir=out_dir)[0]
     clipped_raster = gdal.Open(clipped_path)
-    valid_perc = valid_data_aoi(aoi=aoi, raster=clipped_raster)*100
+    valid_perc = valid_data_aoi(aoi=aoi, raster=clipped_raster)
     valid_perc = round(valid_perc, 2)
     
     return valid_perc

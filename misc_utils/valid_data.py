@@ -144,8 +144,7 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
 
 def valid_data_aoi(aoi, raster):
     """
-    Compute percentage of valid pixels given an AOI. The raster must be clipped to the AOI to 
-    return valid results.
+    Compute percentage of valid pixels given an AOI.
     """
     aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=True, out_path=r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.tif')
     aoi_valid_pixels, aoi_total_pixels = valid_data(aoi_gdal_ds)
@@ -161,29 +160,6 @@ def valid_data_aoi(aoi, raster):
     
     return valid_perc
 
-
-def valid_percent_clip(aoi, raster):
-    """
-    Clip a raster in memory to the aoi, and get the percent of non-NoData pixels in the AOI.
-
-    Parameters
-    ----------
-    aoi : os.path.abspath
-        Path to shapefile of AOI.
-    raster : os.path.abspath
-        Path to raster to check number of valid pixels.
-
-    Returns
-    -------
-    FLOAT : percentage of valid pixels
-
-    """
-    clipped_path = warp_rasters(aoi, rasters=raster, in_mem=True)[0]
-    clipped_raster = gdal.Open(clipped_path)
-    valid_perc = valid_data_aoi(aoi=aoi, raster=clipped_raster)*100
-    valid_perc = round(valid_perc, 2)
-    
-    return valid_perc
 
     
 # tr = r'E:\disbr007\UserServicesRequests\Projects\kbollen\dems\WV02_20130423_103001002272C900_1030010021137100_seg1_2m_dem_clip1.tif'

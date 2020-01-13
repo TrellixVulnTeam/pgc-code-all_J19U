@@ -29,7 +29,7 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-def colormap_png(tif, cmap, out_png, exact=False, overwrite=False):
+def colormap_img(tif, cmap, out_img, of=None, exact=False, overwrite=False):
     """
     Calls gdaldem color-relief to create a PNG with colors corresponding to
     values in cmap text file.
@@ -55,53 +55,65 @@ def colormap_png(tif, cmap, out_png, exact=False, overwrite=False):
 
     """
     # TODO: Check this logic for overwriting...
-    if overwrite or not os.path.exists(out_png):
-        cmd = ['gdaldem', 'color-relief', tif, cmap, out_png, 
-                '-nearest_color_entry', '-of', 'PNG', '-alpha']
+    if overwrite or not os.path.exists(out_img):
+        cmd = ['gdaldem', 'color-relief', tif, cmap, out_img, 
+                '-nearest_color_entry', '-of', of, '-alpha']
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         out, err = p.communicate()
         logger.info(out)
         logger.debug(err)
     else:
-        out_png = None
+        out_img = None
 
-    return out_png
+    return out_img
 
 
 def main(args):
     parent_dir = args.parent_directory
     cmap = args.cmap_txt
+    of = args.out_format
+    suffix = args.suffix
     dryrun = args.dryrun
     
+    # Determine appropriate output extension given the 'of'
+    ext_lut = {'PNG': 'png',
+               'JP2OpenJPEG': 'jp2',
+               'GTiff': 'tif',}
+    out_ext = ext_lut[of]
+    
+    # Locate cmap file - from arg or check current working directory
     if cmap is None:
         cwd = os.getcwd()
         cmap = os.path.join(cwd, r'cmap.txt')
     
     # Collect 10m DEM stack count tifs
-    stack_count_tifs = []
+    tifs = []
     for root, dirs, files in os.walk(parent_dir, topdown=True):
         dirs[:] = [d for d in dirs if d != 'subtiles']
         for f in files:
-            if f.endswith('10m_N.tif'):
-                stack_count_tifs.append(os.path.join(root, f))
+            if f.endswith(suffix):
+                tifs.append(os.path.join(root, f))
                 
-    # Create a PNG with colors corresponding to RGB values color_map text file
-    for tif in stack_count_tifs:
+    # Create a IMG with colors corresponding to RGB values color_map text file
+    for tif in tifs:
         tif_dir = os.path.dirname(tif)
         tif_name = os.path.basename(tif).split('.')[0]
-        out_png = os.path.join(tif_dir, '{}_cmap.png'.format(tif_name))
-        logger.info('Creating colormap PNG for: {}'.format(tif))
+        out_img = os.path.join(tif_dir, '{}_cmap.{}'.format(tif_name, out_ext))
+        logger.info('Creating colormap {} for: {}'.format(of, tif))
         if dryrun:
             continue
-        colormap_png(tif, cmap, out_png=out_png)
-
-        # cmd = ['gdaldem', 'color-relief', tif, cmap, png_out, 
-        #         '-nearest_color_entry', '-of', 'PNG', '-alpha']
-        # p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        # out, err = p.communicate()
-        # logger.info(out)
-        # logger.debug(err)
-
+        colormap_img(tif, cmap, out_img=out_img, of=of)
+        # TODO: Remove this - just for convenience for Paul
+        # Do move 
+        dst = r'V:\pgc\users\jeff\for_paul\arcticdem_mosaic_cmaps_2mv4'
+        copy_name = os.path.basename(out_img)
+        copy_sd = os.path.basename(os.path.dirname(out_img))
+        copy_loc  = os.path.join(dst, copy_sd, copy_name)
+        if not os.path.exists(os.path.join(dst, copy_sd)):
+            os.makedirs(os.path.join(dst, copy_sd))
+        import shutil
+        logger.info('Copying cmap file to: {}'.format(copy_loc))
+        shutil.copy2(out_img, copy_loc)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -111,6 +123,11 @@ if __name__ == '__main__':
     parser.add_argument('--cmap_txt', type=os.path.abspath, default=None,
                         help=""""Path to text file containing DEM values -> RGB-Alpha values.
                                  Defaults to looking for 'cmap.txt' in the current directory.""")
+    parser.add_argument('--out_format', type=str,
+                        help="""Output format, must be a GDAL raster driver: 
+                                https://gdal.org/drivers/raster/index.html""")
+    parser.add_argument('--suffix', type=str,
+                        help='String to limit files process, e.g. "10m_N.tif"')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without running.')
     

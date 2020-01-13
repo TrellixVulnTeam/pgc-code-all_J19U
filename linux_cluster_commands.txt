@@ -25,3 +25,6 @@ python ~/pgc_scripts/check_fc.py -tm link -i ~/scratch/projects/osu/chunli/DaiTe
 Check log file:
 ortho job:
 <job_name>.o<job_number>
+
+Find files:
+find -maxdepth 2 -name "*.tar" -exec cp {} ../raw \;
