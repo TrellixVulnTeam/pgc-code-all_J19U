@@ -16,20 +16,23 @@ from shapely.geometry import Point
 import arcpy
 
 from id_parse_utils import read_ids
+from logging_utils import create_logger
 
 
 #### Logging setup
 # create logger
-logger = logging.getLogger('arcpy-selector')
-logger.setLevel(logging.DEBUG)
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(ch)
+# logger = logging.getLogger('arcpy-selector')
+# logger.setLevel(logging.DEBUG)
+# # create console handler with a higher log level
+# ch = logging.StreamHandler()
+# ch.setLevel(logging.INFO)
+# # create formatter and add it to the handlers
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# ch.setFormatter(formatter)
+# # add the handlers to the logger
+# logger.addHandler(ch)
+logger = create_logger('arcpy_selector.py', 'sh')
+
 
 
 try:
@@ -38,7 +41,7 @@ try:
     imagery_index = pgc_index_path()
 except ImportError:
     imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28'
-    logger.info('Could not load updated index. Using last known path: {}'.format(imagery_index))
+    logger.warning('Could not load updated index. Using last known path: {}'.format(imagery_index))
 
 arcpy.env.overwriteOutput = True
 
@@ -115,29 +118,47 @@ def create_points(coords, shp_path):
 
 def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field):
     if input_type == 'shp':
-        logger.info('Loading index...')
-        idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
-        logger.info('Loading AOI...')
-        aoi_lyr = arcpy.MakeFeatureLayer_management(selector_path)
-        logger.info('Making selection...')
-        selection = arcpy.SelectLayerByLocation_management(idx_lyr, 
-                                                           overlap_type, 
-                                                           aoi_lyr, 
-                                                           selection_type="NEW_SELECTION", 
-                                                           search_distance=search_distance)
-    
+        if not id_field:
+            logger.info('Loading index...')
+            idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
+            logger.info('Loading AOI...')
+            aoi_lyr = arcpy.MakeFeatureLayer_management(selector_path)
+            logger.info('Making selection...')
+            selection = arcpy.SelectLayerByLocation_management(idx_lyr, 
+                                                               overlap_type, 
+                                                               aoi_lyr, 
+                                                               selection_type="NEW_SELECTION", 
+                                                               search_distance=search_distance)
+        else:
+            logger.info('Reading in IDs...')
+            try:
+                ids = read_ids(selector_path, field=id_field)
+            except KeyError:
+                ids = read_ids(selector_path, field=''.join(id_field.split('_')).lower())
+            logger.info('{} IDs found.'.format(len(ids)))
+            ids_str = str(ids)[1:-1]
+            where = """{} IN ({})""".format(id_field, ids_str)
+            logger.debug('Where clause for ID selection: {}'.format(where))
+            logger.info('Making selection...')
+            selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
+
     elif input_type == 'txt':
         ## Initial selection by id
         logger.info('Reading in IDs...')
         ids = read_ids(selector_path)
+        logger.info('{} IDs found.'.format(len(ids)))
         ids_str = str(ids)[1:-1]
         where = """{} IN ({})""".format(id_field, ids_str)
         logger.debug('Where clause for ID selection: {}'.format(where))
+        logger.info('Making selection...')
         selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
-        
-        result = arcpy.GetCount_management(selection)
-        count = int(result.getOutput(0))
-        logger.debug('Selected features by ID: {}'.format(count))
+        if arcpy.GetCount_management(selection).GetOutput(0) == 0:
+            # try removing underscore and making lowercase
+            logger.debug('No results found, trying alternative format for id_field.')
+            where = """{} IN ({})""".format(''.join(id_field.split('_')).lower(), ids_str)
+    result = arcpy.GetCount_management(selection)
+    count = int(result.getOutput(0))
+    logger.debug('Selected features: {}'.format(count))
         
     return selection
 
@@ -174,7 +195,8 @@ if __name__ == '__main__':
     argdef_search_distance  = 0
     argdef_place_name       = None
     argdef_coordinate_pairs = None
-    argdef_id_field         = 'CATALOG_ID'
+    # argdef_id_field         = 'CATALOG_ID'
+    argdef_id_field         = None
     
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -200,6 +222,7 @@ if __name__ == '__main__':
                         default=argdef_months,
                         help='Months to include. E.g. 01 02 03')
     parser.add_argument('--max_cc', type=int, help='Max cloudcover to include.')
+    parser.add_argument('--max_off_nadir', type=int, help='Max off_nadir angle to include')
     parser.add_argument('--overlap_type', type=str, default=argdef_overlap_type,
                         help='''Type of select by location to perform. Must be one of:
                             the options available in ArcMap. E.g.: 'INTERSECT', 'WITHIN',
@@ -211,10 +234,14 @@ if __name__ == '__main__':
                         help='Longitude, latitude pairs. x1,y1 x2,y2 x3,y3, etc.' )
     parser.add_argument('--place_name', type=str, default=argdef_place_name,
                         help='Select by Antarctic placename from acan danco DB.')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                         help='Set logging level to DEBUG.')
 
     args = parser.parse_args()
 
-    # logger.info('Argparse: {}'.format(args))
+    if args.verbose:
+        logger = create_logger('arcpy_selector.py', 'sh',
+                               handler_level='DEBUG')
 
     out_path = args.out_path
     selector_path = args.selector_path
@@ -225,6 +252,7 @@ if __name__ == '__main__':
     max_year = args.max_year
     months = args.months
     max_cc = args.max_cc
+    max_off_nadir = args.max_off_nadir
     overlap_type = args.overlap_type
     search_distance = args.search_distance
     coordinate_pairs = args.coordinate_pairs
@@ -272,6 +300,10 @@ if __name__ == '__main__':
         month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
         month_sql = " OR ".join(month_terms)
         where += """({}) AND ({})""".format(year_sql, month_sql)
+    if max_off_nadir:
+        where = check_where(where)
+        off_nadir_sql = """(off_nadir < {})""".format(max_off_nadir)
+        where += off_nadir_sql
     logger.debug('Where clause for feature selection: {}'.format(where))
     
     

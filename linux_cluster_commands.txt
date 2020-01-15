@@ -4,6 +4,11 @@ popd/
 screen from home dir
 module load gdal
 
+# Reserve a node on nunatak (e.g. for python interactive)
+qsub -I -l nodes=nunatak-XX:ppn=YY,walltime:HH:MM:SS
+--> gets a jobid
+--> qdel jobid to kill if locked
+
 python /mnt/agic/storage00/agic/private/agic_common/scripts/pgctools3/fc.py /path/to/your/file.shp /path/to/your/output_dir --try-link
 
 python /mnt/agic/storage00/agic/private/agic_common/scripts/imagery_utils/pgc_ortho.py --wd /local -p 4326 -d /mnt/agic/storage00/agic/
@@ -28,3 +33,7 @@ ortho job:
 
 Find files:
 find -maxdepth 2 -name "*.tar" -exec cp {} ../raw \;
+
+
+ir.py
+--cli-binary ds3_java_cli

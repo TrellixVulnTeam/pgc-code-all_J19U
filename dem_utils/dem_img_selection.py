@@ -13,6 +13,9 @@ from id_parse_utils import write_ids
 from valid_data import valid_percent_clip
 
 
+def is_multi(sensor):
+    ms_sensors = ['WV02, WV03', 'WV03']
+from logging_utils import create_logger
 # PARAMETERS
 PRJ_DIR = r'E:\disbr007\umn\ms'
 LEWK_P = r'E:\disbr007\umn\ms\shapefile\tk_loc\lewk_2019_hs.shp'
@@ -26,6 +29,7 @@ AOI_P = os.path.join(SHP_DIR, 'aois', '{}.shp'.format(aoi_name))
 AOI_PRJ = os.path.join(SHP_DIR, 'aois', '{}_prj.shp'.format(aoi_name))
 # Threshold percentage of valid data over AOI
 VALID_THRESH = 50
+MULTI_SPEC = True
 
 DEMS_FP = 'pgc_dem_setsm_strips'
 
@@ -43,7 +47,10 @@ dems_where = """cent_lon > {} AND cent_lon < {} AND
                 cent_lat > {} AND cent_lat < {}""".format(minx-0.25, maxx+0.25, miny-0.25, maxy+0.25)
 # Get DEM footprints               
 dems = query_footprint(DEMS_FP, where=dems_where)
-
+dems['multi-spec'] = dems['sensor1'].apply(lambda x: x in ['WV02', 'WV03'])
+# If multispectral only reduce to only multispectral
+if MULTI_SPEC == True:
+    dems = dems[dems['multi-spec']==True]
 
 # Clip to AOIs
 # Create directory for clipped DEMs
@@ -75,7 +82,7 @@ if not os.path.exists(DEMS_AOI):
 # Copy DEMs down
 for dem_path, dem_name in zip(list(dems['full_path']), list(dems['dem_name'])):
     out_path = os.path.join(DEMS_AOI, dem_name)
-    shutil.copy2(dem_path, out_path)
+    # shutil.copy2(dem_path, out_path)
 
 # # Get catalogids associated with DEMs
 catalogids = list(dems['catalogid1'])

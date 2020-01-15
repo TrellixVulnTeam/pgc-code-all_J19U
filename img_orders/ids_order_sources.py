@@ -44,6 +44,7 @@ def id_order_loc_update():
     all_ids = []
     excel_ext = ['.xls', '.xlsx']
     exception_count = 0
+    logger.info('Parsing ordered sheets')
     for root, dirs, files in tqdm.tqdm(os.walk(sheets_dir)):
         for file in files:
             ext = os.path.splitext(file)[1]
@@ -62,7 +63,7 @@ def id_order_loc_update():
     all_orders = pd.DataFrame(all_ids, columns=['ids', 'order', 'created'])
     all_orders.to_pickle(ordered_ids_path)
     logger.info('Pickle created at {}'.format(ordered_ids_path))
-    ordered_text = r'E:\disbr007\imagery_orders\ordered\all_ordered.txt'.format(date_words(today=True))
+    ordered_text = r'E:\disbr007\imagery_orders\ordered\all_ordered_{}.txt'.format(date_words(today=True))
     write_ids(list(all_orders['ids']), ordered_text)
     return all_orders
 

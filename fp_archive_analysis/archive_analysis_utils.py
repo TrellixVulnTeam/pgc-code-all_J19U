@@ -278,7 +278,7 @@ def get_count_loop(fxn, gcs, fps,
 
 def rasterize_grid(grid_path, count_field):
     '''
-    Takes a point shapefile and rasterizes based on 'count' field, need to better
+    Takes a point shapefile and rasterizes based on count_field, need to better
     create raster grid size (hardcoded at 1000 units of project)
     '''
     ## Rasterize

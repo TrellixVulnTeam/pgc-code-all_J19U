@@ -14,6 +14,7 @@ import geopandas as gpd
 import pandas as pd
 #import numpy as np
 
+from query_danco import query_footprint
 from dataframe_utils import determine_id_col, determine_stereopair_col
 #from ids_order_sources import get_ordered_ids
 from logging_utils import create_logger
@@ -21,18 +22,6 @@ from logging_utils import create_logger
 
 ## Set up logging
 logger = create_logger('id_parse_utils', 'sh')
-# logger = logging.getLogger('id_parse_utils')
-
-# formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
-# logging.basicConfig(filename=r'E:\disbr007\scratch\fp_density.log', 
-#                     filemode='w', 
-#                     format='%(asctime)s -- %(levelname)s: %(message)s', 
-#                     level=logging.DEBUG)
-
-# lso = logging.StreamHandler()
-# lso.setLevel(logging.INFO)
-# lso.setFormatter(formatter)
-# logger.addHandler(lso)
 
 
 def type_parser(filepath):
@@ -83,7 +72,7 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
     Supported types:
         .txt: one per line, optionally with other fields after "sep"
         .dbf: shapefile's associated dbf    
-    field: field name, irrelevant for text files, but will search for this name if ids_file is .dbf
+    field: field name, irrelevant for text files, but will search for this name if ids_file is .dbf or .shp
     '''
     ids = []
     # Determine file type
@@ -491,3 +480,40 @@ def parse_filename(filename, att, fullpath=False):
         requested_att = None
     
     return requested_att
+
+
+def is_stereo(dataframe, catalogid_field, out_field='is_stereo'):
+    """
+    Takes a dataframe and determines if each catalogd in catalogid_field
+    is a stereo image.
+    """
+    stereo_ids = query_footprint('pgc_imagery_catalogids_stereo', 
+                                 table=True, 
+                                 columns=['CATALOG_ID'])
+    stereo_ids = list(stereo_ids)
+    dataframe[out_field] = dataframe[catalogid_field].apply(lambda x: x in stereo_ids)
+    
+
+def dem_exists(dataframe, catalogid_field, out_field='dem_exists'):
+    """
+    Takes a dataframe and determines if each catalogid in catalogid_field
+    has been turned into a DEM.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame or gpd.GeoDataFrame
+        Dataframe of one ID per row.
+    catalogid_field : STR
+        Field in dataframe with catalogids.
+    out_field : TYPE, optional
+        The name of the field to create. The default is 'dem_exists'.
+
+    Returns
+    -------
+    None.
+
+    """
+    dems = query_footprint('pgc_dem_setsm_strips', table=True, columns=['catalogid1', 'catalogid2'])
+    dem_ids = list(dems['catalogid1']) + list(dems['catalogid2'])
+    dataframe[out_field] = dataframe[catalogid_field].apply(lambda x: x in dem_ids)
+    

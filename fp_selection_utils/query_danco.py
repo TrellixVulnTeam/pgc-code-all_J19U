@@ -11,19 +11,20 @@ import geopandas as gpd
 import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine#, inspect, MetaData
+from logging_utils import create_logger
 
-
-# create logger with 'spam_application'
-logger = logging.getLogger('query_danco')
-logger.setLevel(logging.INFO)
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.ERROR)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(ch)
+# # create logger with 'spam_application'
+# logger = logging.getLogger('query_danco')
+# logger.setLevel(logging.INFO)
+# # create console handler with a higher log level
+# ch = logging.StreamHandler()
+# ch.setLevel(logging.ERROR)
+# # create formatter and add it to the handlers
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# ch.setFormatter(formatter)
+# # add the handlers to the logger
+# logger.addHandler(ch)
+logger = create_logger('query_danco', 'sh')
 
 
 ## Credentials for logging into danco
@@ -137,7 +138,6 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
             
             # If table, do not select geometry
             if table == True:
-#                sql = "SELECT * FROM {}".format(layer) # can delete, saved during 'column' debugging
                 sql = "SELECT {} FROM {}".format(cols_str, layer)
             else:
                 sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)

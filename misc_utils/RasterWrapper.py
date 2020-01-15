@@ -113,7 +113,11 @@ class Raster():
         as new raster.
         '''
         # Get dimensions of input array
-        rows, cols, depth = array.shape
+        try:
+            rows, cols, depth = array.shape
+        except ValueError as e:
+            rows, cols = array.shape
+            depth = 1
         
         # Create output file
         fmt = 'GTiff'
@@ -124,8 +128,9 @@ class Raster():
 
         # Loop through each layer of array and right as band
         for i in range(depth):        
-            dst_ds.GetRasterBand(i).WriteArray(array)
-            dst_ds.GetRasterBand(i).SetNoDataValue(self.nodata_val)
+            band = i+1
+            dst_ds.GetRasterBand(band).WriteArray(array)
+            dst_ds.GetRasterBand(band).SetNoDataValue(self.nodata_val)
         
         dst_ds = None
         
