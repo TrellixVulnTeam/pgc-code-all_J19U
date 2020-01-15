@@ -92,7 +92,7 @@ if __name__ == '__main__':
      parser = argparse.ArgumentParser()
 
      parser.add_argument('shape_path', type=str, help='Shape to clip rasters to.')
-     parser.add_argument('rasters', nargs='*', help='Rasters to clip.')
+     parser.add_argument('rasters', nargs='*', help='Rasters to clip. Either paths directly to, or directory.')
      parser.add_argument('out_dir', type=os.path.abspath, help='Directory to write clipped rasters to.')
      parser.add_argument('--out_suffix', type=str, default='clip', help='Suffix to add to clipped rasters.')
      parser.add_argument('--raster_ext', type=str, default='.tif', help='Ext of input rasters.')

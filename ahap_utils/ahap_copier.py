@@ -14,10 +14,12 @@ import shutil
 import sys
 
 import geopandas as gpd
-from tqdm import tqdm
-import enlighten
+# from tqdm import tqdm
+# import enlighten
 
 from query_danco import query_footprint
+from id_parse_utils import read_ids
+from logging_utils import create_logger
 
 
 ### Inputs
@@ -29,32 +31,15 @@ from query_danco import query_footprint
 
 def main(selection, destination, source_loc, high_res, med_res,
          list_drives, list_missing_paths, write_copied, 
-         exclude_list, dryrun, verbose):
+         write_footprint, exclude_list, dryrun, verbose):
+    
     #### Logging setup
-    log = 'ahap_copier.log'
-    logging.basicConfig(level=logging.DEBUG,
-                        filemode='w', 
-                        filename=log,)
-    # create logger
-    logger = logging.getLogger('ahap_copier')
-#    logger.setLevel(logging.DEBUG)
-    # create file handler
-    fh = logging.FileHandler(log)
-    fh.setLevel(logging.DEBUG)
-    # create console handler with a higher log level
-    ch = logging.StreamHandler()
-    if verbose is True:
-        ch.setLevel(logging.DEBUG)
+    if verbose == False:
+        log_level = 'INFO'
     else:
-        ch.setLevel(logging.INFO)
-    # create formatter and add it to the handlers
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-    # add the handlers to the logger
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-    logger.debug('Log file created at: {}'.format(log))
+        log_level = 'DEBUG'
+    logger = create_logger('ahap_copier.py', 'sh',
+                           handler_level=log_level)
     
     
     ## Params
@@ -63,25 +48,31 @@ def main(selection, destination, source_loc, high_res, med_res,
     FLIGHTLINES = 'Flightlines'
     CAMPAIGN = 'AHAP'
     JOIN_SEL = 'PHOTO_ID'
-    JOIN_FP = 'UNIQUE_ID'
+    JOIN_FP = 'unique_id'
     FP = 'usgs_index_aerial_image_archive'
     DB = 'imagery'
     FILEPATH = 'filepath'
     FILENAME = 'filename'
     SRC_DRIVE = 'src_drive'
-    SERIES_FIELD = 'SERIES'
+    SERIES_FIELD = 'series'
     SERIES_BOTH = 'both'
     SERIES_HIGH = 'high_res'
     SERIES_MED = 'medium_res'
+    # Path to footprints -- used for writing footprint only
+    FOOTPRINT_LOC = r'E:\disbr007\general\aerial\AHAP\AHAP_Photo_Extents\AHAP_Photo_Extents.shp'
     
     
     DRIVE_PATH = 'drive_path'
     MNT_PATH = 'mounted_path'
-    NOT_MOUNTED = 'NOT_MOUNTED'
+
     RELATIVE_PATH = 'relative_path'
     SERVER_PATH = 'server_path'
     FROM_DRIVE = 'drives'
     FROM_SERVER = 'server'
+    if source_loc == FROM_DRIVE:
+        NOT_MOUNTED = 'NOT_MOUNTED'
+    elif source_loc == FROM_SERVER:
+        NOT_MOUNTED = 'NOT_ON_SERVER'
     DST_PATH = 'dst'
     DST_EXISTS = 'dst_exists'
     SRC_PATH = 'src'
@@ -140,7 +131,7 @@ def main(selection, destination, source_loc, high_res, med_res,
         if os.path.exists(row[SERVER_PATH]):
             filepath = row[SERVER_PATH]
         else:
-            filepath = 'NOT_MOUNTED'
+            filepath = NOT_MOUNTED
         
         return filepath
     
@@ -150,15 +141,19 @@ def main(selection, destination, source_loc, high_res, med_res,
         Loads the selection and returns a list of ids and count.
         """
         ## Load selection footprint
-        selection = gpd.read_file(input_path)
-        selection_count = len(selection)
-        if exclude_list:
-            with open(exclude_list, 'r') as el:
-                exclude_ids = el.readlines()
-                exclude_ids = [ei.strip('\n') for ei in exclude_ids]
-                logger.debug('Excluding IDs:\n{}'.format('\n'.join(exclude_ids)))
-            selection = selection[~selection[JOIN_SEL].isin(exclude_ids)]
-        selection_unique_ids = list(selection[JOIN_SEL].unique())
+        if input_path.endswith('shp'):
+            selection = gpd.read_file(input_path)
+            # selection_count = len(selection)
+            if exclude_list:
+                with open(exclude_list, 'r') as el:
+                    exclude_ids = el.readlines()
+                    exclude_ids = [ei.strip('\n') for ei in exclude_ids]
+                    logger.debug('Excluding IDs:\n{}'.format('\n'.join(exclude_ids)))
+                selection = selection[~selection[JOIN_SEL].isin(exclude_ids)]
+            selection_unique_ids = list(selection[JOIN_SEL].unique())
+        elif input_path.endswith('txt'):
+            selection_unique_ids = read_ids(input_path)
+        selection_count = len(selection_unique_ids)
         selection_unique_ids_str = str(selection_unique_ids).replace('[', '').replace(']', '')
     
         return selection_unique_ids_str, selection_count
@@ -169,12 +164,23 @@ def main(selection, destination, source_loc, high_res, med_res,
                    SERIES, SERIES_BOTH, SERIES_FIELD):
         ## Load aerial source table
         # Build where clause, including selecting only ids in selection
-        where = "(sde.{}.{} IN ({}))".format(FP, JOIN_FP, selection_unique_ids_str)
+        # where = "(sde.{}.{} IN ({}))".format(FP, JOIN_FP, selection_unique_ids_str)
+        where = "({}.{} IN ({}))".format(FP, JOIN_FP, selection_unique_ids_str)
         # Add series if only medium or high is desired, else add nothing and load both
         if SERIES != SERIES_BOTH:
-            where += " AND (sde.{}.{} = '{}')".format(FP, SERIES_FIELD, SERIES)
+            # where += " AND (sde.{}.{} = '{}')".format(FP, SERIES_FIELD, SERIES)
+            where += " AND ({}.{} = '{}')".format(FP, SERIES_FIELD, SERIES)
         aia = query_footprint(FP, db=DB, table=True, where=where)
-        
+        aia_ct = len(aia)
+        # Remove duplicates - there are identical records, but on different src_drives
+        # Mainly seen on src_drives: USGS_s31 and USDS_s71
+        # If this actually removes anything, a debug message will be logged.
+        # TODO: Add option to keep all locations, only useful for copying from drives
+        #       as there should be one of each file on the server
+        aia = aia.drop_duplicates(subset=JOIN_FP)
+        aia_dd = len(aia)
+        if aia_dd != aia_ct:
+            logger.debug('Duplicates dropped, identical records on multiples drives.')
         return aia
     
     
@@ -187,7 +193,7 @@ def main(selection, destination, source_loc, high_res, med_res,
     #    selection_type = FLIGHTLINES
     
     ## Check arguments
-    if not source_loc == FROM_DRIVE or source_loc == FROM_SERVER:
+    if source_loc != FROM_DRIVE and source_loc != FROM_SERVER:
         logger.error('''Invalid "source_loc" argument. 
                             Must be one of {} or {}'''.format(FROM_DRIVE, FROM_SERVER))
         raise ValueError()
@@ -254,7 +260,7 @@ def main(selection, destination, source_loc, high_res, med_res,
         ahap_drives = set(list(aia[SRC_DRIVE]))
         logger.debug('Drives containing AHAP imagery:\n{}'.format('\n'.join(ahap_drives)))
     elif source_loc == FROM_SERVER:
-        aia[MNT_PATH] = aia.apply(lambda x: find_server_location(x, SERVER_PATH), axis=1)
+        aia[MNT_PATH] = aia.apply(lambda x: find_server_location(x), axis=1)
         SRC_PATH = SERVER_PATH
     
     
@@ -262,7 +268,7 @@ def main(selection, destination, source_loc, high_res, med_res,
     #### only files that have a valid source drive mounted 
     #### (n/a for FROM_SERVER -- all should be 'mounted', but this will skip missing)
     aia_mounted = copy.deepcopy(aia[aia[MNT_PATH]!=NOT_MOUNTED])
-    aia_mounted = aia_mounted[aia_mounted[DST_EXISTS] == True]
+    # aia_mounted = aia_mounted[aia_mounted[DST_EXISTS] == True]
     
     high_status = 'Located {}/{} {} from selection on {}...'.format(len(aia_mounted[aia_mounted[SERIES_FIELD.lower()]==SERIES_HIGH]),
                                                                    selection_count,
@@ -307,8 +313,9 @@ def main(selection, destination, source_loc, high_res, med_res,
     
     ## Copy loop
     # progress bar setup
-    manager = enlighten.get_manager()
-    pbar = manager.counter(total=len(aia_mounted[SRC_PATH]), desc='Copying:', unit='files')
+    # manager = enlighten.get_manager()
+    # pbar = manager.counter(total=len(aia_mounted[SRC_PATH]), desc='Copying:', unit='files')
+    logger.info('Copying files from {} to {}...'.format(source_loc, destination))
     for src, dst in zip(aia_mounted[SRC_PATH], aia_mounted[DST_PATH]):
         # Make directory tree if necessary
         dst_dir = os.path.dirname(dst)
@@ -316,7 +323,7 @@ def main(selection, destination, source_loc, high_res, med_res,
             logger.debug('Making directories: \n{}'.format(dst_dir))
             os.makedirs(dst_dir)
         if not os.path.exists(dst):
-            logger.info('Copying \n{} -> \n{}\n'.format(src, dst))
+            logger.debug('Copying \n{} -> \n{}\n'.format(src, dst))
             if not dryrun:
                 shutil.copyfile(src, dst)
                 if write_copied:
@@ -324,15 +331,43 @@ def main(selection, destination, source_loc, high_res, med_res,
                     wc.write('\n')
         else:
             logger.debug('Destination file already exists, skipping: \n{}\n{}'.format(src, dst))
-        pbar.update()
+        # pbar.update()
     if write_copied:
         wc.close()
-        
+
+    if write_footprint:
+        logger.info('Writing footprints...')
+        aia_footprints = gpd.read_file(FOOTPRINT_LOC)
+        aia_mounted = aia_mounted[['unique_id', 'campaign', 'series', 'filename',
+                                   'flightline', 'file_sz_mb', 'photo_id', 
+                                   'relative_path', ]]
+        aia_footprints = aia_footprints.merge(aia_mounted, left_on='PHOTO_ID',
+                                              right_on='unique_id', how='inner')
+        aia_footprints.to_file(write_footprint)
+    
     logger.debug('Done')
     
-    aia.to_excel(r'C:\temp\aia.xlsx')
-    aia_mounted.to_excel(r'C:\temp\aia_mnt.xlsx')
+    # aia.to_excel(r'C:\temp\aia.xlsx')
+    # aia_mounted.to_excel(r'C:\temp\aia_mnt.xlsx')
 
+
+# selection = r'E:\disbr007\UserServicesRequests\Projects\jclark\4056\AHAP_PHOTO_IDs.txt'
+# d = r'E:\disbr007\UserServicesRequests\Projects\jclark\4056\AHAP_imagery\high_res'
+# s = 'server'
+# hr = True
+# dryrun = True
+
+# test = main(selection=selection,
+#             destination=d,
+#             source_loc=s,
+#             high_res=hr,
+#             dryrun=dryrun,
+#             med_res=False,
+#             list_drives=False,
+#             list_missing_paths=False,
+#             write_copied=None,
+#             exclude_list=None,
+#             verbose=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -357,6 +392,8 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--write_copied', type=str,
                         help='''Text file path to write file names as they are copied.
                                 If file already exists, file names will be appended.''')
+    parser.add_argument('-wf', '--write_footprint', type=os.path.abspath,
+                        help='Write footprints of selected imagery.')
     parser.add_argument('-e', '--exclude_list', type=str,
                         help='''List of already copied files to exclude. This is can be
                                 the "write_copied" list from above.''')
@@ -374,18 +411,20 @@ if __name__ == '__main__':
     list_drives = args.list_drives
     list_missing_paths = args.list_missing_paths
     write_copied = args.write_copied
+    write_footprint = args.write_footprint
     exclude_list = args.exclude_list
     dryrun = args.dryrun
     verbose = args.verbose
     
-    test = main(selection=selection,
-                destination=destination,
-                source_loc=source_loc,
-                high_res=high_res,
-                med_res=med_res,
-                list_drives=list_drives,
-                list_missing_paths=list_missing_paths,
-                write_copied=write_copied,
-                exclude_list=exclude_list,
-                dryrun=dryrun,
-                verbose=verbose)    
+    main(selection=selection,
+         destination=destination,
+         source_loc=source_loc,
+         high_res=high_res,
+         med_res=med_res,
+         list_drives=list_drives,
+         list_missing_paths=list_missing_paths,
+         write_copied=write_copied,
+         write_footprint=write_footprint,
+         exclude_list=exclude_list,
+         dryrun=dryrun,
+         verbose=verbose)    

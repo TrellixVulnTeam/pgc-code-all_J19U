@@ -59,6 +59,7 @@ def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
     
     # List imagery subdirectories
     subdirs = os.listdir(raster_parent_dir)
+    subdirs = [sd for sd in subdirs if os.path.isdir(os.path.join(raster_parent_dir, sd))]
     
     
     # Loop over imagery subdirectories and clip to appropriate AOI
@@ -67,8 +68,9 @@ def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
         clipped = {}
     else:
         clipped = None
-    pbar = tqdm(subdirs)
-    for sd in pbar:
+    # pbar = tqdm(subdirs)
+    # for sd in pbar:
+    for sd in subdirs:
         logger.info('Working on subdirectory: {}'.format(sd))
         # Select only aoi matching the current subdirectory and write (deleted later)
         aoi = aoi_master[aoi_master[subfolder_field]==int(sd)]
@@ -95,9 +97,10 @@ def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
         logger.debug('Using {} as clip boundary...'.format(os.path.basename(aoi_outpath)))
         
         # Perform clipping for current subdirectory
-        pbar.set_description('Clipping {} rasters to {}'.format(len(rasters), os.path.basename(aoi_outpath)))
+        # pbar.set_description('Clipping {} rasters to {}'.format(len(rasters), os.path.basename(aoi_outpath)))
         if not dryrun:
-            clipped_subdir_rasters = warp_rasters(aoi_outpath, rasters=rasters, out_dir=out_subdir)
+            clipped_subdir_rasters = warp_rasters(aoi_outpath, rasters=rasters, out_dir=out_subdir,
+                                                  out_prj_shp=os.path.join(os.path.dirname(aoi_outpath), 'prj.shp'))
         else:
             logger.info('Clipping to aoi: {}'.format(aoi_outpath))
             logger.info('Clipping {} rasters'.format(len(rasters)))
@@ -108,30 +111,41 @@ def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
     return clipped
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    
-    parser.add_argument('raster_directory', type=os.path.abspath,
-                        help='Path to directory holding subdirectories of rasters')
-    parser.add_argument('aoi_path', type=os.path.abspath,
-                        help='Path to AOI file with polygons to clip to.')
-    parser.add_argument('subfolder_field', type=str,
-                        help='''Name of field in AOI file that corresponds
-                                to subdirectory names.''')
-    parser.add_argument('--clipped_dir', type=os.path.abspath,
-                        help='''Path to directory to create clipped rasters in 
-                                subdirectories''')
-    parser.add_argument('--dryrun', action='store_true',
-                        help='Prints actions only.')
-    parser.add_argument('--debug', action='store_true',
-                        help='Set logging level to DEBUG')
+aoi = r'V:\pgc\data\scratch\jeff\deliverables\4056_jclark\BITE_buffers.shp'
+r_dir = r'V:\pgc\data\scratch\jeff\deliverables\4056_jclark\ortho_selected'
+sf = 'subfolder'
+cd = r'V:\pgc\data\scratch\jeff\deliverables\4056_jclark\ortho_clipped'
 
-    args = parser.parse_args()
+
+multi_clip2shp(aoi_master=aoi, raster_parent_dir=r_dir, subfolder_field=sf,
+                clipped_dir=cd)
+
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
     
-    if args.debug is True:
-        logger.setLevel('DEBUG')
+#     parser.add_argument('raster_directory', type=os.path.abspath,
+#                         help='Path to directory holding subdirectories of rasters')
+#     parser.add_argument('aoi_path', type=os.path.abspath,
+#                         help='Path to AOI file with polygons to clip to.')
+#     parser.add_argument('subfolder_field', type=str,
+#                         help='''Name of field in AOI file that corresponds
+#                                 to subdirectory names.''')
+#     parser.add_argument('--clipped_dir', type=os.path.abspath,
+#                         help='''Path to directory to create clipped rasters in 
+#                                 subdirectories''')
+#     parser.add_argument('--dryrun', action='store_true',
+#                         help='Prints actions only.')
+#     parser.add_argument('--debug', action='store_true',
+#                         help='Set logging level to DEBUG')
+
+#     args = parser.parse_args()
     
-    multi_clip2shp(args.aoi_path, args.raster_directory, args.subfolder_field,
-                   clipped_dir=args.clipped_dir,
-                   dryrun=args.dryrun)
+#     if args.debug is True:
+#         logger.setLevel('DEBUG')
+    
+#     logger.info('Raster directory: {}'.format(args.raster_directory))
+    
+#     multi_clip2shp(args.aoi_path, args.raster_directory, args.subfolder_field,
+#                    clipped_dir=args.clipped_dir,
+#                    dryrun=args.dryrun)
     

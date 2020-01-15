@@ -7,6 +7,7 @@ Created on Mon Feb  4 12:54:01 2019
 import logging
 import re
 import os
+import sys
 
 import tqdm
 import geopandas as gpd
@@ -448,6 +449,22 @@ def parse_filename(filename, att, fullpath=False):
     try:
         # Parse filename
         scene_id = filename.split('.')[0]
+        # Remove filename suffixes, breaking at '_' until 'P0 is found
+        sid_found = False
+        while sid_found == False:
+            if scene_id.split('_')[-1].startswith('P0'):
+                scene_id = '_'.join(scene_id.split('_'))
+                sid_found = True
+            else:
+                if len(scene_id.split('_')) == 2:
+                    logger.error("""Error parsing filename: {}
+                                    Could not find {}""".format(filename, att))
+                    sys.exit()
+                scene_id = '_'.join(scene_id.split('_')[:-1])
+                
+        # if scene_id.split('_')[-1].startswith('u'):
+            # logger.debug("Ortho'd filename provided.")
+            # scene_id = '_'.join(scene_id.split('_')[:-1])
         first, prod_code, _third = scene_id.split('-')
         platform, _date, catalogid, _date_words = first.split('_')
         date = '{}-{}-{}'.format(_date[:4], _date[4:6], _date[6:8])

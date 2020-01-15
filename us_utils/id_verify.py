@@ -42,7 +42,7 @@ def imagery_directory_IDs(img_dir, id_of_int):
     return dir_ids
 
 
-def get_ids(source, id_of_int, field=None):
+def get_ids(source, id_of_int, field=None, source_write=None):
     """
     Takes a 'source' that is either a directory or file and returns the IDs from that source.
     
@@ -72,12 +72,16 @@ def get_ids(source, id_of_int, field=None):
     else:
         logger.warning('Unknown source type for: {}'.format(source))
         source_ids = None
+    if source_write is not None:
+        logger.info('Writing IDs to: {}'.format(source_write))
+        write_ids(source_ids, source_write)
     
     return source_ids
 
 
 def id_verify(source, id_of_int, compare2=None, 
               source_field=None, compare2_field=None,
+              source_write=None, compare2_write=None,
               write_path=None, write=False):
     """
     Takes a source file or directory of IDs and compares them to either
@@ -95,12 +99,12 @@ def id_verify(source, id_of_int, compare2=None,
     """
     logger.info(id_of_int)
     # LOAD SOURCE IDS
-    source_ids = get_ids(source, id_of_int, field=source_field)
+    source_ids = get_ids(source, id_of_int, field=source_field, source_write=source_write)
     logger.info("{}'s found in source: {}".format(id_of_int, len(source_ids)))
     
 
     # LOAD compare2 ids
-    compare2_ids = get_ids(source, id_of_int, field=compare2_field)
+    compare2_ids = get_ids(source, id_of_int, field=compare2_field, compare2_write=compare2_write)
     logger.info("{}'s found in directory: {}".format(id_of_int, len(compare2_ids)))
     
     
@@ -136,10 +140,14 @@ if __name__ == '__main__':
                         help='Field in source to pull IDs from, if source is file (.shp, .dbf, etc.')
     parser.add_argument('--compare2_field', type=str,
                         help='Field in compare2 to pull IDS from, if compare2 is file (.shp, .dbf, etc.')
+    parser.add_argument('--source_write', type=os.path.abspath,
+                        help='Path to write source IDs to.')
+    parser.add_argument('--compare2_write', type=os.path.abspath,
+                        help='Path to write compare2 IDs to.')
     parser.add_argument('--write_path', type=str,
                         help="""Path to write missing IDs to. Optional, will
                                 just print to console if flag not provided.""")
-    
+
     # Parse args
     args = parser.parse_args()
     
@@ -148,6 +156,8 @@ if __name__ == '__main__':
     compare2 = args.compare2
     source_field = args.source_field
     compare2_field = args.source_field
+    source_write = args.source_write
+    compare2_write=args.compare2_write
     write_path = args.write_path
     
     
@@ -158,7 +168,7 @@ if __name__ == '__main__':
     
     
     if compare2 is None:
-        source_ids = get_ids(source, id_of_int, field=source_field)
+        source_ids = get_ids(source, id_of_int, field=source_field, source_write=source_write)
         logger.info('Source IDs found: {}'.format(len(source_ids)))
     
     else:
@@ -167,5 +177,7 @@ if __name__ == '__main__':
                   id_of_int=id_of_int,
                   source_field=source_field,
                   compare2_field=compare2_field,
+                  source_write=source_write,
+                  compare2_write=compare2_write,
                   write_path=write_path,
                   write=write)
