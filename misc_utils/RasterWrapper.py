@@ -8,7 +8,9 @@ Created on Fri Jul 19 10:20:36 2019
 
 from osgeo import gdal, osr, ogr
 import numpy as np
-import logging
+from logging_utils import create_logger
+
+logger = create_logger('RasterWrapper.py', 'sh')
 
 
 class Raster():
@@ -28,6 +30,13 @@ class Raster():
         
         self.prj = osr.SpatialReference()
         self.prj.ImportFromWkt(self.data_src.GetProjectionRef())
+        # try:
+        #     self.epsg = self.prj.GetAttrValue("PROJCS|GEOGCS|AUTHORITY", 1)
+        # except KeyError as e:
+        #     logger.error(""""Trying to get EPSG of unprojected Raster,
+        #                      not currently supported.""")
+        #     raise e
+        self.prj.wkt = self.prj.ExportToWkt()
         
         self.x_sz = self.data_src.RasterXSize
         self.y_sz = self.data_src.RasterYSize
@@ -44,6 +53,8 @@ class Raster():
         ## Get the raster as an array
         ## Defaults to band 1 -- use ReadArray() to return stack of multiple bands
         self.Array = self.data_src.ReadAsArray()
+        self.Mask = self.Array == self.nodata_val
+        
         
     def ArrayWindow(self, projWin):
         """
@@ -148,8 +159,8 @@ class Raster():
         try:    
             point_value = self.Array[py, px]
         except IndexError as e:
-            logging.error('Point not within raster bounds.')
-            logging.error(e)
+            logger.warning('Point not within raster bounds.')
+            logger.warning(e)
             point_value = None
         return point_value
     
@@ -233,8 +244,8 @@ class Raster():
             
             
         except IndexError as e:
-            logging.error('Window bounds not within raster bounds.')
-            logging.error(e)
+            logger.error('Window bounds not within raster bounds.')
+            logger.error(e)
             window_agg = None
             
         return window_agg

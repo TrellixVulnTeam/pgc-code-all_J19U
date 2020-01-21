@@ -11,18 +11,22 @@ import posixpath
 from osgeo import gdal, ogr, osr
 
 from get_creds import get_creds
+from logging_utils import create_logger
 
 
-logger = logging.getLogger('gdal_tools')
-logger.setLevel(logging.DEBUG)
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(ch)
+# logger = logging.getLogger('gdal_tools')
+# logger.setLevel(logging.DEBUG)
+# # create console handler with a higher log level
+# ch = logging.StreamHandler()
+# ch.setLevel(logging.INFO)
+# # create formatter and add it to the handlers
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# ch.setFormatter(formatter)
+# # add the handlers to the logger
+# logger.addHandler(ch)
+
+logger = create_logger(os.path.basename(__file__), 'sh',
+                       handler_level='INFO')
 
 
 ogr.UseExceptions()
@@ -54,7 +58,7 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
     
     # Get the source spatial reference
     inSpatialRef = inLayer.GetSpatialRef()
-
+    logger.debug('Input spatial reference: {}'.format(inSpatialRef.ExportToWkt()))
     # create the CoordinateTransformation
     coordTrans = osr.CoordinateTransformation(inSpatialRef, to_sr)
 
@@ -73,12 +77,10 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
     # Check if output exists
     if os.path.exists(output_shp):
         remove_shp(output_shp)
-        # driver.DeleteDataSource(output_shp)
     if in_mem is True:
         outDataSet = driver.CreateDataSource(os.path.basename(output_shp).split('.')[0])
     else:
         outDataSet = driver.CreateDataSource(os.path.dirname(output_shp))
-        # outDataSet = driver.CreateDataSource(output_shp)
     # TODO: Support non-polygon input types
     # TODO: Fix this -- creating names like test.shp.shp
     output_shp_name = os.path.basename(output_shp).split('.')[0]
@@ -123,6 +125,7 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
         file.write(to_sr.ExportToWkt())
         file.close()
 
+    # logger.debug('Output spatial reference: {}'.format(outLayer.GetSpatialRef().ExportToWkt()))
     # Save and close the shapefiles
     inLayer = None
     inDataSet = None
@@ -171,7 +174,7 @@ def check_sr(shp_p, raster_p):
     shp_sr = get_shp_sr(shp_p)
     raster_sr = get_raster_sr(raster_p)
     
-    if shp_sr != raster_sr:
+    if not shp_sr.IsSame(raster_sr):
         sr_match = False
         logger.debug('''Spatial references do not match...''') 
         logger.debug('Shape SR: \n{} \nRaster SR:\n{}'.format(shp_sr, raster_sr))

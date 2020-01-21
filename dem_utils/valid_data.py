@@ -41,7 +41,7 @@ def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
     elif os.path.exists(gdal_ds):
         gdal_ds = gdal.Open(gdal_ds)
     else:
-        logger.warning('{} is neither path to gdal datasource or open datasource')
+        logger.warning('{} is neither path to GDAL datasource or open datasource')
     # Get raster band
     rb = gdal_ds.GetRasterBand(band_number)
     no_data_val = rb.GetNoDataValue()
@@ -145,8 +145,8 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
 
 def valid_data_aoi(aoi, raster):
     """
-    Compute percentage of valid pixels given an AOI. The raster must be clipped to the AOI to 
-    return valid results.
+    Compute percentage of valid pixels given an AOI. The raster must already 
+    be clipped to the AOI to return valid results.
     """
     logger.debug('Finding percent of {} valid pixels in {}'.format(raster, aoi))
     aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=True, out_path=r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.tif')
@@ -168,6 +168,7 @@ def valid_data_aoi(aoi, raster):
 def valid_percent_clip(aoi, raster, out_dir=None):
     """
     Clip a raster in memory to the aoi, and get the percent of non-NoData pixels in the AOI.
+    Useful with pandas.apply function applied to a row with a raster filename.
 
     Parameters
     ----------
@@ -177,6 +178,10 @@ def valid_percent_clip(aoi, raster, out_dir=None):
         Path to raster to check number of valid pixels.
     out_dir : os.path.abspath
         Path to place clipped DEMs if in-memory is not desired.
+    threshold: INT
+        Threshold above which to write out clipped raster.
+    thresh_dir: STR
+        Directory to write clipped rasters to. Will be written with original filename.
 
     Returns
     -------

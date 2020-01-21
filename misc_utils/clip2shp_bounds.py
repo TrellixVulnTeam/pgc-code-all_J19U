@@ -9,7 +9,7 @@ Clip raster to shapefile extent. Must be in the same projection.
 from osgeo import ogr, gdal
 import os, logging, argparse
 
-from gdal_tools import check_sr, ogr_reproject, get_raster_sr
+from gdal_tools import check_sr, ogr_reproject, get_raster_sr, remove_shp
 from logging_utils import create_logger
 
 
@@ -33,6 +33,8 @@ def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
     """
     # TODO: Fix permission error if out_prj_shp not supplied -- create in-mem OGR?
     # Use in memory directory if specified
+    if out_dir is None:
+        in_mem = True
     if in_mem == True:
         out_dir = r'/vsimem'
     
@@ -51,7 +53,8 @@ def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
         logger.debug('Spatial references do not match.')
         if not out_prj_shp:
             out_prj_shp = shp_p.replace('.shp', '_prj.shp')
-        shp_p = ogr_reproject(shp_p, to_sr=get_raster_sr(check_raster),
+        shp_p = ogr_reproject(shp_p, 
+                              to_sr=get_raster_sr(check_raster),
                               output_shp=out_prj_shp)
 
     # Do the 'warping' / clipping
@@ -72,20 +75,18 @@ def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
         raster_ds = gdal.Open(raster_p)
         warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True)
         gdal.Warp(raster_op, raster_ds, options=warp_options)
+        # Close the raster
         raster_ds = None
         logger.debug('Clipped raster created at {}'.format(raster_op))
         # Add clipped raster path to list of clipped rasters to return
         warped.append(raster_op)
-        
+    
+    # Remove projected shp
+    if in_mem is True:
+        remove_shp(out_prj_shp)
+    
     return warped
 
-## Testing
-# prj = r'E:\disbr007\umn\ms'
-# shp = r'E:\disbr007\umn\ms\shapefile\aois\aoi2.shp'
-# out_prj_shp = os.path.join(prj, 'shapefile', 'aois', 'aoi2_prj.shp')
-# rasters = [r'E:\disbr007\umn\ms\dems\WV01_20120613_102001001C9BF300_102001001BBA7300_seg1_2m_dem.tif']
-# clipped = warp_rasters(shp, rasters, in_mem=True, out_prj_shp=out_prj_shp)
-# arr = gdal.Open(clipped[0]).ReadAsArray()
 
 if __name__ == '__main__':
 
