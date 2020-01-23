@@ -25,17 +25,19 @@ from logging_utils import create_logger
 
 # INPUTS
 AOI_PATH = r'E:\disbr007\umn\ms\shapefile\aois\banks_aois.shp' 
-# AOI_SELECT = [('Name', 'test', 'str'), ('ID', '3', 'int')] # subset selection for AOI
-AOI_SELECT = [('Name', 'test', 'str')]
+AOI_SELECT = [('Name', 'test', 'str'), ('ID', '7', 'int')] # subset selection for AOI
+# AOI_SELECT = [('Name', 'test', 'str')]
 # AOI_SELECT = None
 AOI_UNIQUE = 'OBJ_ID' # field in aoi shapefile with unique identifiers
+MONTHS = [5, 6, 7, 8, 9, 10]
 MULTISPEC = True
-VALID_THRESH = 65 # threshold of valid data % over AOI to copy
+VALID_THRESH = 50 # threshold of valid data % over AOI to copy
 PRJ_DIR = r'E:\disbr007\umn\ms' # project directory
 OUT_DEM_DIR = None
 OUT_ID_LIST = None
 SCRATCH_DIR = None
 SUMMARY_OUT = None
+SHAPEFILE_DIR = None
 
 
 # Create out directories and paths
@@ -45,6 +47,8 @@ if not OUT_ID_LIST:
     OUT_ID_LIST = os.path.join(PRJ_DIR, 'dem_ids.txt') # directory to write list of catalogids to
 if not SCRATCH_DIR:
     SCRATCH_DIR = os.path.join(PRJ_DIR, 'scratch') # for writing reprojected DEMs
+if not SHAPEFILE_DIR:
+    SHAPEFILE_DIR = os.path.join(PRJ_DIR, 'shapefile')
 if not SUMMARY_OUT:
     SUMMARY_OUT = os.path.join(PRJ_DIR, 'summary_thresh{}.xlsx'.format(VALID_THRESH)) # for writing summary statistics
 
@@ -60,11 +64,13 @@ VALID_PERC = 'valid_percent' # created field in footprint to store valid %
 DEM_SUB = 'dems' # DEM subdirectory, if not provided
 DEMS_FP = 'pgc_dem_setsm_strips' # Danco DEM footprint tablename
 CATALOGID = 'catalogid1' # field name in danco DEM footprint for catalogids
+CLIP_SUBDIR = 'clip' # name of subdirectory in 'dems' to place clipped dems
+DATE_COL = 'acqdate1' # name of date field in dems footprint
+MONTH_COL = 'month' # name of field to create in dems footprint if months are requested 
 
 
 # Create logger
-logger = create_logger(os.path.basename(__file__), 'sh',
-                       handler_level='DEBUG')
+logger = create_logger(os.path.basename(__file__), 'sh', handler_level='DEBUG')
 
 
 def check_where(where):
@@ -110,6 +116,14 @@ if MULTISPEC:
     dems_where += """sensor1 IN ('WV02', 'WV03')"""
 # Actually load
 dems = query_footprint(DEMS_FP, where=dems_where)
+# If only certain months requested, reduce to those
+if MONTHS:
+    dems['temp_date'] = pd.to_datetime(dems[DATE_COL])
+    dems[MONTH_COL] = dems['temp_date'].dt.month
+    dems.drop(columns=['temp_date'], inplace=True)
+    dems = dems[dems[MONTH_COL].isin(MONTHS)]
+
+
 # Select by location
 dems = gpd.overlay(dems, aoi, how='intersection')
 # Remove duplicates resulting from intersection (not sure why DUPs)
@@ -123,6 +137,7 @@ if OS == WINDOWS_OS:
 elif OS == LINUX_OS:
     server_loc = LINUX_LOC    
     
+
 dems[FULLPATH] = dems.apply(lambda x: os.path.join(x[server_loc], x[DEM_FNAME]), axis=1)
 # dems[FULLPATH] = dems['full_path'].apply(lambda x: x.replace('/', os.sep))
 # Subset to only those DEMs that actually can be found
@@ -141,7 +156,6 @@ dems = dems[dems[FULLPATH].apply(lambda x: os.path.exists(x))==True]
 #     aoi = gpd.read_file(temp_prj_aoi)
 
     
-
 # Iterate over AOIs, selecting only those DEMs that intersect the AOI 
 # and determine valid percent or each DEM
 min_dates = []
@@ -163,8 +177,9 @@ for a in aoi[AOI_UNIQUE].unique():
     logger.info('Computing valid percentages for DEMs in AOI {}...'.format(a))
     # Clip rasters and if valid percent is greater than threshold, write out
     aoi_dems[VALID_PERC] = aoi_dems[FULLPATH].apply(lambda x: valid_percent_clip(aoi=temp_aoi_path,
-                                                                                 raster=x))
-    
+                                                                                  raster=x))
+    # Write out the footprints with valid data percentages
+    aoi_dems.to_file(os.path.join(SHAPEFILE_DIR, '{}_dems_valid.shp'.format(a)))
     # If no DEMs match criteria, exit
     if len(aoi_dems) == 0:
         continue
@@ -173,15 +188,15 @@ for a in aoi[AOI_UNIQUE].unique():
     if VALID_THRESH:
         aoi_dems = aoi_dems[aoi_dems[VALID_PERC] > VALID_THRESH]
         logger.debug('DEMs with valid data above threshold {}%: {}'.format(VALID_THRESH, 
-                                                                           len(aoi_dems)))
+                                                                            len(aoi_dems)))
         aoi_dems_paths = list(aoi_dems[FULLPATH])
-        aoi_dem_dir = os.path.join(OUT_DEM_DIR, str(a))
+        aoi_dem_dir = os.path.join(OUT_DEM_DIR, str(a), CLIP_SUBDIR)
         if not os.path.exists(aoi_dem_dir):
             os.makedirs(aoi_dem_dir)
         # Clip the DEMs to the current AOI
         logger.debug('Clipping to AOI...')
         warp_rasters(temp_aoi_path, aoi_dems_paths, out_dir=aoi_dem_dir,)
-                     # out_prj_shp=os.path.join(SCRATCH_DIR, 'temp.shp'))
+                      # out_prj_shp=os.path.join(SCRATCH_DIR, 'temp.shp'))
         
     # Write shapefile of footprints to file
     aoi_dems.to_file(os.path.join(PRJ_DIR, 'aoi{}_dems.shp'.format(a)))
@@ -192,16 +207,6 @@ for a in aoi[AOI_UNIQUE].unique():
     write_ids(list(aoi_dems[CATALOGID]), os.path.join(PRJ_DIR, '{}_catalogids.txt'.format(a)))
     
     # Create summary statistics for AOI
-    # aoi_summary = pd.DataFrame()
-    # aoi_summary['min_date'] = aoi_dems.acqdate1.min()
-    # aoi_summary['max_date'] = aoi_dems.acqdate1.max()
-    # aoi_summary['dem_count'] = len(aoi_dems)
-    # aoi_master_summary = pd.concat([aoi_master_summary, aoi_summary])
-    
-    # aoi_master_summary.iloc[a, 'min_date'] = aoi_dems.acqdate1.min()
-    # aoi_master_summary.iloc[a, 'max_date'] = aoi_dems.acqdate1.max()
-    # aoi_master_summary.iloc[a, 'dem_count'] = len(aoi_dems)
-    
     min_dates.append(aoi_dems.acqdate1.min())
     max_dates.append(aoi_dems.acqdate1.max())
     dem_counts.append(len(aoi_dems))
@@ -209,11 +214,12 @@ for a in aoi[AOI_UNIQUE].unique():
     # Remove the temp aoi shapefile
     temp_aoi = None
     # remove_shp(temp_aoi_path)
-    
+   
+
 aoi_master_summary = pd.DataFrame({AOI_UNIQUE: list(aoi[AOI_UNIQUE]), 
-                                   'min_date': min_dates,
-                                   'max_date': max_dates,
-                                   'dem_count': dem_counts})
+                                    'min_date': min_dates,
+                                    'max_date': max_dates,
+                                    'dem_count': dem_counts})
 
 # Write summary dataframe out
 aoi_master_summary.to_excel(SUMMARY_OUT)

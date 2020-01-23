@@ -96,7 +96,6 @@ def place_name_AOI(place_name, selector_path):
 #    place_name_formats = ','.join([place_name, place_name.upper(), place_name.lower(), place_name.title()])
 #    where = """Gazatteer Name IN ({})""".format(place_name_formats)
     where = """gaz_name = '{}'""".format(place_name)
-#    logge.info(where)
     place_name_layer_p = danco_connection('acan', 'ant_gnis_pt')
     aoi = arcpy.MakeFeatureLayer_management(place_name_layer_p, out_layer='place_name_lyr',
                                             where_clause=where)
@@ -113,7 +112,6 @@ def create_points(coords, shp_path):
     points = [Point(float(pair.split(',')[0]), float(pair.split(',')[1])) for pair in coords]
     gdf = gpd.GeoDataFrame(geometry=points, crs={'init':'epsg:4326'})
     gdf.to_file(shp_path, driver='ESRI Shapefile')
-
 
 
 def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field):
@@ -136,6 +134,7 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
             except KeyError:
                 ids = read_ids(selector_path, field=''.join(id_field.split('_')).lower())
             logger.info('{} IDs found.'.format(len(ids)))
+            logger.debug('IDs: {}'.format(ids))
             ids_str = str(ids)[1:-1]
             where = """{} IN ({})""".format(id_field, ids_str)
             logger.debug('Where clause for ID selection: {}'.format(where))
@@ -147,15 +146,16 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
         logger.info('Reading in IDs...')
         ids = read_ids(selector_path)
         logger.info('{} IDs found.'.format(len(ids)))
+        logger.debug('IDs: {}'.format(ids))
         ids_str = str(ids)[1:-1]
         where = """{} IN ({})""".format(id_field, ids_str)
         logger.debug('Where clause for ID selection: {}'.format(where))
         logger.info('Making selection...')
         selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
-        if arcpy.GetCount_management(selection).GetOutput(0) == 0:
+        # if arcpy.GetCount_management(selection).GetOutput(0) == 0:
             # try removing underscore and making lowercase
-            logger.debug('No results found, trying alternative format for id_field.')
-            where = """{} IN ({})""".format(''.join(id_field.split('_')).lower(), ids_str)
+            # logger.debug('No results found, trying alternative format for id_field.')
+            # where = """{} IN ({})""".format(''.join(id_field.split('_')).lower(), ids_str)
     result = arcpy.GetCount_management(selection)
     count = int(result.getOutput(0))
     logger.debug('Selected features: {}'.format(count))
@@ -210,6 +210,8 @@ if __name__ == '__main__':
                         help='''If using a .txt file of ids for the selection, specify here the 
                         type of ids in the .txt.: 
                         e.g.: CATALOG_ID, SCENE_ID, etc.''')
+    parser.add_argument('--secondary_selector', type=os.path.abspath,
+                        help='Path to an AOI layer to combine with an initial ID selection.')
     parser.add_argument('--prod_code', type=str, default=argdef_prod_code,
                         help='Prod code to select. E.g. P1BS, M1BS')
     parser.add_argument('--sensors', nargs='+', default=argdef_sensors,
@@ -246,6 +248,7 @@ if __name__ == '__main__':
     out_path = args.out_path
     selector_path = args.selector_path
     id_field = args.id_field
+    secondary_selector = args.secondary_selector
     prod_code = args.prod_code
     sensors = args.sensors
     min_year = args.min_year
@@ -276,6 +279,13 @@ if __name__ == '__main__':
                                   search_distance=search_distance,
                                   id_field=id_field)
 #                                      prod_code=prod_code)
+    if secondary_selector:
+        aoi_lyr = arcpy.MakeFeatureLayer_management(secondary_selector)
+        selection = arcpy.SelectLayerByLocation_management(selection,
+                                                           overlap_type,
+                                                           aoi_lyr,
+                                                           selection_type="SUBSET_SELECTION",
+                                                           search_distance=search_distance)
     
     ## Initialize an empty where clause
     where = ''

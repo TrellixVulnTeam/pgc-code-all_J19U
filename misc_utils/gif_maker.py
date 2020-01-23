@@ -9,7 +9,7 @@ import imageio
 import argparse
 
 
-def make_gif(prj_path, out_name, ext, duration=1.5):
+def make_gif(prj_path, out_name, ext, duration=1.5, loops=None):
     """
     Create a gif from a give path, considering only
     those files that end with ext. Scenes are displayed
@@ -26,7 +26,8 @@ def make_gif(prj_path, out_name, ext, duration=1.5):
     # images.append(imageio.imread(file_path))
     print('Ordered file paths: ')
     print(image_paths)
-    imageio.mimsave(os.path.join(prj_path, '{}.gif'.format(out_name)), images, duration=duration)
+    imageio.mimsave(os.path.join(prj_path, '{}.gif'.format(out_name)), images, 
+                    duration=duration, loop=loops)
 
 
 if __name__ == '__main__':
@@ -35,7 +36,8 @@ if __name__ == '__main__':
     parser.add_argument("out_name", type=str, help='The name of the gif to be created')
     parser.add_argument("image_type", type=str, help="The format of the images to combine. E.g: 'png', 'jpg'.")
     parser.add_argument("--duration", "-d", dest='duration', type=float, required=False, help="Duration to show each scene, in seconds (default=1.5)")
+    parser.add_argument("--loops", '-l', dest='loops', type=int, required=False, help="Number of loops, default infinite.")
     args = parser.parse_args()
     print('Making gif...')
-    make_gif(args.project_path, args.out_name, args.image_type, args.duration)
+    make_gif(args.project_path, args.out_name, args.image_type, args.duration, args.loops)
     print('Complete. gif at: {}'.format(os.path.join(args.project_path, '{}.gif'.format(args.out_name))))

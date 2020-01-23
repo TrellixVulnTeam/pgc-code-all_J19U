@@ -55,7 +55,37 @@ class Raster():
         self.Array = self.data_src.ReadAsArray()
         self.Mask = self.Array == self.nodata_val
         
+    
+    def GetBandAsArray(self, band_num, mask=True):
+        """
+        Parameters
+        ----------
+        band_num : INT
+            The band number to return.
+        mask : BOOLEAN
+            Whether to mask to array that is returned
         
+        Returns
+        -------
+        np.ndarray
+        
+        """
+        band_arr = self.data_src.GetRasterBand(band_num).ReadAsArray()
+        # TODO: add masking support
+        # band_nodata_val = band.GetNoDataValue()
+        # band_mask = band_arr == band_nodataval
+        
+        return band_arr
+    
+
+    def NDVI(self, red_num, nir_num):
+        red = self.GetBandAsArray(red_num)
+        nir = self.GetBandAsArray(nir_num)
+        ndvi = (nir - red) / (nir + red)
+        
+        return ndvi
+    
+    
     def ArrayWindow(self, projWin):
         """
         Takes a projWin in geocoordinates, converts
@@ -78,6 +108,7 @@ class Raster():
         
         return (py, px)
     
+    
     def projWin2pixelWin(self, projWin):
         """
         Convert projWin in geocoordinates to pixel coordinates
@@ -90,6 +121,7 @@ class Raster():
         
         return [pulx, puly, plrx, plry]    
         
+    
     def ReadStackedArray(self, stacked=True):
         '''
         Read raster as array, stacking multiple bands as either stacked array or multiple arrays
@@ -176,7 +208,6 @@ class Raster():
                         included in the window
         max_grow: the maximum area (x * y) the window will grow to          
         '''
-        
         
         
         def window_bounds(window_size, py, px):

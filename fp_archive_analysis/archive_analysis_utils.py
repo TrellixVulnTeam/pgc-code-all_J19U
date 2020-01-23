@@ -4,28 +4,26 @@ Created on Tue May 28 13:05:51 2019
 
 @author: disbr007
 """
-import subprocess, os, logging
+import subprocess, os
+from copy import deepcopy
+import numpy as np
+import multiprocessing
+from datetime import datetime as dt
+#from joblib import Parallel, delayed
+
 from tqdm import tqdm
 import fiona
 from shapely.geometry import Point
 import geopandas as gpd
 import pandas as pd
-import numpy as np
-import multiprocessing
-from datetime import datetime as dt
-#from joblib import Parallel, delayed
-from copy import deepcopy
+
 from query_danco import query_footprint
 from get_bounding_box import get_bounding_box
 from range_creation import range_tuples
+from logging_utils import create_logger
 
-
-## Set up logging
-logger = logging.getLogger()
-
-formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
-logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
-                    level=logging.INFO)
+## Set up logger
+logger = create_logger(__file__, 'sh')
 
 
 def run_subprocess(command):
@@ -61,11 +59,11 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
     x = minx
     y = miny
     points = []
-    logging.info('Creating grid points...')
-    for x_step in tqdm.tqdm(np.arange(minx, maxx+x_space, x_space)):
+    logger.info('Creating grid points...')
+    for x_step in tqdm(np.arange(minx, maxx+x_space, x_space)):
         y = miny
         for y_step in np.arange(miny, maxy+y_space, y_space):
-            print('{:.2f}, {:.2f}'.format(x, y))
+            # print('{:.2f}, {:.2f}'.format(x, y))
             the_point = Point(x,y)
             if the_point.intersects(boundary.geometry[0]):
                 points.append(the_point)
@@ -73,7 +71,7 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
         x += x_space
     
     # Put points into geodataframe with empty 'count' column for storing count of overlapping fps
-    col_names = ['count', 'geometry']
+    col_names = ['geometry']
     points_gdf = gpd.GeoDataFrame(columns=col_names)
     points_gdf.crs = crs
     points_gdf['geometry'] = points
@@ -97,18 +95,19 @@ def get_count(geocells, fps):
     fps: geodataframe of polygons
     '''
     ## Confirm crs is the same
+    logger.info('Counting footprints over each feature...')
     if geocells.crs != fps.crs:
-        logging.info('Converting crs of grid to match footprint...')
+        logger.info('Converting crs of grid to match footprint...')
         geocells = geocells.to_crs(fps.crs)
         
-    logging.info('Performing spatial join...')
+    logger.info('Performing spatial join...')
     ## Get a column from fps to use to test if sjoin found matches
     fp_col = fps.columns[1]
     sj = gpd.sjoin(geocells, fps, how='left', op='intersects')
     sj.index.names = ['count']
     sj.reset_index(inplace=True)
     
-    logging.info('Getting count...')
+    logger.info('Getting count...')
     ## Remove no matches, group the rest, counting the index
     gb = sj[~sj[fp_col].isna()].groupby('count').agg({'count':'count'})
     ## Join geocells to dataframe with counts
@@ -139,10 +138,10 @@ def get_time_range(pts, fps, fps_date_col, keep_datetime=False):
     
     ## Confirm crs is the same
     if pts.crs != fps.crs:
-        logging.info('Converting crs of grid to match footprint...')
+        logger.info('Converting crs of grid to match footprint...')
         fps = fps.to_crs(fps.crs)
         
-    logging.info('Performing spatial join...')
+    logger.info('Performing spatial join...')
     ## Get a column from fps to use to test if sjoin found matches
     fp_col = fps.columns[1]
     sj = gpd.sjoin(pts, fps, how='left', op='intersects')
@@ -226,7 +225,7 @@ def get_count_loop(fxn, gcs, fps,
 
 
 
-#def get_density(footprint, points_gdf, write_path=False):
+# def get_density(footprint, points_gdf, write_path=False):
 #    '''
 #    Gets the overlap count over each point in points geodataframe.
 #    footprint: danco footprint layer name
@@ -235,37 +234,37 @@ def get_count_loop(fxn, gcs, fps,
 #    ## Count number of polygons over each point
 #    # Read in footprint to use
 #    fp = query_footprint(layer=footprint, columns=['catalogid', 'x1', 'y1'])
-#
+
 #    ## Do initial join to get all intersecting
-#    logging.info('Performing initial spatial join with entire AOI...')
+#    logger.info('Performing initial spatial join with entire AOI...')
 #    # Check projections are the same, if not reproject
 #    if fp.crs != points_gdf.crs:
 #        fp = fp.to_crs(points_gdf.crs)
 #    # Perform spatial join
 #    fp_sel = gpd.sjoin(fp, points_gdf, how='inner', op='intersects')
-##    fp_sel = gpd.overlay(fp, points_gdf, how='intersection')
+# #    fp_sel = gpd.overlay(fp, points_gdf, how='intersection')
 #    # Not sure why there are duplicate footprints but there are... 
 #    fp_sel.drop_duplicates(subset=['catalogid'], keep='first', inplace=True)
 #    fp_sel.drop(columns=['index_right'], inplace=True)
-#
+
 #    del fp
-#    
+   
 #    ## For each point in grid count overlaps
 #    # Split grid into individual gdfs
-#    logging.info('Splitting AOI into individual features for parallel processing...')
+#    logger.info('Splitting AOI into individual features for parallel processing...')
 #    try:
-##        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
+# #        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(len(points_gdf)))]
 #        split = [points_gdf.iloc[[i]] for i in tqdm.tqdm(range(10))] ## DEBUGGING ##
-##        num_cores = multiprocessing.cpu_count() - 2
+# #        num_cores = multiprocessing.cpu_count() - 2
 #        num_cores = 1
 #        # Run spatial joins in parallel to get counts
-#        logging.info('Performing spatial join on each feature in AOI...')
+#        logger.info('Performing spatial join on each feature in AOI...')
 #        results = Parallel(n_jobs=num_cores)(delayed(get_count_indexed)(i, fp_sel) for i in tqdm.tqdm(split))
 #        # Combine individual gdfs back into one
 #        density_results = pd.concat(results)
 #    except Exception as e:
 #        print(e)
-#    
+   
 #    ## Write grid out
 #    if write_path:
 #        driver = 'ESRI Shapefile'

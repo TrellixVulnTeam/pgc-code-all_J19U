@@ -116,7 +116,7 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
                 logger.error('Unable to read IDs, no known ID fields found.')
             else:
                 field = field[0]
-            ids = [df[field].unique()]
+            ids = df[field].unique()
 
     # PKL
     elif file_type == 'pkl':

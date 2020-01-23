@@ -196,17 +196,3 @@ def valid_percent_clip(aoi, raster, out_dir=None):
     valid_perc = round(valid_perc, 2)
     
     return valid_perc
-
-    
-# tr = r'E:\disbr007\UserServicesRequests\Projects\kbollen\dems\WV02_20130423_103001002272C900_1030010021137100_seg1_2m_dem_clip1.tif'
-# aoi = r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.shp'
-# aoi_gdal_ds = rasterize_shp2raster_extent(aoi, tr, write_rasterized=True, out_path=r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.tif')
-# aoi_valid_pixels, aoi_total_pixels = valid_data(aoi_gdal_ds)
-# # Pixels outside bounding box of AOI
-# boundary_pixels = aoi_total_pixels - aoi_valid_pixels
-
-# valid_pixels, total_pixels = valid_data(tr)
-# possible_valid_pixels = total_pixels - boundary_pixels
-# valid_perc = valid_pixels / possible_valid_pixels
-
-# print(valid_perc)
