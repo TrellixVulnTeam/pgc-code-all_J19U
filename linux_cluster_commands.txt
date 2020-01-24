@@ -40,3 +40,7 @@ find -maxdepth 2 -name "*.tar" -exec cp {} ../raw \;
 
 ir.py
 --cli-binary ds3_java_cli
+
+
+# Steve's check tape copy status (erroring):
+python /mnt/pgc/data/scratch/steve/scripts/bw-data-transfer/misc_scripts/check_bp_status.py
