@@ -38,10 +38,16 @@ def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
     # Check if gdal_ds is a file or already opened datasource
     if isinstance(gdal_ds, gdal.Dataset):
         pass
-    elif os.path.exists(gdal_ds):
-        gdal_ds = gdal.Open(gdal_ds)
+    # elif os.path.exists(gdal_ds):
+        # gdal_ds = gdal.Open(gdal_ds)
     else:
-        logger.warning('{} is neither path to GDAL datasource or open datasource')
+        try:
+            gdal_ds = gdal.Open(gdal_ds)
+        except Exception as e:
+            logger.error('Cannot open {}'.format(gdal_ds))
+            logger.error(e)
+            raise e
+        # logger.warning('{} is neither path to GDAL datasource or open datasource'.format(gdal_ds))
     # Get raster band
     rb = gdal_ds.GetRasterBand(band_number)
     no_data_val = rb.GetNoDataValue()
@@ -79,7 +85,7 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     """
     Rasterize a ogr datasource to the extent, projection, resolution of a given
     gdal datasource object. Optionally write out the rasterized product.
-    ogr_ds           :    osgeo.ogr.DataSource
+    ogr_ds           :    osgeo.ogr.DataSource OR os.path.abspath
     gdal_ds          :    osgeo.gdal.Dataset
     write_rasterised :    True to write rasterized product, must provide out_path
     out_path         :    Path to write rasterized product
@@ -125,6 +131,7 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
         out_path = r'/vsimem/rasterized.tif'
         if os.path.exists(out_path):
             os.remove(out_path)
+    
     driver = gdal.GetDriverByName('GTiff')
     
     out_ds = driver.Create(out_path, x_sz, y_sz, 1, gdal.GDT_Float32)
@@ -143,21 +150,34 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
         return out_path
 
 
-def valid_data_aoi(aoi, raster):
+def valid_data_aoi(aoi, raster, out_dir):
     """
     Compute percentage of valid pixels given an AOI. The raster must already 
     be clipped to the AOI to return valid results.
+    
+    out_path : os.path.abspath
+        Path to write the rasterize AOI.
+        TODO: add in memory support
     """
     logger.debug('Finding percent of {} valid pixels in {}'.format(raster, aoi))
-    aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=True, out_path=r'E:\disbr007\UserServicesRequests\Projects\kbollen\temp\aoi_temp_prj.tif')
+    # Convert aoi to raster and count the number of pixels
+    if isinstance(aoi, ogr.DataSource):
+        out_path = os.path.join(out_dir, '{}.tif'.format(aoi.GetName()))
+    else:
+        out_path = os.path.join(out_dir, '{}.tif'.format(os.path.basename(aoi).split('.')[0]))
+    
+    aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=True, out_path=out_path)
     aoi_valid_pixels, aoi_total_pixels = valid_data(aoi_gdal_ds)
     # Pixels outside bounding box of AOI
     boundary_pixels = aoi_total_pixels - aoi_valid_pixels
     
+    # Get the number of valid pixels in the raster
     valid_pixels, total_pixels = valid_data(raster)
+    # Get total number of pixels within the footprint
     possible_valid_pixels = total_pixels - boundary_pixels
     valid_perc = valid_pixels / possible_valid_pixels
     valid_perc = valid_perc*100
+    valid_perc = round(valid_perc, 2)
     
     aoi_gdal_ds = None
     raster = None
@@ -190,9 +210,11 @@ def valid_percent_clip(aoi, raster, out_dir=None):
     """
     if out_dir is None:
         in_mem = True
+        out_dir = r'/vsimem'
+        
     clipped_path = warp_rasters(aoi, rasters=raster, in_mem=in_mem, out_dir=out_dir)[0]
     clipped_raster = gdal.Open(clipped_path)
-    valid_perc = valid_data_aoi(aoi=aoi, raster=clipped_raster)
+    valid_perc = valid_data_aoi(aoi=aoi, raster=clipped_raster, out_dir=out_dir)
     valid_perc = round(valid_perc, 2)
     
     return valid_perc

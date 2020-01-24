@@ -5,6 +5,9 @@ screen from home dir
 module load gdal
 
 # Reserve a node on nunatak (e.g. for python interactive)
+# any node(s)
+qsub -I -l nodes=1:ppn=32 -l walltime=100:00:00
+# specific node
 qsub -I -l nodes=nunatak-XX:ppn=YY,walltime:HH:MM:SS
 --> gets a jobid
 --> qdel jobid to kill if locked

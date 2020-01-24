@@ -84,7 +84,7 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
     return points_gdf
 
 
-def get_count(geocells, fps):
+def get_count(geocells, fps, date_col=None):
     '''
     Gets the count of features in fps that intersect with each feature in geocells
     This method is essentially a many to many spatial join, so if two footprints
@@ -108,14 +108,17 @@ def get_count(geocells, fps):
     sj.reset_index(inplace=True)
     
     logger.info('Getting count...')
-    ## Remove no matches, group the rest, counting the index
-    gb = sj[~sj[fp_col].isna()].groupby('count').agg({'count':'count'})
+    ## Remove no matches, group the rest, counting the index, and
+    ## get minimum and maximum dates if requested
+    agg = {'count':'count'}
+    if date_col:
+        agg[date_col] = ['min', 'max']
+        
+    gb = sj[~sj[fp_col].isna()].groupby('count').agg(agg)
     ## Join geocells to dataframe with counts
     out = geocells.join(gb)
-#    out[out['count'].isna()] = 0
-#    print(out.geometry)
+
     out = gpd.GeoDataFrame(out, geometry='geometry', crs=geocells.crs)
-    ## Change nan's (no fps found) to 0
     
     return out
 
