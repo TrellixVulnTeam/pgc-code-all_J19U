@@ -3,6 +3,11 @@
 Created on Mon Jan 20 17:39:33 2020
 
 @author: disbr007
+Finds imagery in a directory based on an input list of 
+scene_ids or catalog_ids. Moves the imagery files to
+destination directory.
+***SKIPPING BROWSE FILES CURRENTLY***
+TODO: Incorporate BROWSE files into parse_filename function
 """
 
 import argparse

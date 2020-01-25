@@ -147,5 +147,6 @@ if __name__ == '__main__':
     
     AOI_PATH = args.aoi
     UTM_ZONES_PATH = args.UTM_zones
+    AOI_OUT_PATH = args.aoi_out
     
-    utm_zone_locater(aoi_in=AOI_PATH, utm_zones_in=UTM_ZONES_PATH)
+    utm_zone_locater(aoi_in=AOI_PATH, utm_zones_in=UTM_ZONES_PATH, aoi_out_path=AOI_OUT_PATH)
