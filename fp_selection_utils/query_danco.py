@@ -4,8 +4,9 @@ Created on Thu Jan 17 12:43:09 2019
 
 @author: disbr007
 """
-
-import sys, logging
+import logging
+import os
+import sys
 
 import geopandas as gpd
 import pandas as pd
@@ -13,21 +14,12 @@ import psycopg2
 from sqlalchemy import create_engine#, inspect, MetaData
 from logging_utils import create_logger
 
-# # create logger with 'spam_application'
-# logger = logging.getLogger('query_danco')
-# logger.setLevel(logging.INFO)
-# # create console handler with a higher log level
-# ch = logging.StreamHandler()
-# ch.setLevel(logging.ERROR)
-# # create formatter and add it to the handlers
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# ch.setFormatter(formatter)
-# # add the handlers to the logger
-# logger.addHandler(ch)
-logger = create_logger('query_danco', 'sh')
+
+logger = create_logger(os.path.basename(__file__), 'sh')
 
 
 ## Credentials for logging into danco
+# TODO: Fix this
 creds = []
 with open(r"C:\code\pgc-code-all\cred.txt", 'r') as cred:
     content = cred.readlines()
@@ -39,6 +31,7 @@ def list_danco_footprint():
     queries the danco footprint database, returns all layer names in list
     '''
     global logger
+    logger.warning('list_danco_footprint depreciated, use list_danco_db() instead.')
     logger.debug('Listing danco.footprint databse tables...')
     try:
         danco = "danco.pgc.umn.edu"
@@ -115,14 +108,7 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
         
         if layer not in db_tables:
             logger.warning('{} not found in {}'.format(layer, db))
-        
-        ## Temp solution to use sandwhich instance
-#        danco = instance
-#        danco = "danco.pgc.umn.edu"
-#        connection = psycopg2.connect(user = creds[0],
-#                                      password = creds[1],
-#                                      host = danco,
-#                                      database = "footprint")
+
 
         engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/{}'.format(creds[0], creds[1], db))
 
@@ -151,12 +137,14 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
             if table == True:
                 df = pd.read_sql_query(sql, con=engine)
             else:
+            	# TODO: Fix hard coded epsg
                 df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
             return df
-#
+
     except (Exception, psycopg2.Error) as error :
         logger.debug("Error while connecting to PostgreSQL", error)
-    
+        raise error
+
     finally:
         # Close database connection.
         if (connection):
@@ -245,8 +233,13 @@ def mono_noh(where=None):
     all_mono_stereo = query_footprint('index_dg', where=where)
     
     # Remove stereo
-    mono_noh = all_mono_stereo[~all_mono_stereo['catalogid'].isin(all_stereo['catalogid'])]
-    
+    mono = all_mono_stereo[~all_mono_stereo['catalogid'].isin(all_stereo['catalogid'])]
+
+    # Remove onhand
+    pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
+    pgc_ids = list(pgc_archive.catalog_id)
+    mono_noh = mono[~mono['catalogid'].isin(pgc_ids)]
+
     return mono_noh
 
 
