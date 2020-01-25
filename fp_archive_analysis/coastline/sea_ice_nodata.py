@@ -7,7 +7,7 @@ Created on Thu Jul 18 14:00:21 2019
 Resamples NSDIC Sea-Ice Rasters to change class values (land, coast, etc.)
 to be no data value.
 
-TO DO: Change to also download new rasters since last update
+TO DO: Change to also download new rasters since last update -- already does
 Resamples values in rasters to a new no data value.
 """
 
@@ -91,12 +91,6 @@ def update_rasters(last_update, north=True, south=True):
                             #### TO DO: FUNCTION TO CREATE SUBDIRS IF NEEDED FOR A FILE PATH
                             with open(out_p, 'wb') as fhandle:
                                 ftp.retrbinary("RETR {}".format(file_p), fhandle.write)
-                        
-
-
-    
-    
-# update_rasters('2019-01-01')
 
 
 def resample_nodata(f_p, nd1, nd2, nd3, nd4, out_path, out_nodata):
@@ -139,7 +133,7 @@ def resample_nodata(f_p, nd1, nd2, nd3, nd4, out_path, out_nodata):
             6: {'src': 'Float32', 'dst': 6},
             7: {'src': 'Float64', 'dst': 7},
             8: {'src': 'CInt16', 'dst': 8},
-            9:{'src': 'CInt32', 'dst': 9},
+            9: {'src': 'CInt32', 'dst': 9},
             10:{'src': 'CFloat32', 'dst': 10},
             11:{'src': 'CFloat64', 'dst': 11},
             }

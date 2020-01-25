@@ -34,10 +34,12 @@ NASA_CATALOGID = 'CATALOG_ID'
 LAT_FLD = 'y1'
 LON_FLD = 'x1'
 
+
 # Load country of interest
 all_countries = gpd.read_file(ALL_COUNTRIES_P)
 country = all_countries[all_countries[NAME]==country_name]
 logger.info('Loaded country: {}'.format(country_name))
+
 
 # Load IDs in the rough area of country
 min_x, min_y, max_x, max_y = country.total_bounds
@@ -84,7 +86,8 @@ else:
            {1} < {5}""".format(LON_FLD, LAT_FLD,
                                min_x, min_y, 
                                max_x, max_y)
-    
+
+
 logger.debug('Using country bounds to load initial footprints...\n{}'.format(where))
 all_fps = query_footprint(ID_FP, where=where)
 logger.info('Loaded initial footprints: {}'.format(len(all_fps)))

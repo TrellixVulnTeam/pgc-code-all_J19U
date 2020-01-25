@@ -29,7 +29,7 @@ logger = create_logger(__file__, 'sh')
 def run_subprocess(command):
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     output, error = proc.communicate()
-    
+
 
 def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
     '''
@@ -119,7 +119,7 @@ def get_count(geocells, fps, date_col=None):
     out = geocells.join(gb)
 
     out = gpd.GeoDataFrame(out, geometry='geometry', crs=geocells.crs)
-    
+
     return out
 
 
@@ -168,14 +168,6 @@ def get_time_range(pts, fps, fps_date_col, keep_datetime=False):
 
     return out
 
-
-#gdb = r'C:\Users\disbr007\projects\coastline\coast.gdb'
-#geo = 'grid_t'
-#fp = 'mfp_test_final_candidates'
-#geocells = gpd.read_file(gdb, layer=geo, driver='OpenFileGDB')
-#fps = gpd.read_file(gdb, layer=fp, driver='OpenFileGDB')
-##sj = gpd.sjoin(geocells, fps, how='left', op='intersects')
-#test = get_count(geocells, fps)
 
 def get_count_loop(fxn, gcs, fps, 
                    lat_start=None, lat_stop=None, lat_step=None, 
@@ -280,8 +272,11 @@ def get_count_loop(fxn, gcs, fps,
 
 def rasterize_grid(grid_path, count_field):
     '''
-    Takes a point shapefile and rasterizes based on count_field, need to better
-    create raster grid size (hardcoded at 1000 units of project)
+    Takes a point shapefile and rasterizes based on count_field
+    TODO: Need to better create raster grid size 
+          (hardcoded at 1000 units of project)
+          Can we measure the distance betweens points in
+          units of projection.
     '''
     ## Rasterize
     dir_name = os.path.dirname(grid_path)
