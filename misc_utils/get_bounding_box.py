@@ -18,7 +18,7 @@ def get_bounding_box(shp, gdf=False):
     # Initiate starting corners
     minx = 180.0
     miny = 90.0
-    maxx = -180
+    maxx = -180.0
     maxy = -90.0
     
     # Loop through features, if corner is outside current bounding box, update bounding box

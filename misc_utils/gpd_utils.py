@@ -17,17 +17,10 @@ from tqdm import tqdm
 
 import multiprocessing
 
+from logging_utils import create_logger
 
-logger = logging.getLogger()
 
-formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
-logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
-                    level=logging.INFO)
-
-lso = logging.StreamHandler()
-lso.setLevel(logging.INFO)
-lso.setFormatter(formatter)
-logger.addHandler(lso)
+logger = create_logger(os.path.basename(__file__), 'sh')
 
 
 def multiprocess_gdf(fxn, gdf, *args, num_cores=None, **kwargs):
@@ -56,7 +49,8 @@ def merge_gdfs(gdfs):
 ## Function begins
 def grid_poly(poly_gdf, nrows, ncols):
     '''
-    Takes a geodataframe with Polygon geom and creates a grid of nrows and ncols in its bounding box
+    Takes a geodataframe with Polygon geom and creates a grid of nrows and ncols 
+    in its bounding box
     poly: geodataframe with Polygon geometry
     nrows: number of rows in grid
     ncols: numner of cols in grid
@@ -238,30 +232,3 @@ def grid_poly_row(row, nrows, ncols):
             feat_cells.append(cell)
             
     return feat_cells
-
-    
-#gdb = r'E:\disbr007\general\geocell\geocell.gdb'
-#gp = r'one_degree_geocell_north_america'
-#grid = gpd.read_file(gdb, layer=gp, driver='OpenFileGDB')
-#sixt = grid_poly(grid, nrows=16, ncols=16)
-#sixt.to_file(r'E:\disbr007\general\geocell\one_deg_nam_16x16.shp')
-#
-#driver = 'ESRI Shapefile'
-##geocells_path = r'E:\disbr007\general\geocell\Global_GeoCell_Coverage.shp'
-##geocells_path = r'E:\disbr007\scratch\geocells_sub.shp'
-#geocells_path = r'E:\disbr007\general\geocell\one_degree_geocell.shp'
-#df = gpd.read_file(geocells_path, driver=driver)
-#crs = df.crs
-## Results in a list of new geometries for each cell
-#tqdm.pandas()
-#df['new_geom'] = df.progress_apply(lambda row: grid_poly_row(row, nrows=8, ncols=8), axis=1)
-#
-## Expands the list of new geometries to unique rows, copying other column data
-#all_cells = gpd.GeoDataFrame({col:np.repeat(df[col].values, df['new_geom'].str.len()) for col in df.columns.drop('new_geom')}, crs=crs).assign(**{'new_geom':np.concatenate(df['new_geom'].values)})
-## Set the new geometry and drop the old
-#all_cells = all_cells.set_geometry('new_geom')
-#all_cells.drop(columns=['geometry'], inplace=True)
-## Write
-#all_cells.to_file(r'C:\temp\one_degree_geocell_split_8x8', driver=driver)
-
-

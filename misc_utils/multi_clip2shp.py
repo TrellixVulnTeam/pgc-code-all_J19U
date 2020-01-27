@@ -127,8 +127,9 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true',
                         help='Set logging level to DEBUG')
 
+
     args = parser.parse_args()
-    
+
     if args.debug is True:
         logger.setLevel('DEBUG')
     

@@ -15,9 +15,10 @@ from fiona.crs import from_epsg, from_string
 
 def area_calc(geodataframe, area_col='area_sqkm'):
     '''
-    Takes a geodataframe in and calculates the area based on UTM zones of each feature. Returns
-    a geodataframe with added 'utm_sqkm' column and 'polar_area' column for those features north of south
-    of utm zones boundaries
+    Takes a geodataframe in and calculates the area based 
+    on UTM zones of each feature. Returns a geodataframe 
+    with added 'utm_sqkm' column and 'polar_area' column 
+    for those features north of south of utm zones boundaries
     geodataframe: geodataframe
     area_col: name of column to hold area
     '''

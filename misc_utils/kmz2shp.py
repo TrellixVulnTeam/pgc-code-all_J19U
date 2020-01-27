@@ -23,16 +23,12 @@ for i in range(lyr_defn.GetFieldCount()):
     print(lyr_defn.GetFieldDefn(i).GetName())
 
 
-
-
 catids = []
 for feature in kmz_layer:
     desc = feature.GetField('description')
     brk = '<td>image_identifier</td>'
     catid = desc.split(brk)[1].split('<td>')[1].split('</td>')[0]
     print(catid)
-
-
 
 
 out_shp = r'E:\disbr007\UserServicesRequests\Projects\bjones\1653\baldwin_IK01_QB02.kmz'

@@ -25,6 +25,7 @@ def remove_symbols(coords):
 #    coords.columns = coords.columns.str.replace(' ', '')
     return coords
 
+
 def coord_conv(in_coord, coord_type):
     if coord_type == 'DDM': # D DM N
         deg, dec_min, direction = in_coord.split(' ')
@@ -42,6 +43,7 @@ def coord_conv(in_coord, coord_type):
         dec_degrees = None
     return dec_degrees
 
+
 def dms_to_dd(in_coord, direct):
     '''takes in degrees, minutes, and seconds coordinate and returns decimal degrees'''
     in_coord = in_coord.strip()
@@ -57,6 +59,7 @@ def dms_to_dd(in_coord, direct):
     elif direct.upper() in neg_dirs:
         dd = -dd
     return dd
+
 
 def conv_direction(in_coord):
     in_coord = in_coord.strip()

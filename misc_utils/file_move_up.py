@@ -35,7 +35,8 @@ def walkdir(folder):
 
 def file_move_up(parent_dir, move, omit_ending=None, dryrun=False):
     """
-    Moves (or copies) all files in subdirectories of parent_dir up to the level of parent dir.
+    Moves (or copies) all files in subdirectories of parent_dir up 
+    to the level of parent dir.
     Optionally, can copy instead of moving.
     Optionally, can omit a file ending.
 

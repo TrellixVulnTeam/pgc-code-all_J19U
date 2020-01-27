@@ -14,28 +14,24 @@ import geopandas as gpd
 import pandas as pd
 
 from dataframe_utils import create_year_col, create_month_col, create_day_col
+from logging_utils import create_logger
 
 
-def main(shp_p, date_col, out_p=None, overwrite=False):
-    ## Set up logging
-    logger = logging.getLogger()
-    formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
-    logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
-                        level=logging.INFO)
-    lso = logging.StreamHandler()
-    lso.setLevel(logging.INFO)
-    lso.setFormatter(formatter)
-    logger.addHandler(lso)
-    
+logger = create_logger(os.path.basename(__file__), 'sh')
+
+
+def add_date_fields(shp_p, date_col, out_p=None, overwrite=False):
     ## Load file
-    shp = gpd.read_file(shp_p)
+    if isinstance(gpd.GeoDataFrame, shp_p):
+        shp = shp_p
+    else:
+        shp = gpd.read_file(shp_p)
     
     ## Add columns
     #date_cols = ['acqdate', 'acq_time', 'ACQDATE', 'ACQ_TIME']
     create_year_col(shp, date_col)
     create_month_col(shp, date_col)
     create_day_col(shp, date_col)
-    
     
     ## Write file
     if overwrite:
@@ -44,6 +40,8 @@ def main(shp_p, date_col, out_p=None, overwrite=False):
         if not out_p:
             logger.info('Please specify an out path or use --overwrite.')
         shp.to_file(out_p)
+
+    return shp
 
 
 if __name__ == '__main__':

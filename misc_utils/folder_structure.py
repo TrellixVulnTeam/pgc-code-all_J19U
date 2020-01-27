@@ -2,10 +2,6 @@
 import argparse
 import os
 
-INPUT = r"C:\Users\disbr007\Downloads"
-outname = os.path.basename(INPUT)
-OUTFILE = r'C:\Users\disbr007\Downloads\{}_structure.txt'.format(outname)
-
 
 def folder_structure(input_dir, out_file, ignore_ext, ignore_dir):
     with open(out_file, 'w') as of:

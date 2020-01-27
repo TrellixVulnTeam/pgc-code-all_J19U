@@ -10,6 +10,7 @@ import fiona
 from fiona.crs import from_epsg
 import argparse
 
+
 def points2bb(corner1, corner2, out_path):
     # Input corners
     corners_raw = [corner1, corner2]
@@ -20,7 +21,6 @@ def points2bb(corner1, corner2, out_path):
         corner_x = float(corner_x.strip(' '))
         corner = (corner_y, corner_x)
         corners.append(corner)
-    
 
     min_x = corners[0][0] # Get a min and max to start
     min_y = corners[0][1]
@@ -36,9 +36,9 @@ def points2bb(corner1, corner2, out_path):
             max_x = corner[0]
         if corner[1] > max_y:
             max_y = corner[1]
-    
+
     points = [Point(min_y, min_x), Point(min_y, max_x), Point(max_y, max_x), Point(max_y, min_x)]
-    
+
     # Write four points as polygon geometry
     coords = [(p.x, p.y) for p in points]
     poly = Polygon(coords)
