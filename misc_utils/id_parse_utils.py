@@ -14,7 +14,7 @@ import geopandas as gpd
 import pandas as pd
 #import numpy as np
 
-from query_danco import query_footprint
+from selection_utils.query_danco import query_footprint
 from dataframe_utils import determine_id_col, determine_stereopair_col
 #from ids_order_sources import get_ordered_ids
 from logging_utils import create_logger

@@ -5,10 +5,13 @@ Created on Wed Jul  3 14:50:14 2019
 @author: disbr007
 """
 
+import argparse
+import os
+import numpy as np
+
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
-import os, argparse
 
 from coord_converter import remove_symbols
 
@@ -20,7 +23,8 @@ def process_tasking(xlsx, out_name):
     out_name: name according to convention [first_initial][last_name][award_number][year] e.g.: bsmith_123456_2019-20
     '''
     ## Read excel as pandas dataframe, store original column names for writing out
-    request = pd.read_excel(xlsx, sheet_name='Targets')
+    request = pd.read_excel(xlsx, sheet_name='Targets', dtype=str)
+    print(request.dtypes)
     cols = list(request)
     ## Remove any degrees symbols
     request = remove_symbols(request)
@@ -29,7 +33,11 @@ def process_tasking(xlsx, out_name):
     geo_req = gpd.GeoDataFrame(request, geometry=geometry, crs={'init':'epsg:4326'})
     geo_req.fillna(0, inplace=True)
     # Write out shapefile
+    # Convert datetime columns to strings
     out_shp = os.path.join(os.path.dirname(xlsx), '{}.shp'.format(out_name))
+    # for col in list(geo_reg.select_dtypes(include=np.datetime64)):
+    # 	geo_req[col] = geo_req[col].dt.strfrtime('%b/%d/%Y')
+
     geo_req.to_file(out_shp, driver='ESRI Shapefile')
     # Write out renamed excel file
     request = request[cols]

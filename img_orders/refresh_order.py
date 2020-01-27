@@ -7,12 +7,12 @@ Creates a shapefile that is a refresh in the region selected
 """
 
 import logging
-import pandas_profiling
+# import pandas_profiling
 import geopandas as gpd
 import argparse, os
 
-from query_danco import query_footprint, mono_noh, stereo_noh
-from imagery_order_sheet_maker_module import create_sheets
+from selection_utils.query_danco import query_footprint, mono_noh, stereo_noh
+from img_orders.img_order_sheets import create_sheets
 from id_parse_utils import date_words, remove_onhand
 
 
