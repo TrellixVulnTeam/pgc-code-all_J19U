@@ -6,7 +6,7 @@ Created on Mon Jan 27 13:08:08 2020
 """
 
 
-from selection_utils.query_danco import query_footprint
+from selection_utils.query_danco import query_footprint, count_table
 from misc_utils.logging_utils import create_logger
 
 
@@ -19,9 +19,13 @@ REGION = '' # EarthDEM region to include **NOT IMPLEMENTED**
 
 
 
-# Load footprints
+# Load footprints in chunks to avoid long load time
 xtrack_name = 'dg_imagery_index_xtrack_cc20'
 cols = ['catalogid1', 'catalogid2', 'acqdate1', 'pairname']
-xt = query_footprint(xtrack_name, columns=cols, where="objectid < 100")
 
+xt_size = count_table(xtrack_name, columns=[cols[0]])
+xt_chunks = []
+
+
+# xt = query_footprint(xtrack_name, columns=cols, where="objectid < 100")
 

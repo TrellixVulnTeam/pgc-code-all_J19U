@@ -4,9 +4,15 @@ Created on Thu Jan 17 12:43:09 2019
 
 @author: disbr007
 """
-import logging
+# TODO:
+# -Refactor this so that danco tables are Class, that can then be counted, listed, queried, etc.
+# -add chunksize support: 
+#    sql = "SELECT * FROM My_Table"
+#    for chunk in pd.read_sql_query(sql , engine, chunksize=5):
+#        print(chunk)
+
+
 import os
-import sys
 
 import geopandas as gpd
 import pandas as pd
@@ -182,8 +188,8 @@ def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.e
                 sql = "SELECT COUNT({}) FROM {}".format(cols_str, layer)
             # """SELECT {} FROM information_schema.tables""".format(layer, )
             cursor.execute(sql)
-            count = cursor.fetchall()
-            
+            result = cursor.fetchall()
+            count = [x[0] for x in result][0]
             return count
         
             
@@ -259,7 +265,7 @@ def stereo_noh(where=None):
     noh_left = left[~left.catalogid.isin(pgc_ids)]
     noh_right = right[~right.catalogid.isin(pgc_ids)]
     
-    # Combine columns        
+    # Combine columns
     noh = pd.concat([noh_left, noh_right], sort=True)
     del noh_left, noh_right
     return noh
