@@ -13,7 +13,7 @@ import os
 import geopandas as gpd
 from tqdm import tqdm
 
-from clip2shp_bounds import warp_rasters
+from raster_clip import warp_rasters
 from logging_utils import create_logger
 
 

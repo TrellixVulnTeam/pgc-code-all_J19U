@@ -11,7 +11,7 @@ import pandas as pd
 import geopandas as gpd
 
 from query_danco import query_footprint
-from clip2shp_bounds import warp_rasters
+from raster_clip import warp_rasters
 from gdal_tools import remove_shp, get_raster_sr, get_shp_sr, ogr_reproject, check_sr
 from id_parse_utils import write_ids
 from valid_data import valid_percent_clip

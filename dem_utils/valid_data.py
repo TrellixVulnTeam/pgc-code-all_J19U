@@ -11,7 +11,7 @@ import numpy as np
 
 from osgeo import gdal, ogr, osr
 
-from clip2shp_bounds import warp_rasters
+from raster_clip import warp_rasters
 from gdal_tools import auto_detect_ogr_driver
 from logging_utils import create_logger
 
