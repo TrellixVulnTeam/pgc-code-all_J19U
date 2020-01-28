@@ -482,6 +482,37 @@ def parse_filename(filename, att, fullpath=False):
     return requested_att
 
 
+def get_platform(catalogid):
+    platform_code = {
+                '101': 'QB02',
+                '102': 'WV01',
+                '103': 'WV02',
+                '104': 'WV03',
+                '104A': 'WV03-SWIR',
+                '105': 'GE01',
+                '106': 'IK01'
+                }
+    for key, val in platform_code.items():
+        if catalogid.startswith(key):
+            platform = val
+        else:
+            platform = 'NA'
+
+
+def get_platform_code(platform):
+    platform_code = {
+                'QB02': '101',
+                'WV01': '102',
+                'WV02': '103',
+                'WV03': '104',
+                'WV03-SWIR': '104A',
+                'GE01': '105',
+                'IK01': '106'
+                }
+
+    return platform_code[platform]
+
+
 def is_stereo(dataframe, catalogid_field, out_field='is_stereo'):
     """
     Takes a dataframe and determines if each catalogd in catalogid_field

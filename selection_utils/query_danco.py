@@ -63,6 +63,7 @@ def list_danco_footprint():
         # Close database connection.
         if (connection):
             connection.close()
+            connection = None
             logger.debug("PostgreSQL connection closed.")
 
 
@@ -96,6 +97,7 @@ def list_danco_db(db):
         # Close database connection.
         if (connection):
             connection.close()
+            connection = None
             logger.debug("PostgreSQL connection closed.")
             
             
@@ -156,6 +158,7 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
         # Close database connection.
         if (connection):
             connection.close()
+            connection = None
             logger.debug("PostgreSQL connection closed.")
 
 
@@ -201,6 +204,7 @@ def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.e
         # Close database connection.
         if (connection):
             connection.close()
+            connection = None
             logger.debug("PostgreSQL connection closed.")
     
     
@@ -216,7 +220,7 @@ def footprint_fields(layer, db='footprint', table=False):
     return fields
 
 
-def layer_fields(layer, db):
+def layer_fields(layer, db='footprint'):
     '''
     Gets fields in a danco layer by loading with an SQL
     query that returns only one result (for speed).

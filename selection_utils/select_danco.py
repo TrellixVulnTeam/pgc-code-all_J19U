@@ -9,22 +9,15 @@ Module to select from Danco footprint layer based on AOI or list of IDs
 import geopandas as gpd
 import sys, os, logging, argparse, tqdm
 
-from id_parse_utils import read_ids
-from query_danco import query_footprint, footprint_fields
-from id_parse_utils import remove_mfp
+from misc_utils.logging_utils import create_logger
+from misc_utils.id_parse_utils import read_ids, remove_mfp
+from selection_utils.query_danco import query_footprint, layer_fields
 
-#### Logging setup
-# create logger
-logger = logging.getLogger('select_danco')
-logger.setLevel(logging.DEBUG)
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(ch)
+
+
+# Logging
+logger = create_logger(os.path.basename(__file__), 'sh',
+                       handler_level='DEBUG')
 
 
 def determine_selection_method(selector_path, by_id):
@@ -35,20 +28,21 @@ def determine_selection_method(selector_path, by_id):
     """
     if selector_path is None:
         selection_method = None
-    if by_id is True:
-        selection_method = 'ID'
     else:
-        ext = os.path.basename(selector_path).split('.')[1]
-        
-        # If text, select by id
-        if ext == 'txt':
+        if by_id is True:
             selection_method = 'ID'
-        # If .shp, select by location
-        elif ext == 'shp':
-            selection_method = 'LOC'
         else:
-            selection_method = None
-            logger.error('Unknown file format for selection. Supported formats: .txt and .shp')
+            ext = os.path.basename(selector_path).split('.')[1]
+            
+            # If text, select by id
+            if ext == 'txt':
+                selection_method = 'ID'
+            # If .shp, select by location
+            elif ext == 'shp':
+                selection_method = 'LOC'
+            else:
+                selection_method = None
+                logger.error('Unknown file format for selection. Supported formats: .txt and .shp')
             
     return selection_method
 
@@ -87,7 +81,8 @@ def check_alt_field_names(field_name, table_name):
     -------
     Corrected field name if found, otherwise None.
     """
-    table_fields = footprint_fields(table_name)
+    table_fields = layer_fields(table_name)
+    checked_field_name = None
     if field_name in table_fields:
         logger.debug('Field "{}" found in {}'.format(field_name, table_name))
         checked_field_name = field_name
@@ -101,7 +96,7 @@ def check_alt_field_names(field_name, table_name):
                     }
         for key, alt_fields in alt_dict.items():
             if field_name in alt_fields:
-                logger.debug('Found field in alternate field dictionary.')
+                logger.debug('Found field "{}" in alternate field dictionary.'.format(field_name))
                 for alt_field in alt_fields:
                     if alt_field in table_fields:
                         logger.debug('Matched {} to alt name: {}.'.format(field_name, alt_field))
@@ -112,8 +107,9 @@ def check_alt_field_names(field_name, table_name):
                 break
             else:
                 checked_field_name = None
+        logger.error('Cannot locate field {} in table {}'.format(field_name, table_name))
     if checked_field_name == None:
-        logger.warning('Cannot locate field "{}" in "{}", dropping from "where clause"'.format(field_name, table_name))
+        logger.debug('Cannot locate field "{}" in "{}"'.format(field_name, table_name))
     
     return checked_field_name
 
@@ -260,10 +256,11 @@ def select_danco(layer_name,
                  min_y1=None,
                  max_y1=None,
                  columns='*',
-                 drop_dup=None):
+                 drop_dup=None,
+                 add_where=None):
     ## Determine selection method - by location or by ID
     selection_method = determine_selection_method(selector_path, by_id)
-    ## Create selector - geodataframe or list of IDs
+    ## Create selector - geodataframe or list of IDs, or None
     selector = create_selector(selector_path, selection_method)
     ## Build where clause
     where = build_where(platforms=platforms,
@@ -277,6 +274,8 @@ def select_danco(layer_name,
                         min_y1=min_y1,
                         max_y1=max_y1,
                         layer_name=layer_name)
+    if add_where:
+        where += """AND {}""".format(add_where)
     ## Load footprint layer with where clause
     src = load_src(layer_name, where, columns)
     ## Make selection if provided
@@ -330,9 +329,9 @@ if __name__ == '__main__':
     parser.add_argument('--min_lat', type=int, help='Minimum y (latitude) of footprints - in DD.')
     parser.add_argument('--max_lat', type=int, help='Maximum y (latitude) of footprints - in DD.')
     
-    # parser.add_argument('--additional_where', type=str, default=None,
-    #                     help='''Any additional SQL where clause to limit the 
-    #                             chosen layer, E.g. "cloudcover < 20"''')
+    parser.add_argument('--add_where', type=str, default=None,
+                        help='''Any additional SQL where clause to limit the 
+                                chosen layer, E.g. "cloudcover < 20"''')
     
     parser.add_argument('-c', '--columns', nargs='+', default='*',
                         help='''The columns to include from the chosen layer, E.g. "catalogid acqdate".
@@ -362,7 +361,8 @@ if __name__ == '__main__':
     max_x1    = args.max_long
     min_y1    = args.min_lat
     max_y1    = args.max_lat
-
+    add_where = args.add_where
+    
     select_danco(selector_path=selector_path,
                  layer_name=layer_name,
                  destination_path=destination_path,
@@ -379,4 +379,5 @@ if __name__ == '__main__':
                  min_x1=min_x1,
                  max_x1=max_x1,
                  min_y1=min_y1,
-                 max_y1=max_y1)
+                 max_y1=max_y1,
+                 add_where=add_where)
