@@ -17,6 +17,10 @@ dem3 = r''
 
 align_dir = r''
 
+# PARAMETERS
+dem1_name = os.path.basename(dem1).split('.')
+dem2_name = os.path.basename(dem2).split('.')
+
 
 #### FUNCTION DEFINITION ####
 def run_subprocess(command):
@@ -27,4 +31,17 @@ def run_subprocess(command):
 
 
 
+#### RUN PC_ALIGN ####
+max_displacement = 10
+threads = 16
+prefix = 'pca_{}_{}'.format(dem1_name, dem2_name)
 
+pca_command = """pc_align --save-transformed-source-points 
+                --max-displacement {} 
+                --threads {} 
+                {} {} 
+                -o {}""".format(max_displacement,
+                                threads,
+                                dem1,
+                                dem2,
+                                os.path.join(align_dir, prefix))

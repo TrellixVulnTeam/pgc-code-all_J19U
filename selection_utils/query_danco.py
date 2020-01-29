@@ -190,7 +190,6 @@ def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.e
                 sql = "SELECT COUNT(DISTINCT {}) FROM {}".format(cols_str, layer)
             else:
                 sql = "SELECT COUNT({}) FROM {}".format(cols_str, layer)
-            # """SELECT {} FROM information_schema.tables""".format(layer, )
             cursor.execute(sql)
             result = cursor.fetchall()
             count = [x[0] for x in result][0]

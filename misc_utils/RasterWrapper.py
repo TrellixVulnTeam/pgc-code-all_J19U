@@ -52,7 +52,8 @@ class Raster():
         self.dtype = self.data_src.GetRasterBand(1).DataType
         
         ## Get the raster as an array
-        ## Defaults to band 1 -- use ReadArray() to return stack of multiple bands
+        ## Defaults to band 1 -- use ReadArray() to return stack 
+        ## of multiple bands
         self.Array = self.data_src.ReadAsArray()
         self.Mask = self.Array == self.nodata_val
         self.MaskedArray = ma.masked_array(self.Array, mask=self.Mask)
