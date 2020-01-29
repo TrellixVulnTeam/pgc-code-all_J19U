@@ -5,7 +5,7 @@ Created on Wed Oct 30 12:49:36 2019
 @author: disbr007
 """
 
-def get_creds(creds_loc=r"C:\code\pgc-code-all\cred.txt"):
+def get_creds(creds_loc=r"C:\code\pgc-code-all\config\cred.txt"):
     ## Credentials for logging into danco
     creds = []
     with open(creds_loc, 'r') as cred:

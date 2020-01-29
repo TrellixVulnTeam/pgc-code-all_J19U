@@ -10,8 +10,8 @@ import posixpath
 
 from osgeo import gdal, ogr, osr
 
-from get_creds import get_creds
-from logging_utils import create_logger
+from misc_utils.get_creds import get_creds
+from misc_utils.logging_utils import create_logger
 
 
 # logger = logging.getLogger('gdal_tools')
@@ -287,3 +287,89 @@ def remove_shp(shp):
                 logger.debug('Removing metadata file: {}'.format(meta_file))
                 os.remove(meta_file)
         os.remove(shp)
+
+
+def raster_bounds(path):
+    '''
+    GDAL only version of getting bounds for a single raster.
+    '''
+    src = gdal.Open(path)
+    gt = src.GetGeoTransform()
+    ulx = gt[0]
+    uly = gt[3]
+    lrx = ulx + (gt[1] * src.RasterXSize)
+    lry = uly + (gt[5] * src.RasterYSize)
+    
+    return ulx, lry, lrx, uly
+
+    
+def minimum_bounding_box(rasters):
+    '''
+    Takes a list of DEMs (or rasters) and returns the minimum bounding box of all in
+    the order of bounds specified for gdal.Translate.
+    dems: list of dems
+    '''
+    ## Determine minimum bounding box
+    ulxs, lrys, lrxs, ulys = list(), list(), list(), list()
+    #geoms = list()
+    for raster_p in rasters:
+        ulx, lry, lrx, uly = raster_bounds(raster_p)
+    #    geom_pts = [(ulx, lry), (lrx, lry), (lrx, uly), (ulx, uly)]
+    #    geom = Polygon(geom_pts)
+    #    geoms.append(geom)
+        ulxs.append(ulx)
+        lrys.append(lry)
+        lrxs.append(lrx)
+        ulys.append(uly)        
+    
+    ## Find the smallest extent of all bounding box corners
+    ulx = max(ulxs)
+    uly = min(ulys)
+    lrx = min(lrxs)
+    lry = max(lrys)
+
+    projWin = [ulx, uly, lrx, lry]
+
+    return projWin
+
+
+def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip',
+                      out_format='tif'):
+    '''
+    Takes a list of rasters and translates (clips) them to the minimum bounding box.
+
+    Returns
+    --------
+    LIST : list of paths to the clipped rasters.
+    '''
+    projWin = minimum_bounding_box(rasters)
+    logger.debug('Minimum bounding box: {}'.format(projWin))
+
+    ##  Clip to minimum bounding box
+    translated = []
+    for raster_p in rasters:
+        if not out_dir and in_mem == False:
+            out_dir = os.path.dirname(raster_p)
+        elif not out_dir and in_mem==True:
+            out_dir = '/vsimem'
+
+        logging.info('Clipping {}...'.format(raster_p))
+        if not out_suffix:
+            out_suffix = ''
+
+        raster_name = os.path.basename(raster_p).split('.')[0]
+        
+        raster_out_name = '{}{}.{}'.format(raster_name, 
+                                           out_suffix, 
+                                           out_format)
+        
+        raster_op = os.path.join(out_dir, raster_out_name)
+        
+        raster_ds = gdal.Open(raster_p)
+        output = gdal.Translate(raster_op, raster_ds, projWin=projWin)
+        if output is not None:
+            translated.append(raster_op)
+        else:
+            logger.warning('Unable to translate raster: {}'.format(raster_p))
+
+    return translated

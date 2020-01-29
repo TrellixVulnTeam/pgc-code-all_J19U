@@ -17,7 +17,7 @@ gdal.UseExceptions()
 ogr.UseExceptions()
 
 
-logger = create_logger('clip2shp_bounds', 'sh')
+logger = create_logger(os.path.basename(__file__), 'sh')
 
 
 def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',

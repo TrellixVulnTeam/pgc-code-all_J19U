@@ -17,9 +17,9 @@ import geopandas as gpd
 # from tqdm import tqdm
 # import enlighten
 
-from query_danco import query_footprint
-from id_parse_utils import read_ids
-from logging_utils import create_logger
+from selection_utils.query_danco import query_footprint
+from misc_utils.id_parse_utils import read_ids
+from misc_utils.logging_utils import create_logger
 
 
 ### Inputs
@@ -381,10 +381,10 @@ if __name__ == '__main__':
                         help='Source to copy from, either "server" or "drives".')
     parser.add_argument('-hr', '--high_resolution', action='store_true',
                         help='''Flag to specify copying high-resolution series. 
-                                Can be used in conjunction with -m''')
+                                CANNOT be used in conjunction with -mr''')
     parser.add_argument('-mr', '--medium_resolution', action='store_true',
                         help='''Flag to specify copying high-resolution series. 
-                                Can be used in conjunction with -h''')
+                                CANNOT be used in conjunction with -hr''')
     parser.add_argument('-l', '--list_drives', action='store_true',
                         help='List offline drive names and exit.')
     parser.add_argument('--list_missing_paths', action='store_true',
