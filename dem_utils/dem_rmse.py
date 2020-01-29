@@ -19,11 +19,12 @@ from shapely.geometry import Point
 
 from misc_utils.RasterWrapper import Raster
 from misc_utils.logging_utils import create_logger
+from misc_utils.gdal_tools import clip_minbb
 
 
 # INPUTS
-dem1_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20130629_1030010023174900_103001002452E500_seg2_2m_dem_clip.tif'
-dem2_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif'
+# dem1_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20130629_1030010023174900_103001002452E500_seg2_2m_dem_clip.tif')
+# dem2_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif')
 
 
 logger = create_logger(os.path.basename(__file__), 'sh',
@@ -37,13 +38,29 @@ logger = create_logger(os.path.basename(__file__), 'sh',
 def dem_rmse(dem1_path, dem2_path, outfile=None, out_diff=None, plot=False,
              show_plot=False, save_plot=None, bins=10, log_scale=True):
     # Load DEMs as arrays
+    logger.info('Loading DEMs...')
     dem1 = Raster(dem1_path)
     dem2 = Raster(dem2_path)
+
+    if dem1.geotransform != dem2.geotransform:
+        logger.warning('''DEM geotransforms do not match. 
+                          Clipping to minimum bounding box in memory....''')
+        dem1 = None
+        dem2 = None
+        clipped = clip_minbb(rasters=[dem1_path, dem2_path],
+                             in_mem=True,
+                             out_format='vrt')
+        logger.debug('Clipping complete. Reloading DEMs...')
+        dem1 = Raster(clipped[0])
+        dem2 = Raster(clipped[1])
     
     arr1 = dem1.MaskedArray
     arr2 = dem2.MaskedArray
     
+    
+    
     # Compute RMSE
+    logging.info('Comuting RMSE...')
     diffs = arr1 - arr2
     
     sq_diff = diffs**2
@@ -87,7 +104,6 @@ def dem_rmse(dem1_path, dem2_path, outfile=None, out_diff=None, plot=False,
         
     return rmse
 
-dem_rmse(dem1_p, dem2_p, plot=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
