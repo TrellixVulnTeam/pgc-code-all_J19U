@@ -52,13 +52,20 @@ def dem_rmse(dem1_path, dem2_path, outfile=None, out_diff=None, plot=False,
                              out_format='vrt')
         logger.debug('Clipping complete. Reloading DEMs...')
         dem1 = Raster(clipped[0])
+        arr1 = dem1.MaskedArray
+        dem1 = None
+        logger.debug('DEM1 loaded and array extracted...')
         dem2 = Raster(clipped[1])
-    
-    arr1 = dem1.MaskedArray
-    arr2 = dem2.MaskedArray
-    
-    
-    
+        arr2 = dem2.MaskedArray
+        dem2 = None
+        logger.debug('DEM2 loaded and array extracted...')
+    else:
+        arr1 = dem1.MaskedArray
+        dem1 = None
+        arr2 = dem2.MaskedArray
+        dem2 = None
+
+
     # Compute RMSE
     logging.info('Comuting RMSE...')
     diffs = arr1 - arr2
@@ -88,7 +95,8 @@ def dem_rmse(dem1_path, dem2_path, outfile=None, out_diff=None, plot=False,
     
     # Write raster file of results
     if out_diff:
-        dem1.WriteArray(diffs, out_diff)
+        logger.info('Out diff not supported, skipping writing.')
+        # dem1.WriteArray(diffs, out_diff)
         
     # Plot results
     if plot:
