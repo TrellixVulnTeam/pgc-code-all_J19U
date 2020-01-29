@@ -9,7 +9,7 @@ import argparse
 import os
 import subprocess
 
-from logging_utils import create_logger
+from misc_utils.logging_utils import create_logger
 
 
 # MFP_PATH = r'C:\pgc_index\pgcImageryIndexV6_2020jan14.gdb\pgcImageryIndexV6_2020jan14'

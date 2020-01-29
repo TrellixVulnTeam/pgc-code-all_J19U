@@ -38,8 +38,8 @@ def area_calc(geodataframe, area_col='area_sqkm'):
     pol_area_col = 'polar_area'
     cols.append(utm_area_col)
     cols.append(pol_area_col)
-    gdf[utm_area_col] = np.nan
-    gdf[pol_area_col] = np.nan
+    # gdf[utm_area_col] = np.nan
+    # gdf[pol_area_col] = np.nan
 
     # Use centroid to locate UTM zone
     gdf['centroid'] = gdf.centroid

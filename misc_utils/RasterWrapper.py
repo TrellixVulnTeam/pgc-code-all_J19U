@@ -8,7 +8,8 @@ Created on Fri Jul 19 10:20:36 2019
 
 from osgeo import gdal, osr, ogr
 import numpy as np
-from logging_utils import create_logger
+import numpy.ma as ma
+from misc_utils.logging_utils import create_logger
 
 logger = create_logger('RasterWrapper.py', 'sh')
 
@@ -54,7 +55,22 @@ class Raster():
         ## Defaults to band 1 -- use ReadArray() to return stack of multiple bands
         self.Array = self.data_src.ReadAsArray()
         self.Mask = self.Array == self.nodata_val
+        self.MaskedArray = ma.masked_array(self.Array, mask=self.Mask)
+    
+    
+    def raster_bounds(self):
+        '''
+        GDAL only version of getting bounds for a single raster.
+        '''
+        gt = self.geotransform
         
+        ulx = gt[0]
+        uly = gt[3]
+        lrx = ulx + (gt[1] * self.x_sz)
+        lry = uly + (gt[5] * self.y_sz)
+        
+        return ulx, lry, lrx, uly
+    
     
     def GetBandAsArray(self, band_num, mask=True):
         """

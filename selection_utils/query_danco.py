@@ -18,7 +18,8 @@ import geopandas as gpd
 import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine#, inspect, MetaData
-from logging_utils import create_logger
+
+from misc_utils.logging_utils import create_logger
 
 
 logger = create_logger(os.path.basename(__file__), 'sh')

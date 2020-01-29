@@ -15,9 +15,9 @@ import pandas as pd
 #import numpy as np
 
 from selection_utils.query_danco import query_footprint
-from dataframe_utils import determine_id_col, determine_stereopair_col
+from misc_utils.dataframe_utils import determine_id_col, determine_stereopair_col
 #from ids_order_sources import get_ordered_ids
-from logging_utils import create_logger
+from misc_utils.logging_utils import create_logger
 
 
 ## Set up logging
@@ -322,7 +322,7 @@ def pgc_index_path(ids=False):
     Returns the path to the most recent pgc index from a manually updated
     text file containing the path.
     '''
-    with open(r'C:\code\pgc-code-all\pgc_index_path.txt', 'r') as src:
+    with open(r'C:\code\pgc-code-all\config\pgc_index_path.txt', 'r') as src:
         content = src.readlines()
     if not ids:
         index_path = content[0].strip('\n')
@@ -377,15 +377,15 @@ def remove_mfp(src):
     ids that are on hand.
     src: list of ids
     """
-    logger.info('Removing IDs in master footprint...')
-    logger.info('Removing mfp ids...')
+    logger.debug('Removing IDs in master footprint...')
+    logger.debug('Removing mfp ids...')
     src_ids = set(src)
     logger.debug('src_ids: {}'.format(list(src_ids)[:10]))
     onhand_ids = set(mfp_ids())
     logger.debug('onhand ids: {}'.format(list(onhand_ids)[:10]))
     not_mfp = list(src_ids - onhand_ids)
     logger.debug('not mfp ids: {}'.format(list(not_mfp)[:10]))
-    logger.info('IDs removed: {}'.format((len(src_ids)-len(not_mfp))))
+    logger.debug('IDs removed: {}'.format((len(src_ids)-len(not_mfp))))
     
     return not_mfp
 
@@ -396,14 +396,14 @@ def remove_ordered(src):
     ids that have been ordered.
     src: list of ids
     """
-    logger.info('Removing IDs in order sheets...')
-    logger.info('Removing ordered...')
+    logger.debug('Removing IDs in order sheets...')
+    logger.debug('Removing ordered...')
     src_ids = set(src)
     ordered_p = r'E:\disbr007\imagery_orders\ordered\all_ordered.txt'
     ordered = set(read_ids(ordered_p))
     
     not_ordered = list(src_ids - ordered)
-    logger.info('IDs removed: {}'.format((len(src_ids)-len(not_ordered))))
+    logger.debug('IDs removed: {}'.format((len(src_ids)-len(not_ordered))))
     
     return not_ordered
 
