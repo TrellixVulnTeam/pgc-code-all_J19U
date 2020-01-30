@@ -14,17 +14,6 @@ from misc_utils.get_creds import get_creds
 from misc_utils.logging_utils import create_logger
 
 
-# logger = logging.getLogger('gdal_tools')
-# logger.setLevel(logging.DEBUG)
-# # create console handler with a higher log level
-# ch = logging.StreamHandler()
-# ch.setLevel(logging.INFO)
-# # create formatter and add it to the handlers
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# ch.setFormatter(formatter)
-# # add the handlers to the logger
-# logger.addHandler(ch)
-
 logger = create_logger(os.path.basename(__file__), 'sh',
                        handler_level='INFO')
 

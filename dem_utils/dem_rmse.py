@@ -6,7 +6,7 @@ Created on Tue Jan 28 22:18:52 2020
 """
 
 import argparse
-import logging
+import logging.config
 import numpy as np
 import os
 import random
@@ -18,7 +18,7 @@ from shapely.geometry import Point
 
 
 from misc_utils.RasterWrapper import Raster
-from misc_utils.logging_utils import create_logger
+from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
 from misc_utils.gdal_tools import clip_minbb
 
 
@@ -27,8 +27,11 @@ from misc_utils.gdal_tools import clip_minbb
 # dem2_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif')
 
 
-logger = create_logger(os.path.basename(__file__), 'sh',
-                       handler_level='DEBUG')
+# logger = create_logger(os.path.basename(__file__), 'sh',)
+
+logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
+logger = logging.getLogger(__name__)
+
 
 # TODO: Add shape1 == shape2 checking and 
 # TODO: if not clip to minimum bounding box (in memory)
@@ -67,7 +70,7 @@ def dem_rmse(dem1_path, dem2_path, outfile=None, out_diff=None, plot=False,
 
 
     # Compute RMSE
-    logging.info('Comuting RMSE...')
+    logging.info('Computing RMSE...')
     diffs = arr1 - arr2
     
     sq_diff = diffs**2
@@ -80,7 +83,7 @@ def dem_rmse(dem1_path, dem2_path, outfile=None, out_diff=None, plot=False,
     max_diff = diffs.max()
     logger.debug('Minimum difference: {:.2f}'.format(min_diff))
     logger.debug('Maximum difference: {:.2f}'.format(max_diff))
-    logger.info('Pixels considered: {:,}'.format(diffs_valid_count))
+    logger.debug('Pixels considered: {:,}'.format(diffs_valid_count))
     logger.info('RMSE: {:.2f}'.format(rmse))
 
     # Write text file of results
@@ -106,7 +109,7 @@ def dem_rmse(dem1_path, dem2_path, outfile=None, out_diff=None, plot=False,
                 alpha=0.875)
         plt.tight_layout()
         if save_plot:
-            plt.savefig()
+            plt.savefig(save_plot)
         if show_plot:
             plt.show()
         

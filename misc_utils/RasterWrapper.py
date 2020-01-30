@@ -5,13 +5,18 @@ Created on Fri Jul 19 10:20:36 2019
 @author: disbr007
 
 """
-
-from osgeo import gdal, osr, ogr
+import logging.config
 import numpy as np
 import numpy.ma as ma
-from misc_utils.logging_utils import create_logger
 
-logger = create_logger('RasterWrapper.py', 'sh')
+from osgeo import gdal, osr, ogr
+
+from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
+
+# logger = create_logger('RasterWrapper.py', 'sh')
+
+logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
+logger = logging.getLogger(__name__)
 
 
 class Raster():
@@ -297,3 +302,37 @@ class Raster():
             window_agg = None
             
         return window_agg
+
+
+def same_srs(raster1, raster2):
+    """
+    Compares the spatial references of two rasters.
+
+    Parameters
+    ----------
+    raster1 : os.path.abspath
+        Path to the first raster.
+    raster2 : os.path.abspath
+        Path to the second raster.
+
+    Returns
+    -------
+    BOOL : True is match.
+
+    """
+    r1 = Raster(raster1)
+    r1_srs = r1.prj
+    # r1 = None
+    
+    r2 = Raster(raster2)
+    r2_srs = r2.prj
+    # r2 = None
+    
+    result = r1_srs.IsSame(r2_srs)
+    if result == 1:
+        same = True
+    elif result == 0:
+        same = False
+    else:
+        logger.error('Unknown return value from IsSame, expected 0 or 1: {}'.format(result))
+    return same

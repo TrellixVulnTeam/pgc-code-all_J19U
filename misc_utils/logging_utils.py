@@ -5,12 +5,52 @@ Created on Fri Jan  3 10:50:59 2020
 @author: disbr007
 Logging module helper functions
 """
-import os
+
 import logging
 
 
-# logger_name = 'logger_name'
-# handler_type = logging.StreamHandler() # fxn arg = 'sh' or 'fh'
+def LOGGING_CONFIG(level):
+    CONFIG = { 
+        'version': 1,
+        'disable_existing_loggers': True,
+        'formatters': { 
+            'standard': { 
+                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            },
+        },
+        'handlers': { 
+            'default': { 
+                'level': level,
+                'formatter': 'standard',
+                'class': 'logging.StreamHandler',
+                'stream': 'ext://sys.stdout',  # Default is stderr
+            },
+            'module': { 
+                'level': logging.DEBUG,
+                'formatter': 'standard',
+                'class': 'logging.StreamHandler',
+                'stream': 'ext://sys.stdout',  # Default is stderr
+            },
+        },
+        'loggers': { 
+            '': {  # root logger
+                'handlers': ['default'],
+                'level': 'WARNING',
+                'propagate': True
+            },
+            '__main__': {  # if __name__ == '__main__'
+                'handlers': ['default'],
+                'level': level,
+                'propagate': False
+            },
+            'module': {
+                'handlers': ['default'],
+                'level': logging.DEBUG,
+                'propagate': True
+            },
+        } 
+    }
+    return CONFIG
 
 
 def logging_level_int(logging_level):
@@ -25,17 +65,19 @@ def logging_level_int(logging_level):
     INT
         The int corresponding to the logging level
     """
-    for key, value in logging._levelToName.items():
-        if value == logging_level: 
-            return key 
-  
-    return "Logging level does not exist"
-
+    if logging_level in logging._levelToName.values():
+        for key, value in logging._levelToName.items():
+            if value == logging_level: 
+                level_int = key 
+    else:
+        level_int = 0
+        
+    return level_int
 
 def create_logger(logger_name, handler_type, 
-                   handler_level='INFO',
-                   filename=None, 
-                   duplicate=False):
+                    handler_level=None,
+                    filename=None, 
+                    duplicate=False):
     """
     Checks if handler of specified type already exists on the logger name
     passed. If it does, and duplicate == False, no new handler is created.
@@ -83,12 +125,13 @@ def create_logger(logger_name, handler_type,
             
             if existing_level == desired_level:
                 handler = h
+                # print('handler exists, not adding')
                 break
     
     # If no handler of specified type and level was found, create it
     if handler is None:
         handler = ht
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(desired_level)
         # Create console handler with a higher log level
         handler.setLevel(desired_level)
         # Create formatter and add it to the handlers
@@ -97,4 +140,9 @@ def create_logger(logger_name, handler_type,
         # Add the handler to the logger
         logger.addHandler(handler)
 
+    # Do not propogate messages from children up to parent
+    logger.propagate = False
+    
     return logger
+
+
