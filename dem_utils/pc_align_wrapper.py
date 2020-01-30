@@ -14,11 +14,11 @@ from misc_utils.logging_utils import create_logger
 
 
 # INPUTS
-dem1 = r''
-dem2 = r''
-dem3 = r''
+# dem1 = r''
+# dem2 = r''
+# dem3 = r''
 
-align_dir = r''
+# align_dir = r''
 
 
 def main(dem1, dem2, out_dir):
@@ -69,7 +69,7 @@ def main(dem1, dem2, out_dir):
                                     threads,
                                     dem1,
                                     dem2,
-                                    os.path.join(align_dir, prefix))
+                                    os.path.join(out_dir, prefix))
     logger.info('pc_align command:\n'.format(pca_command))
     logger.info(pca_command)
 
