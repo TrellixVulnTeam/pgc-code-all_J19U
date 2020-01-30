@@ -59,11 +59,12 @@ def main(dem1, dem2, out_dir):
     #### RUN PC_ALIGN ####
     max_displacement = 10
     threads = 16
-    prefix = 'pca_{}_{}'.format(dem1_name, dem2_name)
+    prefix = '{}'.format(dem1_name)
     
     pca_command = """pc_align --save-transformed-source-points 
                     --max-displacement {} 
                     --threads {} 
+                    --compute-translation-only
                     -o {}
                     {} {} 
                     """.format(max_displacement,
@@ -73,6 +74,8 @@ def main(dem1, dem2, out_dir):
                                dem2)
 
     logger.info('pc_align command:\n{}'.format(pca_command))
+
+    log_file = [f for f in os.listdir(out_dir) if '-log-pc_align' in f][0]
 
 
 if __name__ == '__main__':
