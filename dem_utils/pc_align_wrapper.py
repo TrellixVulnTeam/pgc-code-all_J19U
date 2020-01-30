@@ -43,8 +43,8 @@ def main(dem1, dem2, out_dir):
     logger = create_logger(os.path.basename(__file__), 'sh')
     
     # PARAMETERS
-    dem1_name = os.path.basename(dem1).split('.')
-    dem2_name = os.path.basename(dem2).split('.')
+    dem1_name = os.path.basename(dem1).split('.')[0][:12]
+    dem2_name = os.path.basename(dem2).split('.')[0][:12]
     
     
     #### FUNCTION DEFINITION ####
@@ -64,14 +64,15 @@ def main(dem1, dem2, out_dir):
     pca_command = """pc_align --save-transformed-source-points 
                     --max-displacement {} 
                     --threads {} 
+                    -o {}
                     {} {} 
-                    -o {}""".format(max_displacement,
-                                    threads,
-                                    dem1,
-                                    dem2,
-                                    os.path.join(out_dir, prefix))
-    logger.info('pc_align command:\n'.format(pca_command))
-    logger.info(pca_command)
+                    """.format(max_displacement,
+                               threads,
+                               os.path.join(out_dir, prefix),
+                               dem1,
+                               dem2)
+
+    logger.info('pc_align command:\n{}'.format(pca_command))
 
 
 if __name__ == '__main__':
