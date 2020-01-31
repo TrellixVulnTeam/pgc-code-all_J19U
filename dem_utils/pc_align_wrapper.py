@@ -16,18 +16,19 @@ import sys
 from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
 from misc_utils.RasterWrapper import Raster
 from dem_utils.dem_rmse import dem_rmse
+from dem_utils.rmse_compare import rmse_compare
 
 
 
 # INPUTS
-dem1 = r'V:\pgc\data\scratch\jeff\ms\dems\clip\WV02_20130629_1030010023174900_103001002452E500_seg2_2m_dem_clip.tif'
-dem2 = r'V:\pgc\data\scratch\jeff\ms\dems\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif'
+# dem1 = r'V:\pgc\data\scratch\jeff\ms\dems\clip\WV02_20130629_1030010023174900_103001002452E500_seg2_2m_dem_clip.tif'
+# dem2 = r'V:\pgc\data\scratch\jeff\ms\dems\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif'
 # dem3 = r''
 
-out_dir = r'V:\pgc\data\scratch\jeff\ms\dems\pca'
+# out_dir = r'V:\pgc\data\scratch\jeff\ms\dems\pca'
 
 
-def main(dem1, dem2, out_dir, rmse=False, warp=False, verbose=False):
+def main(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False, verbose=False):
     """
     Aligns DEMs and writes outputs to out_dir.
 
@@ -45,17 +46,13 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, verbose=False):
     None.
 
     """
+    # TODO: Add support for multiple DEMs using n-align
+
     # Logging setup
     if verbose:
         handler_level = 'DEBUG'
     else:
         handler_level = 'INFO'
-    # logger = create_logger(os.path.basename(__file__), 'sh',
-    #                        handler_level=handler_level)
-    
-    # logger = create_logger(os.path.basename(__file__), 'fh',
-    #                         filename=os.path.join(out_dir, '{}.log'.format(os.path.basename(__file__))),
-    #                         handler_level=handler_level)
 
     logging.config.dictConfig(LOGGING_CONFIG(handler_level))
     logger = logging.getLogger(__name__)
@@ -75,6 +72,7 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, verbose=False):
     #### FUNCTION DEFINITION ####
     def run_subprocess(command):
         proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+        # proc.wait()
         output, error = proc.communicate()
         logger.debug('Output: {}'.format(output.decode()))
         logger.debug('Err: {}'.format(error.decode()))
@@ -119,10 +117,15 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, verbose=False):
     # RMSE if requested
     if rmse:
         logger.info('Computing pre-alignment RMSE...')
+        rmse_outfile = os.path.join(out_dir, '{}_preRMSE.txt'.format(combo_name))
+        save_plot = os.path.join(out_dir, '{}_preRMSE.png'.format(combo_name))
+        if dryrun:
+            rmse_outfile = None
+            save_plot = None
         pre_rmse = dem_rmse(dem1, dem2, 
-                            outfile=os.path.join(out_dir, '{}_preRMSE.txt'.format(combo_name)),
+                            outfile=rmse_outfile,
                             plot=True,
-                            save_plot=os.path.join(out_dir, '{}_preRMSE.png'.format(combo_name)))
+                            save_plot=save_plot)
         logger.info('RMSE prior to alignment: {:.2f}\n'.format(pre_rmse))
     
     
@@ -134,7 +137,7 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, verbose=False):
     
     pca_command = """pc_align --save-transformed-source-points
                     --max-displacement {}
-                    --threads {} --compute-translation-only 
+                    --threads {}
                     -o {}
                     {} {}""".format(max_displacement,
                                     threads,
@@ -144,27 +147,27 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, verbose=False):
     
     # Clean up command
     pca_command = clean_re.sub(' ', pca_command)
-    
     logger.debug('pc_align command:\n{}\n'.format(pca_command))
-    run_subprocess(pca_command)
+    if not dryrun:
+        run_subprocess(pca_command)
     
-    # Read contents of log file and report translation information
-    log_file = [os.path.join(out_dir, f) for f in os.listdir(out_dir) if '-log-pc_align' in f][0]
-    with open(log_file, 'r') as lf:
-        content = lf.readlines()
-        trans_info = 'Translation information:\n'
-        for line in content:
-            if 'North-East-Down' in line or 'magnitude' in line:
-                relevent = '{}\n'.format(line.split('Translation vector')[1])
-                relevent = ' '.join(relevent.split('Vector3'))
-                trans_info += relevent
-        logger.debug(trans_info)
+        # Read contents of log file and report translation information
+        log_file = [os.path.join(out_dir, f) for f in os.listdir(out_dir) if '-log-pc_align' in f][0]
+        with open(log_file, 'r') as lf:
+            content = lf.readlines()
+            trans_info = 'Translation information:\n'
+            for line in content:
+                if 'North-East-Down' in line or 'magnitude' in line:
+                    relevent = '{}\n'.format(line.split('Translation vector')[1])
+                    relevent = ' '.join(relevent.split('Vector3'))
+                    trans_info += relevent
+            logger.debug(trans_info)
     
     
     #### POINT2DEM ####
     logger.info('Running point2dem...')
-    out_name = '{}_pca'.format(dem2_name)
-    trans_source = '{}-trans_source.tif'.format(prefix)
+    out_name = os.path.join(out_dir, '{}_pca'.format(dem2_name))
+    trans_source = os.path.join(out_dir, '{}-trans_source.tif'.format(prefix))
     p2d_command = """point2dem 
                     --threads {}
                     --nodata-value {}
@@ -173,14 +176,28 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, verbose=False):
                     {}""".format(threads, nodata1, res1, out_name, trans_source)
     p2d_command = clean_re.sub(' ', p2d_command)
     logger.debug('point2dem command:\n{}\n'.format(p2d_command))
-    run_subprocess(p2d_command)
+    if not dryrun:
+        run_subprocess(p2d_command)
     
     if rmse:
         logger.info('Computing post-alignment RMSE...')
         out_dem = os.path.join(out_dir, '{}-DEM.tif'.format(out_name))
-        post_rmse = dem_rmse(dem1, out_dem)
-        logger.info('RMSE after alignment: {:.2f}\n'.format(post_rmse))
-        
+        rmse_outfile = os.path.join(out_dir, '{}_postRMSE.txt'.format(combo_name))
+        save_plot = os.path.join(out_dir, '{}_postRMSE.png'.format(combo_name))
+        if not dryrun:
+            post_rmse = dem_rmse(dem1, out_dem, 
+                                outfile=rmse_outfile,
+                                plot=True,
+                                save_plot=save_plot)
+            logger.info('RMSE after alignment: {:.2f}\n'.format(post_rmse))
+        logger.info('Comparing RMSE...')
+        rmse_compare_outfile = os.path.join(out_dir, '{}_compareRMSE.txt'.format(combo_name))
+        rmse_compare_save_plot = os.path.join(out_dir, '{}_compareRMSE.png'.format(combo_name))
+        rmse_compare(dem1, dem2, out_dem, 
+        			 outfile=rmse_compare_outfile,
+        			 plot=True,
+        			 save_plot=rmse_compare_save_plot)
+
 # main(dem1, dem2, out_dir, rmse=True, verbose=True)
 
 
@@ -195,6 +212,8 @@ if __name__ == '__main__':
                         help='Path to write output files to.')
     parser.add_argument('--rmse', action='store_true',
                         help='Compute RMSE before and after alignment.')
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Print actions without performing.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Set logging to DEBUG')
     
@@ -203,8 +222,10 @@ if __name__ == '__main__':
     dem1 = args.dem1
     dem2 = args.dem2
     out_dir = args.out_dir
-    verbose = args.verbose
     rmse = args.rmse
+    dryrun = args.dryrun
+    verbose = args.verbose
     
-    main(dem1, dem2, out_dir, rmse=rmse, verbose=verbose)
+    
+    main(dem1, dem2, out_dir, rmse=rmse, dryrun=dryrun, verbose=verbose)
     

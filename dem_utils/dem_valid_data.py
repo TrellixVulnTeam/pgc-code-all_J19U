@@ -16,10 +16,10 @@ from osgeo import gdal, ogr
 from tqdm import tqdm
 from datetime import datetime
 
-from query_danco import query_footprint
-from valid_data import valid_percent_clip
-from logging_utils import create_logger
-from gdal_tools import remove_shp
+from selection_utils.query_danco import query_footprint
+from dem_utils.valid_data import valid_percent_clip
+from misc_utils.logging_utils import create_logger
+from misc_utils.gdal_tools import remove_shp
 
 
 # # Inputs
@@ -164,7 +164,7 @@ def main(args):
                 dem_id, vp = line.split(',')
                 dem_ids_vps.append((dem_id, vp))
     else:
-        dem_ids_vps = []            
+        dem_ids_vps = []
 
     # Iterate over each dem in footprint, getting valid percent and writing to a file
     with open(PROCESSED, 'a') as p:

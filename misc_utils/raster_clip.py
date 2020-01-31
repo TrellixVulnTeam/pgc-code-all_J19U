@@ -9,8 +9,8 @@ Clip raster to shapefile extent. Must be in the same projection.
 from osgeo import ogr, gdal
 import os, logging, argparse
 
-from gdal_tools import check_sr, ogr_reproject, get_raster_sr, remove_shp
-from logging_utils import create_logger
+from misc_utils.gdal_tools import check_sr, ogr_reproject, get_raster_sr, remove_shp
+from misc_utils.logging_utils import create_logger
 
 
 gdal.UseExceptions()

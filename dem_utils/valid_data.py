@@ -11,9 +11,9 @@ import numpy as np
 
 from osgeo import gdal, ogr, osr
 
-from raster_clip import warp_rasters
-from gdal_tools import auto_detect_ogr_driver
-from logging_utils import create_logger
+from misc_utils.raster_clip import warp_rasters
+from misc_utils.gdal_tools import auto_detect_ogr_driver
+from misc_utils.logging_utils import create_logger
 
 
 #### Logging setup
