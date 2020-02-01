@@ -15,15 +15,15 @@ import geopandas as gpd
 
 #### INPUTS ####
 dems_p = r'E:\disbr007\umn\ms\shapefile\dem_footprints\banks_multispec_lewk_vp.shp'
-# MONTHS = [5, 6, 7, 8, 9, 10]
-MONTHS = [i for i in range(13)] # all months
+MONTHS = [6, 7, 8, 9]
+# MONTHS = [i for i in range(13)] # all months
 MIN_DATE = ''
 MAX_DATE = ''
 MULTISPEC = True
 VALID_THRESH = 50 # threshold of valid data % over AOI to copy
 PRJ_DIR = r'E:\disbr007\umn\ms' # project directory
 SELECTION_OUT = os.path.join(PRJ_DIR, 'shapefile', 'dem_footprints', 
-                             '{}_selection.shp'.format(os.path.basename(dems_p).split('.')[0]))
+                             '{}_ms_6_7_8_9_vp50.shp'.format(os.path.basename(dems_p).split('.')[0]))
 OUT_DEM_DIR = None # Directory to write DEMs to 
 
 
@@ -60,7 +60,10 @@ if MULTISPEC:
     # dems[MULTISPEC_BOOL] = dems['sensor1'].isin(['WVO2', 'WV03'])
     dems = dems[dems[SENSOR].isin(['WV01', 'WV02'])]
     
-    
+if VALID_THRESH:
+    dems = dems[dems[VALID_PERC] >= VALID_THRESH]
+
+
 #### Write selection out ####
 # dems.to_file(SELECTION_OUT)
 
@@ -68,4 +71,5 @@ if MULTISPEC:
 
 plt.style.use('ggplot')
 fig, ax = plt.subplots(1,1)
-axes = dems.hist(column=MONTH_COL, ax=ax, edgecolor='w')
+axes = dems.hist(column=VALID_PERC, by=MONTH_COL, bins=20, sharex=True, sharey=True, ax=ax, edgecolor='w')
+plt.tight_layout()
