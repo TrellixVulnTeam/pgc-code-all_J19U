@@ -17,7 +17,7 @@ from tqdm import tqdm
 from datetime import datetime
 
 from selection_utils.query_danco import query_footprint
-from dem_utils.valid_data import valid_percent_clip
+from dem_utils.valid_data import valid_percent_clip, valid_data_aoi
 from misc_utils.logging_utils import create_logger
 from misc_utils.gdal_tools import remove_shp
 
@@ -41,21 +41,18 @@ from misc_utils.gdal_tools import remove_shp
 # MONTHS = [5, 6, 7, 8, 9, 10]
 
 
-def main(args):
-    #### PARSE ARGUMENTS ####
-    DEMS_PATH = args.dems_path
-    OUT_SHP = args.out_shp
-    PRJ_DIR = args.prj_dir
-    LOG_FILE = args.log_file
-    PROCESSED = args.processed_file
-    MULTISPEC = args.multispectral
-    MONTHS = args.months
-    SCRATCH_DIR = args.scratch_dir
-    MIN_LAT = args.miny
-    MAX_LAT = args.maxy
-    MIN_LON = args.minx
-    MAX_LON = args.maxx
-    
+def main(DEMS_PATH,
+         OUT_SHP,
+         PRJ_DIR,
+         LOG_FILE=None,
+         PROCESSED=None,
+         MULTISPEC=None,
+         MONTHS=None,
+         SCRATCH_DIR=None,
+         MIN_LAT=None,
+         MAX_LAT=None,
+         MIN_LON=None,
+         MAX_LON=None):
 
     if not SCRATCH_DIR:
         SCRATCH_DIR = os.path.join(PRJ_DIR, 'scratch')
@@ -91,7 +88,8 @@ def main(args):
         dem_fp_temp = os.path.join(scratch_dir, os.path.basename(dem_path).replace('.tif', '.shp'))
         dem_fp.to_file(dem_fp_temp)
 
-        vp = valid_percent_clip(dem_fp_temp, dem_path)
+        # vp = valid_percent_clip(dem_fp_temp, dem_path)
+        vp = valid_data_aoi(dem_fp_temp, dem_path, out_dir=None)
         
         remove_shp(dem_fp_temp)
         
@@ -226,4 +224,30 @@ if __name__ == '__main__':
     # TODO: Add arguments/support for specifiying min/max lat/lons for loading DEMs
     args = parser.parse_args()
 
-    main(args)
+
+    #### PARSE ARGUMENTS ####
+    DEMS_PATH = args.dems_path
+    OUT_SHP = args.out_shp
+    PRJ_DIR = args.prj_dir
+    LOG_FILE = args.log_file
+    PROCESSED = args.processed_file
+    MULTISPEC = args.multispectral
+    MONTHS = args.months
+    SCRATCH_DIR = args.scratch_dir
+    MIN_LAT = args.miny
+    MAX_LAT = args.maxy
+    MIN_LON = args.minx
+    MAX_LON = args.maxx
+    
+    main(DEMS_PATH=DEMS_PATH,
+         OUT_SHP=OUT_SHP,
+         PRJ_DIR=PRJ_DIR,
+         LOG_FILE=LOG_FILE,
+         PROCESSED=PROCESSED,
+         MULTISPEC=MULTISPEC,
+         MONTHS=MONTHS,
+         SCRATCH_DIR=SCRATCH_DIR,
+         MIN_LAT=MIN_LAT,
+         MAX_LAT=MAX_LAT,
+         MIN_LON=MIN_LON,
+         MAX_LON=MAX_LON)

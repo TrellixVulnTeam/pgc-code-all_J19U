@@ -143,14 +143,16 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     
     gdal.RasterizeLayer(out_ds, [1], ogr_lyr, burn_values=[1])    
     
-    if write_rasterized is False:
-        return out_ds
-    else:
-        out_ds = None
-        return out_path
+    # if write_rasterized is False:
+    #     return out_ds
+    # else:
+    #     out_ds = None
+    #     return out_path
+    out_ds = None
+    return out_path
 
 
-def valid_data_aoi(aoi, raster, out_dir):
+def valid_data_aoi(aoi, raster, out_dir=None, in_mem=True):
     """
     Compute percentage of valid pixels given an AOI. The raster must already 
     be clipped to the AOI to return valid results.
@@ -160,13 +162,19 @@ def valid_data_aoi(aoi, raster, out_dir):
         TODO: add in memory support
     """
     logger.debug('Finding percent of {} valid pixels in {}'.format(raster, aoi))
+    
+    # Create in memory out_dir if needed
+    if in_mem or not out_dir:
+        out_dir = r'/vsimem'
+        write_rasterized = False
+
     # Convert aoi to raster and count the number of pixels
     if isinstance(aoi, ogr.DataSource):
         out_path = os.path.join(out_dir, '{}.tif'.format(aoi.GetName()))
     else:
         out_path = os.path.join(out_dir, '{}.tif'.format(os.path.basename(aoi).split('.')[0]))
     
-    aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=True, out_path=out_path)
+    aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=write_rasterized, out_path=out_path)
     aoi_valid_pixels, aoi_total_pixels = valid_data(aoi_gdal_ds)
     # Pixels outside bounding box of AOI
     boundary_pixels = aoi_total_pixels - aoi_valid_pixels
@@ -218,3 +226,4 @@ def valid_percent_clip(aoi, raster, out_dir=None):
     valid_perc = round(valid_perc, 2)
     
     return valid_perc
+
