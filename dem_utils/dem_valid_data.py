@@ -154,7 +154,10 @@ def main(DEMS_PATH,
     # Get valid percentage for all DEMs
     logger.info('Determining valid percentage of DEMs...')
     # If a file containing dem_id and valid percentages is passed, open and read them in.
+    # Method for open text file of processed DEMs, changed to 'a' below if exists
+    open_method = 'w' 
     if os.path.exists(PROCESSED):
+        open_method = 'a'
         dem_ids_vps = []
         with open(PROCESSED, 'r') as p:
             content = p.readlines()

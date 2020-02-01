@@ -122,7 +122,8 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     y_sz = gdal_ds.RasterYSize
     x_max = x_min + x_res * x_sz
     y_min = y_max + y_res * y_sz
-    
+    gdal_ds = None
+
     ## Open shapefile
     ogr_lyr = ogr_ds.GetLayer()
     
