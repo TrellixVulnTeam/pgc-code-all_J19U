@@ -28,9 +28,17 @@ from dem_utils.rmse_compare import rmse_compare
 # out_dir = r'V:\pgc\data\scratch\jeff\ms\dems\pca'
 
 
-def main(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False, verbose=False):
+handler_level = 'INFO'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
+print('logger level: {}'.format(logger.level))
+
+
+def pca_p2d(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False):
     """
-    Aligns DEMs and writes outputs to out_dir.
+    Runs pc_align, then point2dem on two input DEMs,
+    optionally calculating before and after RMSE's,
+    and/or clipping (?).
 
     Parameters
     ----------
@@ -44,22 +52,8 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False, verbose=Fals
     Returns
     -------
     None.
-
+       
     """
-    # TODO: Add support for multiple DEMs using n-align
-
-    # Logging setup
-    if verbose:
-        handler_level = 'DEBUG'
-    else:
-        handler_level = 'INFO'
-
-    logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-    logger = logging.getLogger(__name__)
-    print('logger level: {}'.format(logger.level))
-    # logger.setLevel(handler_level)
-    # logging.level = 0
-
 
     # PARAMETERS
     dem1_name = os.path.basename(dem1).split('.')[0][:13]
@@ -198,18 +192,50 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False, verbose=Fals
         			 plot=True,
         			 save_plot=rmse_compare_save_plot)
 
-# main(dem1, dem2, out_dir, rmse=True, verbose=True)
+
+
+def main(dems, out_dir, dem_fp=None rmse=False, warp=False, dryrun=False, verbose=False):
+    """
+    Aligns DEMs and writes outputs to out_dir.
+    """
+    if dem_fp:
+        dem_fp_df = gpd.read_file(dem_fp)
+        dem_fp_df.sort_values(by=['density'], ascending=False, inplace=True)
+        ref_dem_id = dem_fp_df['dem_id'].iloc[0]
+    ref_dem = [x for x in dems if ref_dem_id in x]
+    if len(ref_dem) != 1:
+        logger.error('Could not locate reference DEM from footprint ID.')
+        raise Exception
+    ref_dem = ref_dem[0]
+    logger.info("Reference DEM located: {}".format(ref_dem))
+    other_dems = [x for x in dems if x is not ref_dem]
+    logger.info("DEMs to align to reference: {}".format(other_dems))
+    
+    for od in other_dems:
+        logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM: {}'.format(ref_dem, od))
+        pca_p2d(ref_dem, od, out_dir=out_dir, rmse=rmse, warp=warp, dryrun=dryrun)
+    
+    logger.info('Done.')
+
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('dem1', type=os.path.abspath,
+    parser.add_argument('--dems', type=os.path.abspath,
                         help='Path to the DEM to align to, the reference DEM.')
-    parser.add_argument('dem2', type=os.path.abspath,
-                        help='Path to the DEM to translate.')
-    parser.add_argument('out_dir', type=os.path.abspath,
+    # parser.add_argument('dem2', type=os.path.abspath,
+                        # help='Path to the DEM to translate.')
+    parser.add_argument('--out_dir', type=os.path.abspath,
                         help='Path to write output files to.')
+    parser.add_argument('--dem_fp', type=os.path.abspath,
+                        help="""Path to footprint of DEMs containing at least two
+                                fields:
+                                    'dem_id' - dem_id
+                                    'density' - match tag density
+                                    The reference DEM will be the one with the highest density.
+                                    If not provided, the first DEM passed to --dems will be the
+                                    reference DEM.""")
     parser.add_argument('--rmse', action='store_true',
                         help='Compute RMSE before and after alignment.')
     parser.add_argument('--dryrun', action='store_true',
@@ -219,13 +245,13 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    dem1 = args.dem1
-    dem2 = args.dem2
+    dems = args.dems
+    # dem2 = args.dem2
     out_dir = args.out_dir
     rmse = args.rmse
     dryrun = args.dryrun
     verbose = args.verbose
     
     
-    main(dem1, dem2, out_dir, rmse=rmse, dryrun=dryrun, verbose=verbose)
+    main(dems, out_dir, rmse=rmse, dryrun=dryrun, verbose=verbose)
     
