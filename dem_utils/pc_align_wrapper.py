@@ -13,6 +13,8 @@ import subprocess
 from subprocess import PIPE
 import sys
 
+import geopandas as gpd
+
 from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
 from misc_utils.RasterWrapper import Raster
 from dem_utils.dem_rmse import dem_rmse
@@ -184,34 +186,43 @@ def pca_p2d(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False):
                                 plot=True,
                                 save_plot=save_plot)
             logger.info('RMSE after alignment: {:.2f}\n'.format(post_rmse))
-        logger.info('Comparing RMSE...')
-        rmse_compare_outfile = os.path.join(out_dir, '{}_compareRMSE.txt'.format(combo_name))
-        rmse_compare_save_plot = os.path.join(out_dir, '{}_compareRMSE.png'.format(combo_name))
-        rmse_compare(dem1, dem2, out_dem, 
-        			 outfile=rmse_compare_outfile,
-        			 plot=True,
-        			 save_plot=rmse_compare_save_plot)
+            logger.info('Comparing RMSE...')
+            rmse_compare_outfile = os.path.join(out_dir, '{}_compareRMSE.txt'.format(combo_name))
+            rmse_compare_save_plot = os.path.join(out_dir, '{}_compareRMSE.png'.format(combo_name))
+            rmse_compare(dem1, dem2, out_dem, 
+            			 outfile=rmse_compare_outfile,
+            			 plot=True,
+            			 save_plot=rmse_compare_save_plot)
 
 
 
-def main(dems, out_dir, dem_fp=None rmse=False, warp=False, dryrun=False, verbose=False):
+def main(dems, out_dir, dem_fp=None, rmse=False, warp=False, dryrun=False, verbose=False):
     """
     Aligns DEMs and writes outputs to out_dir.
     """
     if dem_fp:
+        logger.info('Determining reference DEM based on density in footprint...')
         dem_fp_df = gpd.read_file(dem_fp)
         dem_fp_df.sort_values(by=['density'], ascending=False, inplace=True)
         ref_dem_id = dem_fp_df['dem_id'].iloc[0]
-    ref_dem = [x for x in dems if ref_dem_id in x]
-    if len(ref_dem) != 1:
-        logger.error('Could not locate reference DEM from footprint ID.')
-        raise Exception
-    ref_dem = ref_dem[0]
+        ref_dem_density = dem_fp_df['density'].iloc[0]
+        logger.info('Reference DEM density: {:.3f}'.format(ref_dem_density))
+        ref_dem = [x for x in dems if ref_dem_id in x]
+        if len(ref_dem) != 1:
+            logger.error('Could not locate reference DEM from footprint ID.')
+            raise Exception
+        ref_dem = ref_dem[0]
+    else:
+        ref_dem = dems[0]
+        logger.info('Using first DEM as reference: {}'.format(ref_dem))
+
     logger.info("Reference DEM located: {}".format(ref_dem))
     other_dems = [x for x in dems if x is not ref_dem]
-    logger.info("DEMs to align to reference: {}".format(other_dems))
+    logger.info("DEMs to align to reference: {}".format('\n'.join(other_dems)))
     
-    for od in other_dems:
+    # TODO: Check for same 'combo-names' and create/pass 'use_long_names' argument to pca_p2d
+    for i, od in enumerate(other_dems):
+        logger.info('Processing DEM {} / {}'.format(i, len(other_dems)))
         logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM: {}'.format(ref_dem, od))
         pca_p2d(ref_dem, od, out_dir=out_dir, rmse=rmse, warp=warp, dryrun=dryrun)
     
@@ -222,7 +233,7 @@ def main(dems, out_dir, dem_fp=None rmse=False, warp=False, dryrun=False, verbos
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--dems', type=os.path.abspath,
+    parser.add_argument('--dems', nargs='+', type=os.path.abspath,
                         help='Path to the DEM to align to, the reference DEM.')
     # parser.add_argument('dem2', type=os.path.abspath,
                         # help='Path to the DEM to translate.')
@@ -248,10 +259,11 @@ if __name__ == '__main__':
     dems = args.dems
     # dem2 = args.dem2
     out_dir = args.out_dir
+    dem_fp = args.dem_fp
     rmse = args.rmse
     dryrun = args.dryrun
     verbose = args.verbose
     
     
-    main(dems, out_dir, rmse=rmse, dryrun=dryrun, verbose=verbose)
+    main(dems, out_dir, dem_fp=dem_fp, rmse=rmse, dryrun=dryrun, verbose=verbose)
     
