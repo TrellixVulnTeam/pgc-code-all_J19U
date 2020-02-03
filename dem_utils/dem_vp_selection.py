@@ -11,6 +11,7 @@ import os
 import pandas as pd
 import geopandas as gpd
 
+from misc_utils.id_parse_utils import write_ids
 
 
 #### INPUTS ####
@@ -22,8 +23,14 @@ MAX_DATE = ''
 MULTISPEC = True
 VALID_THRESH = 50 # threshold of valid data % over AOI to copy
 PRJ_DIR = r'E:\disbr007\umn\ms' # project directory
-SELECTION_OUT = os.path.join(PRJ_DIR, 'shapefile', 'dem_footprints', 
-                             '{}_ms_6_7_8_9_vp50.shp'.format(os.path.basename(dems_p).split('.')[0]))
+SELECTION_FP_OUT = os.path.join(PRJ_DIR, 'shapefile', 'dem_footprints', 
+                             '{}_ms_{}_vp{}.shp'.format(os.path.basename(dems_p).split('.')[0],
+                                                        str(MONTHS)[1:-1].replace(', ', '_'),
+                                                        VALID_THRESH))
+SELECTION_ID_OUT = os.path.join(PRJ_DIR, 'shapefile', 'dem_footprints',
+                                '{}_ms_{}_vp{}.txt'.format(os.path.basename(dems_p).split('.')[0], 
+                                                           str(MONTHS)[1:-1].replace(', ', '_'), 
+                                                           VALID_THRESH))
 OUT_DEM_DIR = None # Directory to write DEMs to 
 
 
@@ -65,8 +72,8 @@ if VALID_THRESH:
 
 
 #### Write selection out ####
-# dems.to_file(SELECTION_OUT)
-
+dems.to_file(SELECTION_FP_OUT)
+# write_ids(list(dems[CATALOGID]), SELECTION_ID_OUT)
 
 
 plt.style.use('ggplot')

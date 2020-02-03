@@ -65,7 +65,7 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False, verbose=Fals
     dem1_name = os.path.basename(dem1).split('.')[0][:13]
     dem2_name = os.path.basename(dem2).split('.')[0][:13]
     combo_name = '{}_{}'.format(dem1_name, dem2_name)
-    # Regex for cleaning text outputs
+    # Regex for cleaning streaming text outputs
     clean_re = re.compile('(?:\s+|\t+|\n+)')
     
     
@@ -116,7 +116,7 @@ def main(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False, verbose=Fals
     
     # RMSE if requested
     if rmse:
-        logger.info('Computing pre-alignment RMSE...')
+        logger.info('Computing pre-alignment RMSE for {}...'.format(combo_name))
         rmse_outfile = os.path.join(out_dir, '{}_preRMSE.txt'.format(combo_name))
         save_plot = os.path.join(out_dir, '{}_preRMSE.png'.format(combo_name))
         if dryrun:

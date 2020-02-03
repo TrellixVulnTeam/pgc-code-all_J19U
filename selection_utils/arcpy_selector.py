@@ -15,8 +15,8 @@ from shapely.geometry import Point
 
 import arcpy
 
-from id_parse_utils import read_ids
-from logging_utils import create_logger
+from misc_utils.id_parse_utils import read_ids, pgc_index_path
+from misc_utils.logging_utils import create_logger
 
 
 #### Logging setup
@@ -34,14 +34,7 @@ from logging_utils import create_logger
 logger = create_logger('arcpy_selector.py', 'sh')
 
 
-
-try:
-    sys.path.insert(0, r'C:\pgc-code-all\misc_utils')
-    from id_parse_utils import pgc_index_path
-    imagery_index = pgc_index_path()
-except ImportError:
-    imagery_index = r'C:\pgc_index\pgcImageryIndexV6_2019aug28.gdb\pgcImageryIndexV6_2019aug28'
-    logger.warning('Could not load updated index. Using last known path: {}'.format(imagery_index))
+imagery_index = pgc_index_path()
 
 arcpy.env.overwriteOutput = True
 
