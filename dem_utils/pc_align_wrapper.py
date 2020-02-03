@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 print('logger level: {}'.format(logger.level))
 
 
-def pca_p2d(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False):
+def pca_p2d(dem1, dem2, out_dir, rmse=False, use_long_names=False, warp=False, dryrun=False):
     """
     Runs pc_align, then point2dem on two input DEMs,
     optionally calculating before and after RMSE's,
@@ -48,6 +48,12 @@ def pca_p2d(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False):
         Path to the reference DEM.
     dem2 : os.path.abspath
         Path to the DEM to translate.
+    rmse : BOOL
+        Calculate before and after RMSEs, including generating plots
+        in out_dir
+    use_long_names : BOOL
+        Use full filenames for outputs. Otherwise just the short name
+        of [sensor]_[date] is used.
     out_dir : os.path.abspath
         Path to write alignment files to.
 
@@ -58,8 +64,12 @@ def pca_p2d(dem1, dem2, out_dir, rmse=False, warp=False, dryrun=False):
     """
 
     # PARAMETERS
-    dem1_name = os.path.basename(dem1).split('.')[0][:13]
-    dem2_name = os.path.basename(dem2).split('.')[0][:13]
+    if use_long_names:
+        dem1_name = os.path.basename(dem1).split('.')[0]
+        dem2_name = os.path.basename(dem2).split('.')[0]
+    else:
+        dem1_name = os.path.basename(dem1).split('.')[0][:13]
+        dem2_name = os.path.basename(dem2).split('.')[0][:13]
     combo_name = '{}_{}'.format(dem1_name, dem2_name)
     # Regex for cleaning streaming text outputs
     clean_re = re.compile('(?:\s+|\t+|\n+)')
@@ -220,11 +230,15 @@ def main(dems, out_dir, dem_fp=None, rmse=False, warp=False, dryrun=False, verbo
     other_dems = [x for x in dems if x is not ref_dem]
     logger.info("DEMs to align to reference: {}".format('\n'.join(other_dems)))
     
-    # TODO: Check for same 'combo-names' and create/pass 'use_long_names' argument to pca_p2d
+    # Check for same 'combo-names' and use full filenames for outputs
+    if True in [dn[:13] in [x[:13] for x in dems if x != dn] for dn in dems]:
+        use_long_names = True
+    
     for i, od in enumerate(other_dems):
         logger.info('Processing DEM {} / {}'.format(i, len(other_dems)))
         logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM: {}'.format(ref_dem, od))
-        pca_p2d(ref_dem, od, out_dir=out_dir, rmse=rmse, warp=warp, dryrun=dryrun)
+        pca_p2d(ref_dem, od, out_dir=out_dir, rmse=rmse, 
+                use_long_names=use_long_names, warp=warp, dryrun=dryrun)
     
     logger.info('Done.')
 
