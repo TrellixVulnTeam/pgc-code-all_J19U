@@ -27,10 +27,10 @@ from misc_utils.gdal_tools import clip_minbb
 # dem2_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif')
 
 
-# logger = create_logger(os.path.basename(__file__), 'sh',)
+logger = create_logger(os.path.basename(__file__), 'sh',)
 
-logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
-logger = logging.getLogger(__name__)
+# logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
+# logger = logging.getLogger(__name__)
 
 
 # TODO: Add shape1 == shape2 checking and 
@@ -76,7 +76,7 @@ def dem_rmse(dem1_path, dem2_path, max_diff=10, outfile=None, out_diff=None, plo
     # Remove any differences bigger than max_diff
     logger.debug('Checking for large differences, max_diff: {}'.format(max_diff))
     size_uncleaned = diffs.size
-    diffs = diffs[diffs < max_diff]
+    diffs = diffs[abs(diffs) < max_diff]
     size_cleaned = diffs.size
     if size_uncleaned != size_cleaned:
         logger.debug('Removed differences over max_diff ({}) from RMSE calculation...'.format(max_diff))
@@ -113,6 +113,8 @@ def dem_rmse(dem1_path, dem2_path, max_diff=10, outfile=None, out_diff=None, plo
         # dem1.WriteArray(diffs, out_diff)
         
     # Plot results
+    # TODO: Add legend and RMSE annotations
+    # TODO: Incorporate min/max differences based on max_diff argument
     if plot:
         plt.style.use('ggplot')
         fig, ax = plt.subplots(1,1)
@@ -134,6 +136,8 @@ if __name__ == '__main__':
                         help='Path to the first DEM')
     parser.add_argument('dem2', type=os.path.abspath,
                         help='Path to the second DEM')
+    parser.add_argument('--max_diff', type=int, default=10,
+                        help='Maximum difference to include in RMSE calculation.')
     parser.add_argument('--outfile', type=os.path.abspath,
                         help='Path to a txt file to write RMSE to.')
     parser.add_argument('--out_diff', type=os.path.abspath,
@@ -154,6 +158,7 @@ if __name__ == '__main__':
     dem1_path = args.dem1
     dem2_path = args.dem2
     outfile = args.outfile
+    max_diff = args.max_diff
     out_diff = args.out_diff
     plot = args.plot
     show_plot = args.show_plot
@@ -164,6 +169,7 @@ if __name__ == '__main__':
     dem_rmse(dem1_path=dem1_path, 
              dem2_path=dem2_path, 
              outfile=outfile,
+             max_diff=max_diff,
              out_diff=out_diff,
              plot=plot,
              show_plot=show_plot,

@@ -21,22 +21,14 @@ from dem_utils.dem_rmse import dem_rmse
 from dem_utils.rmse_compare import rmse_compare
 
 
+# logger = create_logger(os.path.basename(__file__), 'sh',)
 
-# INPUTS
-# dem1 = r'V:\pgc\data\scratch\jeff\ms\dems\clip\WV02_20130629_1030010023174900_103001002452E500_seg2_2m_dem_clip.tif'
-# dem2 = r'V:\pgc\data\scratch\jeff\ms\dems\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif'
-# dem3 = r''
-
-# out_dir = r'V:\pgc\data\scratch\jeff\ms\dems\pca'
+# handler_level = 'INFO'
+# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+# logger = logging.getLogger(__name__)
 
 
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
-print('logger level: {}'.format(logger.level))
-
-
-def pca_p2d(dem1, dem2, out_dir, rmse=False, use_long_names=False, warp=False, dryrun=False):
+def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, warp=False, dryrun=False):
     """
     Runs pc_align, then point2dem on two input DEMs,
     optionally calculating before and after RMSE's,
@@ -129,6 +121,7 @@ def pca_p2d(dem1, dem2, out_dir, rmse=False, use_long_names=False, warp=False, d
             rmse_outfile = None
             save_plot = None
         pre_rmse = dem_rmse(dem1, dem2, 
+                            max_diff=max_diff,
                             outfile=rmse_outfile,
                             plot=True,
                             save_plot=save_plot)
@@ -137,7 +130,7 @@ def pca_p2d(dem1, dem2, out_dir, rmse=False, use_long_names=False, warp=False, d
     
     #### PC_ALIGN ####
     logger.info('Running pc_align...')
-    max_displacement = 10
+    max_displacement = max_diff
     threads = 16
     prefix = '{}'.format(dem2_name)
     
@@ -192,6 +185,7 @@ def pca_p2d(dem1, dem2, out_dir, rmse=False, use_long_names=False, warp=False, d
         save_plot = os.path.join(out_dir, '{}_postRMSE.png'.format(combo_name))
         if not dryrun:
             post_rmse = dem_rmse(dem1, out_dem, 
+                                max_diff=max_diff,
                                 outfile=rmse_outfile,
                                 plot=True,
                                 save_plot=save_plot)
@@ -200,16 +194,29 @@ def pca_p2d(dem1, dem2, out_dir, rmse=False, use_long_names=False, warp=False, d
             rmse_compare_outfile = os.path.join(out_dir, '{}_compareRMSE.txt'.format(combo_name))
             rmse_compare_save_plot = os.path.join(out_dir, '{}_compareRMSE.png'.format(combo_name))
             rmse_compare(dem1, dem2, out_dem, 
+                        max_diff=max_diff,
             			 outfile=rmse_compare_outfile,
             			 plot=True,
             			 save_plot=rmse_compare_save_plot)
 
 
 
-def main(dems, out_dir, dem_fp=None, rmse=False, warp=False, dryrun=False, verbose=False):
+def main(dems, out_dir, max_diff=10, dem_ext='tif', dem_fp=None, rmse=False, warp=False, dryrun=False, verbose=False):
     """
     Aligns DEMs and writes outputs to out_dir.
     """
+    if verbose:
+        handler_level = 'DEBUG'
+    else:
+        handler_level = 'INFO'
+    logger = create_logger(os.path.basename(__file__), 'sh',
+                           handler_level=handler_level)
+    logger = create_logger(os.path.basename(__file__), 'fh',
+                          handler_level=handler_level)
+    # If a directory is passed, get all files with extension: dem_ext
+    # TODO: Make the DEM file selection better (support .vrt's, and more)
+    if len(dems) == 1 and os.path.isdir(dems[0]):
+        dems = [os.path.join(dems[0], x) for x in os.listdir(dems[0]) if x.endswith(dem_ext)]
     if dem_fp:
         logger.info('Determining reference DEM based on density in footprint...')
         dem_fp_df = gpd.read_file(dem_fp)
@@ -219,26 +226,28 @@ def main(dems, out_dir, dem_fp=None, rmse=False, warp=False, dryrun=False, verbo
         logger.info('Reference DEM density: {:.3f}'.format(ref_dem_density))
         ref_dem = [x for x in dems if ref_dem_id in x]
         if len(ref_dem) != 1:
-            logger.error('Could not locate reference DEM from footprint ID.')
-            logger.error('ref_dem: {}'.format(ref_dem))
+            if len(ref_dem) == 0:
+                logger.error('Could not locate reference DEM from footprint ID.')
+            else:
+                logger.error('Multiple matching reference DEMs: {}'.format('\n'.join(ref_dem)))
             raise Exception
         ref_dem = ref_dem[0]
     else:
         ref_dem = dems[0]
         logger.info('Using first DEM as reference: {}'.format(ref_dem))
 
-    logger.info("Reference DEM located: {}".format(ref_dem))
+    logger.info("Reference DEM located:\n{}".format(ref_dem))
     other_dems = [x for x in dems if x is not ref_dem]
-    logger.info("DEMs to align to reference: {}".format('\n'.join(other_dems)))
+    logger.info("DEMs to align to reference:\n{}".format('\n'.join(other_dems)))
     
     # Check for same 'short-names' and if they exist use full filenames for outputs
     if True in [dn[:13] in [x[:13] for x in dems if x != dn] for dn in dems]:
         use_long_names = True
     
     for i, od in enumerate(other_dems):
-        logger.info('Processing DEM {} / {}'.format(i, len(other_dems)))
-        logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM: {}'.format(ref_dem, od))
-        pca_p2d(ref_dem, od, out_dir=out_dir, rmse=rmse, 
+        logger.info('Processing DEM {} / {}'.format(i+1, len(other_dems)))
+        logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM:    {}'.format(ref_dem, od))
+        pca_p2d(ref_dem, od, max_diff=max_diff, out_dir=out_dir, rmse=rmse, 
                 use_long_names=use_long_names, warp=warp, dryrun=dryrun)
     
     logger.info('Done.')
@@ -249,9 +258,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--dems', nargs='+', type=os.path.abspath,
-                        help='Path to the DEM to align to, the reference DEM.')
+                        help='Paths to the DEMs to align or directory of DEMs.')
     # parser.add_argument('dem2', type=os.path.abspath,
                         # help='Path to the DEM to translate.')
+    parser.add_argument('--dem_ext', type=str, default='tif',
+                        help="""If dems is a directory, the extension the DEMs share, used
+                              to select DEM files.""")
     parser.add_argument('--out_dir', type=os.path.abspath,
                         help='Path to write output files to.')
     parser.add_argument('--dem_fp', type=os.path.abspath,
@@ -264,6 +276,8 @@ if __name__ == '__main__':
                                     reference DEM.""")
     parser.add_argument('--rmse', action='store_true',
                         help='Compute RMSE before and after alignment.')
+    parser.add_argument('--max_diff', type=int, default=10,
+                        help='Maximum difference to use in pc_align and RMSE calculations.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -272,13 +286,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     dems = args.dems
-    # dem2 = args.dem2
+    dem_ext = args.dem_ext
     out_dir = args.out_dir
     dem_fp = args.dem_fp
     rmse = args.rmse
+    max_diff = args.max_diff
     dryrun = args.dryrun
     verbose = args.verbose
     
     
-    main(dems, out_dir, dem_fp=dem_fp, rmse=rmse, dryrun=dryrun, verbose=verbose)
+    main(dems, out_dir, max_diff=max_diff, dem_ext=dem_ext, dem_fp=dem_fp, rmse=rmse, dryrun=dryrun, verbose=verbose)
     
