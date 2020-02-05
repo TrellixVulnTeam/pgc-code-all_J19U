@@ -220,6 +220,7 @@ def main(dems, out_dir, dem_fp=None, rmse=False, warp=False, dryrun=False, verbo
         ref_dem = [x for x in dems if ref_dem_id in x]
         if len(ref_dem) != 1:
             logger.error('Could not locate reference DEM from footprint ID.')
+            logger.error('ref_dem: {}'.format(ref_dem))
             raise Exception
         ref_dem = ref_dem[0]
     else:
@@ -230,7 +231,7 @@ def main(dems, out_dir, dem_fp=None, rmse=False, warp=False, dryrun=False, verbo
     other_dems = [x for x in dems if x is not ref_dem]
     logger.info("DEMs to align to reference: {}".format('\n'.join(other_dems)))
     
-    # Check for same 'combo-names' and use full filenames for outputs
+    # Check for same 'short-names' and if they exist use full filenames for outputs
     if True in [dn[:13] in [x[:13] for x in dems if x != dn] for dn in dems]:
         use_long_names = True
     
