@@ -73,7 +73,7 @@ if VALID_THRESH:
 
 #### Write selection out ####
 dems.to_file(SELECTION_FP_OUT)
-# write_ids(list(dems[CATALOGID]), SELECTION_ID_OUT)
+write_ids(list(dems[CATALOGID]), SELECTION_ID_OUT)
 
 
 plt.style.use('ggplot')
