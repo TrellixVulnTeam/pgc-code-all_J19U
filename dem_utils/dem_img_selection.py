@@ -12,7 +12,7 @@ import geopandas as gpd
 
 from selection_utils.query_danco import query_footprint
 from misc_utils.raster_clip import warp_rasters
-from misc_utils.gdal_tools import remove_shp, get_raster_sr, get_shp_sr, ogr_reproject, check_sr
+from misc_utils.gdal_tools import remove_shp
 from misc_utils.id_parse_utils import write_ids
 from dem_utils.valid_data import valid_percent_clip
 from misc_utils.logging_utils import create_logger
@@ -24,12 +24,13 @@ from misc_utils.logging_utils import create_logger
 
 
 #### INPUTS ####
-AOI_PATH = r'E:\disbr007\umn\ms\shapefile\aois\pot_aois\aoi6_2020feb01.shp' 
+AOI_PATH = r'E:\disbr007\umn\ms\shapefile\aois\pot_aois\aoi8_2020feb01.shp' 
 # AOI_SELECT = [('Name', 'test', 'str'), ('ID', '7', 'int')] # subset selection for AOI
 # AOI_SELECT = [('Name', 'test', 'str')]
 AOI_SELECT = None
 AOI_UNIQUE = 'id' # field in aoi shapefile with unique identifiers
 DEM_FP = r'E:\disbr007\umn\ms\shapefile\dem_footprints\banks_multispec_lewk_vp_ms_6_7_8_9_vp50.shp'
+
 MONTHS = [6, 7, 8, 9]
 MIN_DATE = ''
 MAX_DATE = ''
