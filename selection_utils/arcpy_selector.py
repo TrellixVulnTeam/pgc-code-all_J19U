@@ -19,21 +19,6 @@ from misc_utils.id_parse_utils import read_ids, pgc_index_path
 from misc_utils.logging_utils import create_logger
 
 
-#### Logging setup
-# create logger
-# logger = logging.getLogger('arcpy-selector')
-# logger.setLevel(logging.DEBUG)
-# # create console handler with a higher log level
-# ch = logging.StreamHandler()
-# ch.setLevel(logging.INFO)
-# # create formatter and add it to the handlers
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# ch.setFormatter(formatter)
-# # add the handlers to the logger
-# logger.addHandler(ch)
-logger = create_logger('arcpy_selector.py', 'sh')
-
-
 imagery_index = pgc_index_path()
 
 arcpy.env.overwriteOutput = True
@@ -234,6 +219,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    logger = create_logger('arcpy_selector.py', 'sh')
     if args.verbose:
         logger = create_logger('arcpy_selector.py', 'sh',
                                handler_level='DEBUG')
@@ -265,6 +251,7 @@ if __name__ == '__main__':
 
 
     ## Inital selection by location or ID
+    logger.info('Making selection...')
     selection = select_footprints(selector_path=selector_path,
                                   input_type = determine_input_type(selector_path),
                                   imagery_index=imagery_index,
