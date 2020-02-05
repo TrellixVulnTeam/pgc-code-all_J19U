@@ -96,7 +96,7 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
             of.write('RMSE: {:.2f}\n'.format(rmse))
             of.write('Pixels considered: {:,}\n'.format(diffs_valid_count))
             of.write('Minimum difference: {:.2f}\n'.format(min_diff))
-            of.write('Maximum difference: {:.2f}\n'.format(max_diff))
+            of.write('Maximum difference: {:.2f}\n\n'.format(max_diff))
 
 
     #### POST ALIGNMENT ####
@@ -125,7 +125,7 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
             of.write('RMSEpca: {:.2f}\n'.format(rmse_pca))
             of.write('Pixels considered pca: {:,}\n'.format(diffs_pca_valid_count))
             of.write('Minimum difference pca: {:.2f}\n'.format(min_diff_pca))
-            of.write('Maximum difference pca: {:.2f}\n'.format(max_diff_pca))
+            of.write('Maximum difference pca: {:.2f}\n\n'.format(max_diff_pca))
 
 
     # Plot results
