@@ -9,6 +9,7 @@ import argparse
 import logging.config
 import os
 import re
+import shutil
 import subprocess
 from subprocess import PIPE
 import sys
@@ -198,6 +199,18 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
             			 outfile=rmse_compare_outfile,
             			 plot=True,
             			 save_plot=rmse_compare_save_plot)
+
+    # Move files into subdirectories
+    pc_align_dem_dir = os.path.join(out_dir, 'dems')
+    if not os.path.exists(pc_align_dem_dir):
+        os.makedirs(pc_align_dem_dir)
+    # Move DEMs
+    shutil.move(out_dem, pc_align_dem_dir)
+    # Move everything else
+    misc_dir = os.path.join(out_dir, 'misc')
+    misc_files = [os.path.join(out_dir, x) for x in os.listdir(out_dir)]
+    for f in misc_files:
+        shutil.move(f, misc_dir)
 
 
 
