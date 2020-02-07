@@ -196,7 +196,7 @@ def valid_data_aoi(aoi, raster, out_dir=None, in_mem=True):
 
 def valid_percent_clip(aoi, raster, out_dir=None):
     """
-    Clip a raster in memory to the aoi, and get the percent of non-NoData pixels in the AOI.
+    Clip a raster to the aoi, and get the percent of non-NoData pixels in the AOI.
     Useful with pandas.apply function applied to a row with a raster filename.
 
     Parameters

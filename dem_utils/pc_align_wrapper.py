@@ -24,9 +24,9 @@ from dem_utils.rmse_compare import rmse_compare
 
 # logger = create_logger(os.path.basename(__file__), 'sh',)
 
-# handler_level = 'INFO'
-# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-# logger = logging.getLogger(__name__)
+handler_level = 'INFO'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
 
 
 def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, warp=False, dryrun=False):
@@ -46,7 +46,8 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
         in out_dir
     use_long_names : BOOL
         Use full filenames for outputs. Otherwise just the short name
-        of [sensor]_[date] is used.
+        of [sensor]_[date] is used. Set to True for filenames that 
+        do not confirm to PGC SETSM DEM naming convention.
     out_dir : os.path.abspath
         Path to write alignment files to.
 
