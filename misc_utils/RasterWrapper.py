@@ -64,6 +64,20 @@ class Raster():
         self.MaskedArray = ma.masked_array(self.Array, mask=self.Mask)
     
     
+    def get_projwin(self):
+        '''
+        Get projwin ordered.
+        '''
+        gt = self.geotransform
+        
+        ulx = gt[0]
+        uly = gt[3]
+        lrx = ulx + (gt[1] * self.x_sz)
+        lry = uly + (gt[5] * self.y_sz)
+    
+        return ulx, uly, lrx, lry
+    
+    
     def raster_bounds(self):
         '''
         GDAL only version of getting bounds for a single raster.

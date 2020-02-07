@@ -74,6 +74,7 @@ def logging_level_int(logging_level):
         
     return level_int
 
+
 def create_logger(logger_name, handler_type, 
                     handler_level=None,
                     filename=None, 
@@ -125,7 +126,7 @@ def create_logger(logger_name, handler_type,
             
             if existing_level == desired_level:
                 handler = h
-                # print('handler exists, not adding')
+                print('handler exists, not adding')
                 break
     
     # If no handler of specified type and level was found, create it
