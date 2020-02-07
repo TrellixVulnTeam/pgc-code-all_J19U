@@ -5,12 +5,18 @@ Created on Fri Jul 19 10:20:36 2019
 @author: disbr007
 
 """
+import logging.config
+import numpy as np
+import numpy.ma as ma
 
 from osgeo import gdal, osr, ogr
-import numpy as np
-from logging_utils import create_logger
 
-logger = create_logger('RasterWrapper.py', 'sh')
+from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
+
+# logger = create_logger('RasterWrapper.py', 'sh')
+
+logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
+logger = logging.getLogger(__name__)
 
 
 class Raster():
@@ -51,10 +57,40 @@ class Raster():
         self.dtype = self.data_src.GetRasterBand(1).DataType
         
         ## Get the raster as an array
-        ## Defaults to band 1 -- use ReadArray() to return stack of multiple bands
+        ## Defaults to band 1 -- use ReadArray() to return stack 
+        ## of multiple bands
         self.Array = self.data_src.ReadAsArray()
         self.Mask = self.Array == self.nodata_val
+        self.MaskedArray = ma.masked_array(self.Array, mask=self.Mask)
+    
+    
+    def get_projwin(self):
+        '''
+        Get projwin ordered.
+        '''
+        gt = self.geotransform
         
+        ulx = gt[0]
+        uly = gt[3]
+        lrx = ulx + (gt[1] * self.x_sz)
+        lry = uly + (gt[5] * self.y_sz)
+    
+        return ulx, uly, lrx, lry
+    
+    
+    def raster_bounds(self):
+        '''
+        GDAL only version of getting bounds for a single raster.
+        '''
+        gt = self.geotransform
+        
+        ulx = gt[0]
+        uly = gt[3]
+        lrx = ulx + (gt[1] * self.x_sz)
+        lry = uly + (gt[5] * self.y_sz)
+        
+        return ulx, lry, lrx, uly
+    
     
     def GetBandAsArray(self, band_num, mask=True):
         """
@@ -280,3 +316,37 @@ class Raster():
             window_agg = None
             
         return window_agg
+
+
+def same_srs(raster1, raster2):
+    """
+    Compares the spatial references of two rasters.
+
+    Parameters
+    ----------
+    raster1 : os.path.abspath
+        Path to the first raster.
+    raster2 : os.path.abspath
+        Path to the second raster.
+
+    Returns
+    -------
+    BOOL : True is match.
+
+    """
+    r1 = Raster(raster1)
+    r1_srs = r1.prj
+    # r1 = None
+    
+    r2 = Raster(raster2)
+    r2_srs = r2.prj
+    # r2 = None
+    
+    result = r1_srs.IsSame(r2_srs)
+    if result == 1:
+        same = True
+    elif result == 0:
+        same = False
+    else:
+        logger.error('Unknown return value from IsSame, expected 0 or 1: {}'.format(result))
+    return same

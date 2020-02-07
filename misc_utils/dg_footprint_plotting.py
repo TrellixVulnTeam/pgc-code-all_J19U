@@ -42,4 +42,3 @@ if __name__ == '__main__':
     plot_cloudcover(dg_footprint, cloudcover_col='cloudcover', ax=ax2)
     plt.tight_layout()
     plt.show(block=True)
-    

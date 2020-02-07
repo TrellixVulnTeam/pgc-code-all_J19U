@@ -13,7 +13,8 @@ import os
 import geopandas as gpd
 import pandas as pd
 
-from query_danco import query_footprint
+from selection_utils.query_danco import query_footprint
+from misc_utils.id_parse_utils import read_ids
 
 # create logger with 'spam_application'
 logger = logging.getLogger('ahap_select')
@@ -28,7 +29,7 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-def select_AHAP(AOI_P, repeat=False, write=None):
+def select_AHAP(PHOTO_IDS=None, AOI_P=None, repeat=False, write=None):
     # String literals
     LAYER = 'usgs_index_aerial_image_archive'
     DB = 'imagery'
@@ -46,16 +47,22 @@ def select_AHAP(AOI_P, repeat=False, write=None):
     # Load photo extents
     PHOTO_EXT = gpd.read_file(PHOTO_EXT_P)
     
-    logger.info('Reading AOI shapefile....')
-    # Load AOI and match crs
-    AOI = gpd.read_file(os.path.join(AOI_P))
-    AOI = AOI.to_crs(PHOTO_EXT.crs)
-    
-    
-    logger.info('Selecting AHAP imagery by location...')
-    # Select Photo Extents by intersection with AOI polygons
-    selection = gpd.sjoin(PHOTO_EXT, AOI, how='inner', op='intersects')
-    
+    if AOI_P:
+        logger.info('Reading AOI shapefile....')
+        # Load AOI and match crs
+        AOI = gpd.read_file(os.path.join(AOI_P))
+        AOI = AOI.to_crs(PHOTO_EXT.crs)
+        
+        
+        logger.info('Selecting AHAP imagery by location...')
+        # Select Photo Extents by intersection with AOI polygons
+        selection = gpd.sjoin(PHOTO_EXT, AOI, how='inner', op='intersects')
+    elif PHOTO_IDS:
+        if os.path.isfile(PHOTO_IDS[0]):
+            ids = read_ids(PHOTO_IDS[0])
+        elif isinstance(PHOTO_IDS, list):
+            ids = PHOTO_IDS
+        selection = PHOTO_EXT[PHOTO_EXT[PHOTO_ID].isin(ids)]
     
     # Remove duplicate Photo Extents if specified
     if repeat is False:
@@ -78,7 +85,9 @@ def select_AHAP(AOI_P, repeat=False, write=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('AOI', type=os.path.abspath,
+    parser.add_argument('--PHOTO_IDS', nargs='+',
+                        help='Path to photo_ids list or space seperated IDs')
+    parser.add_argument('--AOI', type=os.path.abspath,
                         help='Path to AOI shapefile.')
     parser.add_argument('-o', '--output', type=os.path.abspath,
                         help='''Output selection of AHAP photo extents.''')
@@ -89,4 +98,4 @@ if __name__ == '__main__':
                                 
     args = parser.parse_args()
     
-    select_AHAP(AOI_P=args.AOI, repeat=args.repeat, write=args.output)
+    select_AHAP(PHOTO_IDS=args.PHOTO_IDS, AOI_P=args.AOI, repeat=args.repeat, write=args.output)

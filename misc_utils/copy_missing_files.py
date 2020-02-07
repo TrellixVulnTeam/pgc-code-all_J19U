@@ -31,12 +31,11 @@ def find_missing_files(src_path, dst_path, rel_path_src, rel_path_dst, use_exts=
         for f in fnames:
             rel_f = f.replace(rel_path_dst, '') 
             rel_dst_files.append(rel_f)
-            
-#    print('src: {}'.format(rel_src_files))
-#    print('dst: {}'.format(rel_dst_files))
+
+
     rel_missing_files = [x for x in rel_src_files if x not in rel_dst_files]
     abs_missing = [x for x in src_files if x.endswith(tuple(rel_missing_files))]
-    
+
     print(abs_missing)
 
     if use_exts:
@@ -48,8 +47,8 @@ def find_missing_files(src_path, dst_path, rel_path_src, rel_path_dst, use_exts=
         abs_missing = [x for x in abs_missing if get_ext(x) in use_exts]
         
     return abs_missing
- 
-    
+
+
 def copy_missing_files(missing_files, dst_path):
 #    missing_files = find_missing_files(src_path, dst_path)
     for f in tqdm.tqdm(missing_files):
@@ -70,19 +69,19 @@ if __name__ == '__main__':
     dst_dir = os.path.abspath(args.dst_dir)
     rel_path_src = args.src_rel
     rel_path_dst = args.dst_rel
-    
+
     print('Finding missing files...')
     missing = find_missing_files(src_dir, dst_dir, rel_path_src, rel_path_dst)
     print('Missing files found: {}'.format(len(missing)))
-    
+
     if args.v:
         for f in missing:
             print(f)
-        
+
     perform_move = input('Move missing files? [y/n] ')
-    
+
     if perform_move == 'y':
         print("Moving missing files...")
         copy_missing_files(missing, dst_dir)
-    
+
         print('\nMove complete.')

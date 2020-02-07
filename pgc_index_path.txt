@@ -1,2 +1,0 @@
-C:\pgc_index\pgcImageryIndexV6_2020jan14.gdb\pgcImageryIndexV6_2020jan14
-C:\pgc_index\pgcImageryIndexV6_2020jan14_catalog_id.txt

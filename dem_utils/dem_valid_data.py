@@ -3,6 +3,8 @@
 Created on Tue Jan 21 21:03:01 2020
 
 @author: disbr007
+Get the valid percentages of each DEM in a footprint from danco table, if footprint
+not provided, defaults to the danco table with any passed arguments.
 """
 import argparse
 import os
@@ -14,10 +16,10 @@ from osgeo import gdal, ogr
 from tqdm import tqdm
 from datetime import datetime
 
-from query_danco import query_footprint
-from valid_data import valid_percent_clip
-from logging_utils import create_logger
-from gdal_tools import remove_shp
+from selection_utils.query_danco import query_footprint
+from dem_utils.valid_data import valid_percent_clip, valid_data_aoi
+from misc_utils.logging_utils import create_logger
+from misc_utils.gdal_tools import remove_shp
 
 
 # # Inputs
@@ -39,15 +41,18 @@ from gdal_tools import remove_shp
 # MONTHS = [5, 6, 7, 8, 9, 10]
 
 
-def main(args):
-    DEMS_PATH = args.dems_path
-    OUT_SHP = args.out_shp
-    PRJ_DIR = args.prj_dir
-    LOG_FILE = args.log_file
-    PROCESSED = args.processed_file
-    MULTISPEC = args.multispectral
-    MONTHS = args.months
-    SCRATCH_DIR = args.scratch_dir
+def main(DEMS_PATH,
+         OUT_SHP,
+         PRJ_DIR,
+         LOG_FILE=None,
+         PROCESSED=None,
+         MULTISPEC=None,
+         MONTHS=None,
+         SCRATCH_DIR=None,
+         MIN_LAT=None,
+         MAX_LAT=None,
+         MIN_LON=None,
+         MAX_LON=None):
 
     if not SCRATCH_DIR:
         SCRATCH_DIR = os.path.join(PRJ_DIR, 'scratch')
@@ -59,7 +64,7 @@ def main(args):
     ogr.UseExceptions()
 
 
-    # Parameters
+    #### PARAMETERS ####
     WINDOWS_OS = 'Windows' # value returned by platform.system() for windows
     LINUX_OS = 'Linux' # value return by platform.system() for linux
     DATE_COL = 'acqdate1'
@@ -83,20 +88,20 @@ def main(args):
         dem_fp_temp = os.path.join(scratch_dir, os.path.basename(dem_path).replace('.tif', '.shp'))
         dem_fp.to_file(dem_fp_temp)
 
-        vp = valid_percent_clip(dem_fp_temp, dem_path)
+        # vp = valid_percent_clip(dem_fp_temp, dem_path)
+        vp = valid_data_aoi(dem_fp_temp, dem_path, out_dir=None)
         
         remove_shp(dem_fp_temp)
         
         return vp
 
-
+    
     # Create logger
-    # if not __file__: # spyder issue with not assigning __file__ variable when code blocks are run
-        # __file__ = 'dem_valid_data.py'
     logger = create_logger(os.path.basename(__file__), 'sh')
     logger = create_logger(os.path.basename(__file__), 'fh', handler_level='DEBUG', filename=LOG_FILE)
 
 
+    #### LOAD DEMS FOOTPRINT ####
     logger.info('Loading DEMs...')
     # If no footprint is provided, load all DEMs over input AOI coordinates
     if DEMS_PATH is None:
@@ -104,13 +109,15 @@ def main(args):
         OS = platform.system()
             
         # Load DEMs
+        dems_where = ''
         # Build SQL clause to select DEMs in the area of the AOI, helps with load times
         pad = 5
-        dems_where = """cent_lon > {} AND cent_lon < {} AND 
-                        cent_lat > {} AND cent_lat < {}""".format(min_lon-pad, 
-                                                                  min_lon+pad, 
-                                                                  min_lat-pad, 
-                                                                  max_lat+pad)
+        if MIN_LON and MAX_LON and MIN_LAT and MAX_LAT:
+            dems_where = """cent_lon > {} AND cent_lon < {} AND 
+                            cent_lat > {} AND cent_lat < {}""".format(MIN_LON-pad, 
+                                                                      MAX_LON+pad, 
+                                                                      MIN_LAT-pad,
+                                                                      MAX_LAT+pad)
         # Add to SQL clause to just select multispectral sensors
         if MULTISPEC:
             dems_where = check_where(dems_where)
@@ -130,6 +137,7 @@ def main(args):
         dems = gpd.read_file(DEMS_PATH)
         
 
+    #### GET VALID PERCENTAGE ####
     # Create full path to server location, used for checking validity
     # Determine operating system for locating DEMs
     OS = platform.system()
@@ -143,10 +151,10 @@ def main(args):
     dems = dems[dems[FULLPATH].apply(lambda x: os.path.exists(x))==True]
     logger.info('DEMs found: {}'.format(len(dems)))
 
-
     # Get valid percentage for all DEMs
     logger.info('Determining valid percentage of DEMs...')
     # If a file containing dem_id and valid percentages is passed, open and read them in.
+    # Method for open text file of processed DEMs, changed to 'a' below if exists
     if os.path.exists(PROCESSED):
         dem_ids_vps = []
         with open(PROCESSED, 'r') as p:
@@ -155,9 +163,9 @@ def main(args):
                 dem_id, vp = line.split(',')
                 dem_ids_vps.append((dem_id, vp))
     else:
-        dem_ids_vps = []            
+        dem_ids_vps = []
 
-
+    # Iterate over each dem in footprint, getting valid percent and writing to a file
     with open(PROCESSED, 'a') as p:
         for row in tqdm(dems[['dem_id', 'fullpath', 'geometry']].itertuples(index=False), 
                         total=len(dems)-len(dem_ids_vps)):
@@ -182,6 +190,7 @@ def main(args):
     dems.to_file(OUT_SHP)
 
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
@@ -204,7 +213,42 @@ if __name__ == '__main__':
     parser.add_argument('--months', nargs='+',
                         help="""Specify source imagery months to include: 5 6 10
                                 Ignored if footprint provided.""")
+    parser.add_argument('--minx', type=float,
+                        help='If not providing dems_path to footprints, minimum lon to use.')
+    parser.add_argument('--maxx', type=float,
+                    help='If not providing dems_path to footprints, maximum lon to use.')
+    parser.add_argument('--miny', type=float,
+                    help='If not providing dems_path to footprints, minimum lat to use.')
+    parser.add_argument('--maxy', type=float,
+                    help='If not providing dems_path to footprints, maximum lat to use.')
+    
     # TODO: Add arguments/support for specifiying min/max lat/lons for loading DEMs
     args = parser.parse_args()
 
-    main(args)
+
+    #### PARSE ARGUMENTS ####
+    DEMS_PATH = args.dems_path
+    OUT_SHP = args.out_shp
+    PRJ_DIR = args.prj_dir
+    LOG_FILE = args.log_file
+    PROCESSED = args.processed_file
+    MULTISPEC = args.multispectral
+    MONTHS = args.months
+    SCRATCH_DIR = args.scratch_dir
+    MIN_LAT = args.miny
+    MAX_LAT = args.maxy
+    MIN_LON = args.minx
+    MAX_LON = args.maxx
+    
+    main(DEMS_PATH=DEMS_PATH,
+         OUT_SHP=OUT_SHP,
+         PRJ_DIR=PRJ_DIR,
+         LOG_FILE=LOG_FILE,
+         PROCESSED=PROCESSED,
+         MULTISPEC=MULTISPEC,
+         MONTHS=MONTHS,
+         SCRATCH_DIR=SCRATCH_DIR,
+         MIN_LAT=MIN_LAT,
+         MAX_LAT=MAX_LAT,
+         MIN_LON=MIN_LON,
+         MAX_LON=MAX_LON)

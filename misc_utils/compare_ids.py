@@ -13,15 +13,11 @@ def main():
     parser.add_argument("list_1", type=str, help="Path to text file of first list of ids.")
     parser.add_argument("list_2", type=str, help="Path to text file of first list of ids.")
     parser.add_argument("-w", "--write", action='store_true', help='Write out common and unique lists.')
-    
+
     args = parser.parse_args()
-    
-    
+
     ids1, ids2, com = compare_ids(args.list_1, args.list_2, write_path=args.write)
-    
-#    print('Unique to list 1: {}'.format(len(ids1)))
-#    print('Unique to list 2: {}'.format(len(ids2)))
-#    print('Common: {}'.format(len(com)))
-    
+
+
 if __name__ == "__main__":
     main()

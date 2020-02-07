@@ -24,7 +24,7 @@ def emailByRegion(contacts_xl, region):
         email_txt.write(r'{}'.format(emails))
     return emails
 
-   
+
 def contacts_update(contacts_xl, new_contacts_xl):
     project_dir = os.path.dirname(contacts_xl)
     
