@@ -12,7 +12,7 @@ import numpy as np
 from osgeo import gdal, ogr, osr
 
 from misc_utils.raster_clip import warp_rasters
-from misc_utils.gdal_tools import auto_detect_ogr_driver
+from misc_utils.gdal_tools import auto_detect_ogr_driver, remove_shp
 from misc_utils.logging_utils import create_logger
 
 
@@ -153,21 +153,19 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     return out_path
 
 
-def valid_data_aoi(aoi, raster, out_dir=None, in_mem=True):
+def valid_data_aoi(aoi, raster, out_dir=None, in_mem=True, write_rasterized=False):
     """
-    Compute percentage of valid pixels given an AOI. The raster must already 
-    be clipped to the AOI to return valid results.
+    Compute percentage of valid pixels given an AOI. The raster MUST ALREADY BE CLIPPED
+    to the AOI to return valid results.
     
-    out_path : os.path.abspath
-        Path to write the rasterize AOI.
-        TODO: add in memory support
+    out_dir : os.path.abspath
+        Path to write rasterized AOI to.
     """
     logger.debug('Finding percent of {} valid pixels in {}'.format(raster, aoi))
     
     # Create in memory out_dir if needed
     if in_mem or not out_dir:
         out_dir = r'/vsimem'
-        write_rasterized = False
 
     # Convert aoi to raster and count the number of pixels
     if isinstance(aoi, ogr.DataSource):
@@ -175,7 +173,7 @@ def valid_data_aoi(aoi, raster, out_dir=None, in_mem=True):
     else:
         out_path = os.path.join(out_dir, '{}.tif'.format(os.path.basename(aoi).split('.')[0]))
     
-    aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=write_rasterized, out_path=out_path)
+    aoi_gdal_ds = rasterize_shp2raster_extent(aoi, raster, write_rasterized=write_rasterized)
     aoi_valid_pixels, aoi_total_pixels = valid_data(aoi_gdal_ds)
     # Pixels outside bounding box of AOI
     boundary_pixels = aoi_total_pixels - aoi_valid_pixels
@@ -227,4 +225,3 @@ def valid_percent_clip(aoi, raster, out_dir=None):
     valid_perc = round(valid_perc, 2)
     
     return valid_perc
-

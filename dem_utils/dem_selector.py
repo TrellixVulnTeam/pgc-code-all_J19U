@@ -10,7 +10,9 @@ import platform
 
 import pandas as pd
 import geopandas as gpd
+from tqdm import tqdm
 
+from dem_utils.valid_data import valid_percent_clip
 from selection_utils.query_danco import query_footprint
 from misc_utils.id_parse_utils import write_ids
 from misc_utils.logging_utils import LOGGING_CONFIG
@@ -44,6 +46,7 @@ from misc_utils.logging_utils import LOGGING_CONFIG
 def dem_selector(AOI_PATH, DEM_FP=None,
                  MONTHS=None, MIN_DATE=None, MAX_DATE=None,
                  MULTISPEC=False, DENSITY_THRESH=None,
+                 VALID_THRESH=None,
                  OUT_DEM_FP=None,
                  OUT_ID_LIST=None):
     """
@@ -86,6 +89,7 @@ def dem_selector(AOI_PATH, DEM_FP=None,
     CATALOGID = 'catalogid1' # field name in danco DEM footprint for catalogids
     DATE_COL = 'acqdate1' # name of date field in dems footprint
     DENSITY_COL = 'density' # name of density field in dems footprint
+    SENSOR_COL = 'sensor1' # name of sensor field in dems footprint
     
     FULLPATH = 'fullpath' # created field name in footprint with path to files
     VALID_PERC = 'valid_perc' # created field name in footprint to store valid %
@@ -108,11 +112,21 @@ def dem_selector(AOI_PATH, DEM_FP=None,
     
     #### LOAD INPUTS ####
     # Load AOI
+    logger.info('Reading AOI...')
     aoi = gpd.read_file(AOI_PATH)
     
     # If DEM footprint provided, use that, else use danco with parameters
     if DEM_FP:
+        logger.info('Reading provided DEM footprint...')
         dems = gpd.read_file(DEM_FP)
+        if MIN_DATE:
+            dems = dems[dems[DATE_COL] > MIN_DATE]
+        if MAX_DATE:
+            dems = dems[dems[DATE_COL] < MAX_DATE]
+        if MULTISPEC:
+            dems = dems[dems[SENSOR_COL].isin(['WV02', 'WV03'])]
+        if DENSITY_THRESH:
+            dems = dems[dems[DENSITY_COL] > DENSITY_THRESH]
     else:
         # Get bounds of aoi to reduce query size, with padding
         minx, miny, maxx, maxy = aoi.total_bounds
@@ -134,32 +148,34 @@ def dem_selector(AOI_PATH, DEM_FP=None,
         # Add to SQL clause to just select multispectral sensors
         if MULTISPEC:
             dems_where = check_where(dems_where)
-            dems_where += """sensor1 IN ('WV02', 'WV03')"""
+            dems_where += """{} IN ('WV02', 'WV03')""".format(SENSOR_COL)
         # Add density threshold to SQL
+        if DENSITY_THRESH:
             dems_where = check_where(dems_where)
             dems_where += """{} > {}""".format(DENSITY_COL, DENSITY_THRESH)
         # Load DEM footprints with SQL
         dems = query_footprint(DEMS_FP, where=dems_where)
-        # If only certain months requested, reduce to those
-        if MONTHS:
-            dems['temp_date'] = pd.to_datetime(dems[DATE_COL])
-            dems[MONTH_COL] = dems['temp_date'].dt.month
-            dems.drop(columns=['temp_date'], inplace=True)
-            dems = dems[dems[MONTH_COL].isin(MONTHS)]
+    
+    # If only certain months requested, reduce to those
+    if MONTHS:
+        dems['temp_date'] = pd.to_datetime(dems[DATE_COL])
+        dems[MONTH_COL] = dems['temp_date'].dt.month
+        dems.drop(columns=['temp_date'], inplace=True)
+        dems = dems[dems[MONTH_COL].isin(MONTHS)]
     
     # Check coordinate system match and if not reproject AOI
     if aoi.crs != dems.crs:
         aoi = aoi.to_crs(dems.crs)
-    
+ 
     
     #### SELECT DEMS OVER ALL AOIS ####
+    logger.info('Selecting DEMs over AOI...')
     # Select by location
     dems = gpd.overlay(dems, aoi, how='intersection')
     # Remove duplicates resulting from intersection (not sure why DUPs)
     dems = dems.drop_duplicates(subset=(DEM_FNAME))
+    logger.info('DEMs found over AOI: {}'.format(len(dems)))
     
-    
-    #### WRITE FOOTPRINT AND TXT OF MATCHES ####
     # Create full path to server location, used or checking validity
     # Determine operating system for locating DEMs
     OS = platform.system()
@@ -167,11 +183,28 @@ def dem_selector(AOI_PATH, DEM_FP=None,
         server_loc = WINDOWS_LOC
     elif OS == LINUX_OS:
         server_loc = LINUX_LOC    
-    
     dems[FULLPATH] = dems.apply(lambda x: os.path.join(x[server_loc], x[DEM_FNAME]), axis=1)
     # Subset to only those DEMs that actually can be found
     dems = dems[dems[FULLPATH].apply(lambda x: os.path.exists(x))==True]
     
+    
+    #### GET VALID DATA PERCENT ####
+    if VALID_THRESH:
+        logger.info('Determining percent of non-NoData pixels over AOI for each DEM...')
+        # dems[VALID_PERC] = dems.apply(lambda x: valid_percent_clip(AOI_PATH, x[FULLPATH]), axis=1)
+        
+        dems[VALID_PERC] = -9999
+        for row in tqdm(dems[[FULLPATH, VALID_PERC]].itertuples(index=True),
+                        total=len(dems)):
+            # print(row)
+            # print(row[0])
+            # print(row[1])
+            vp = valid_percent_clip(AOI_PATH, row[1]) # Index is row[0], then passed columns
+            dems.at[row.Index, VALID_PERC] = vp
+    
+        dems = dems[dems[VALID_PERC] > VALID_THRESH]
+            
+    #### WRITE FOOTPRINT AND TXT OF MATCHES ####
     # Write footprint out
     if OUT_DEM_FP:
         dems.to_file(OUT_DEM_FP)
@@ -180,13 +213,18 @@ def dem_selector(AOI_PATH, DEM_FP=None,
         write_ids(list(dems[CATALOGID]), OUT_ID_LIST)
     
     
-    # Summary statistics
+    #### Summary Statistics ####
     count = len(dems)
     min_date = dems[DATE_COL].min()
     max_date = dems[DATE_COL].max()
     min_density = dems[DENSITY_COL].min()
     max_density = dems[DENSITY_COL].max()
     avg_density = dems[DENSITY_COL].mean()
+    if VALID_THRESH:
+        min_valid = dems[VALID_PERC].min()
+        max_valid = dems[VALID_PERC].max()
+        avg_valid = dems[VALID_PERC].mean()
+        
     
     logger.info("SUMMARY of DEM SELECTION:")
     logger.info("Number of DEMs: {}".format(count))
@@ -195,7 +233,10 @@ def dem_selector(AOI_PATH, DEM_FP=None,
     logger.info("Minimum density: {:.2}".format(min_density))
     logger.info("Maximum density: {:.2}".format(max_density))
     logger.info("Average density: {:.2}".format(avg_density))
-
+    if VALID_THRESH:
+        logger.info('Minimum valid percentage over AOI: {}'.format(min_valid))
+        logger.info('Maximum valid percentage over AOI: {}'.format(max_valid))
+        logger.info('Average valid percentage over AOI: {}'.format(avg_valid))
     
     return dems
 
@@ -221,6 +262,9 @@ if __name__ == '__main__':
                         help='Use to select only DEMs from multispectral sources.')
     parser.add_argument('--density_threshold', type=float,
                         help='Minimum density to include in selection.')
+    parser.add_argument('--valid_aoi_threshold', type=float,
+                        help="""Threshold percent of non-Nodata pixels over AOI for each DEM.
+                                Not recommended for large selections.""")
     
     args = parser.parse_args()
     
@@ -233,6 +277,7 @@ if __name__ == '__main__':
     MAX_DATE = args.max_date
     MULTISPEC = args.multispectral
     DENSITY_THRESH = args.density_threshold
+    VALID_THRESH = args.valid_aoi_threshold
     
     
     dem_selector(AOI_PATH=AOI_PATH,
@@ -243,4 +288,5 @@ if __name__ == '__main__':
                  MIN_DATE=MIN_DATE,
                  MAX_DATE=MAX_DATE,
                  MULTISPEC=MULTISPEC,
-                 DENSITY_THRESH=DENSITY_THRESH)
+                 DENSITY_THRESH=DENSITY_THRESH,
+                 VALID_THRESH=VALID_THRESH)
