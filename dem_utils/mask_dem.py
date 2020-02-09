@@ -6,26 +6,53 @@ Created on Fri Feb  7 09:14:08 2020
 """
 
 import matplotlib.pyplot as plt
+import logging.config
+
+import cv2
 
 from misc_utils.RasterWrapper import Raster
 from misc_utils.raster_clip import warp_rasters
+from misc_utils.logging_utils import LOGGING_CONFIG
 
 
 #### INPUTS ####
-tandemx_path = r'V:\pgc\data\scratch\jeff\elev\tandemx\tdm90_banks_3413.tif'
-dem_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\pc_align\dems\WV02_20130711_1030010025A66E00_1030010025073200_seg1_2m_dem_clip_pca-DEM.tif'
-aoi_path = r'E:\disbr007\umn\ms\shapefile\aois\pot_aois\aoi6_2020feb01.shp'
-# Directory for clipped TanDEMX
-tandemx_clipped_dir = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems'
-
+# tandemx_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\pc_align\tandemx\dem\tdm90_banks_3413_aoi6_clip_resample_pca-DEM.tif'
+tandemx_path = r'V:\pgc\data\scratch\jeff\ms\scratch\tdm90_banks_3413_aoi6_clip_resample_pca-DEM_clip.tif'
+# dem_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\raw\WV02_20140902_1030010036966A00_1030010036846B00_seg1_2m_dem_clip.tif'
+dem_path = r'V:\pgc\data\scratch\jeff\ms\scratch\WV02_20140902_1030010036966A00_1030010036846B00_seg1_2m_dem_clip_clip.tif'
 
 #### SETUP ####
-# List of files to clean-up
-remove_files = []
+handler_level = 'INFO'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
 
-#### CLIP TANDEMX AOI ####
-tandemx_aoi = warp_rasters(aoi_path, [tandemx_path],
-                           out_dir=tandemx_clipped_dir,
-                           out_suffix='_aoi6_clip')[0]
-remove_files.append(tandemx_aoi)
 
+
+#### LOAD INPUT DATA ####
+tdx = Raster(tandemx_path)
+dem = Raster(dem_path)
+
+tdx_a = tdx.MaskedArray
+dem_a = dem.MaskedArray
+
+
+# Get absolute value differences
+abs_diffs = abs(tdx_a - dem_a)
+del tdx_a, dem_a, tdx, dem
+
+
+
+
+
+
+
+
+
+# plt.imshow(tdx_a)
+# plt.title('Tandem-X')
+
+
+
+# tdx_diff = Raster(tdx_abs_diff_path)
+# tdx_diff_a = tdx_diff.MaskedArray
+# plt.imshow(tdx_diff_a)
