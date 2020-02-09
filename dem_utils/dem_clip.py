@@ -35,16 +35,16 @@ if __name__ == '__main__':
     
     AOI_PATH = args.aoi
     dems_file = args.dems
-    OUT_DIR = args.out_dir,
-    OUT_SUFFIX = args.OUT_SUFFIX
+    OUT_DIR = args.out_dir
+    OUT_SUFFIX = args.out_suffix
     
     # Get DEM paths from text file
     DEMS = []
     with open(dems_file, 'r') as df:
-        content = df.read_lines()
+        content = df.readlines()
         for dem_path in content:
-            DEMS.append(dem_path)
-            
+            DEMS.append(dem_path.strip())
+    
     # Check for existence of all DEMs
     does_not_exist = [dem for dem in DEMS if not os.path.exists(dem)]
     if len(does_not_exist) != 0:
