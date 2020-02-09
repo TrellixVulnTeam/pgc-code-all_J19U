@@ -107,7 +107,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
     if res1 != res2:
         logger.warning('Resolutions do not match. Defaulting to DEM1.\nDEM1: {}\nDEM2: {}'.format(res1, res2))
     if nodata1 != nodata2:
-        logger.warning('No data values do not match. Defaulting to DEM1.\nDEM1:{}\nDEM2: {}'.format(nodata1, nodata2))
+        logger.warning('NoData values do not match. Defaulting to DEM1 NoData value when creating new DEM.\nDEM1:{}\nDEM2: {}'.format(nodata1, nodata2))
     if srs1.IsSame(srs2) == 0: # GDAL method for spatial reference comparison
         logger.warning('Spatial references do not match. Defaulting to DEM1.\nDEM1:\n{}\n\nDEM2:\n{}\n'.format(srs1, srs2))
         if warp == True:
@@ -158,10 +158,11 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
             content = lf.readlines()
             trans_info = 'Translation information:\n'
             for line in content:
-                if 'North-East-Down' in line or 'magnitude' in line:
-                    relevent = '{}\n'.format(line.split('Translation vector')[1])
-                    relevent = ' '.join(relevent.split('Vector3'))
-                    trans_info += relevent
+                trans_vec_match = re.search('Translation vector \(North-East-Down, meters\): Vector3(.*)', line)
+                if trans_vec_match:
+                    trans_vec = trans_vec_match.groups()[0]
+                    trans_info += trans_vec.replace(',', ', ')
+                    break
             logger.debug(trans_info)
     
     
@@ -202,17 +203,22 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
             			 save_plot=rmse_compare_save_plot)
 
     # Move files into subdirectories
-    pc_align_dem_dir = os.path.join(out_dir, 'dems')
-    if not os.path.exists(pc_align_dem_dir):
-        os.makedirs(pc_align_dem_dir)
-    # Move DEMs
-    shutil.move(out_dem, pc_align_dem_dir)
     # Move everything else
+    misc_files = [os.path.join(out_dir, x) for x in os.listdir(out_dir) 
+                  if os.path.join(out_dir, x) != out_dem]
     misc_dir = os.path.join(out_dir, 'misc')
-    misc_files = [os.path.join(out_dir, x) for x in os.listdir(out_dir)]
+    if not os.path.exists(misc_dir):
+        os.makedirs(misc_dir)
+
+    print('Misc_files:\n{}'.format('\n'.join(misc_files)))
     for f in misc_files:
         shutil.move(f, misc_dir)
 
+    # Move DEM
+    pc_align_dem_dir = os.path.join(out_dir, 'dem')
+    if not os.path.exists(pc_align_dem_dir):
+        os.makedirs(pc_align_dem_dir)
+    shutil.move(out_dem, pc_align_dem_dir)
 
 
 def main(dems, out_dir, max_diff=10, dem_ext='tif', dem_fp=None, rmse=False, warp=False, dryrun=False, verbose=False):
@@ -223,10 +229,10 @@ def main(dems, out_dir, max_diff=10, dem_ext='tif', dem_fp=None, rmse=False, war
         handler_level = 'DEBUG'
     else:
         handler_level = 'INFO'
-    logger = create_logger(os.path.basename(__file__), 'sh',
-                           handler_level=handler_level)
-    logger = create_logger(os.path.basename(__file__), 'fh',
-                          handler_level=handler_level)
+    # logger = create_logger(__name__, 'sh',
+    #                        handler_level=handler_level)
+    # logger = create_logger(__name__, 'fh',
+    #                       handler_level=handler_level)
     # If a directory is passed, get all files with extension: dem_ext
     # TODO: Make the DEM file selection better (support .vrt's, and more)
     if len(dems) == 1 and os.path.isdir(dems[0]):
