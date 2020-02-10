@@ -73,7 +73,10 @@ def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
         raster_op = os.path.join(out_dir, raster_out_name)
 
         raster_ds = gdal.Open(raster_p)
-        warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True, targetAlignedPixels=True,)
+        x_res = raster_ds.GetGeoTransform()[1]
+        y_res = raster_ds.GetGeoTransform()[5]
+        warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True, 
+                                        targetAlignedPixels=True, xRes=x_res, yRes=y_res)
         gdal.Warp(raster_op, raster_ds, options=warp_options)
         # Close the raster
         raster_ds = None
