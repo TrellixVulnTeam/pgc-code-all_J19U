@@ -264,10 +264,13 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
 #    gsheet_df['count'] = gsheet_df.sum(axis=1) 
 #    gsheet_df = gsheet_df['count']
     # Sort by platform, then sheet number
-    gsheet_df['plat'] = gsheet_df.index.str[0:4]
-    gsheet_df['sort'] = gsheet_df.index.str[9:11]
-    gsheet_df['sort'] = gsheet_df['sort'].str.strip('o')
-    # print(gsheet_df)
+    gsheet_df.index.name = 'sheet_name'
+    gsheet_df['plat'] = list(gsheet_df.reset_index(level=0)['sheet_name'].apply(lambda x: x.split('_part')[0]))
+    gsheet_df['sort'] = list(gsheet_df.reset_index(level=0)['sheet_name'].apply(lambda x: x.split('_part')[1].split('of')[0]))
+    # gsheet_df['plat'] = gsheet_df.index.str[0:4]
+    # gsheet_df['sort'] = gsheet_df.index.str[9:11]
+    # gsheet_df['sort'] = gsheet_df['sort'].str.strip('o')
+    print(gsheet_df)
     gsheet_df['sort'] = gsheet_df['sort'].astype(int)
     gsheet_df.sort_values(['plat','sort'], inplace=True)
     gsheet_df.drop('sort', axis=1)

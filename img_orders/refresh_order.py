@@ -54,7 +54,8 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
     return regions
 
 
-def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, sensors):
+def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, sensors,
+            use_land=True):
     '''
     Select ids for imagery order
     cloudcover: cloudcover <= arg
@@ -102,6 +103,12 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     # Select region of interest
     noh_recent_roi = noh_recent[noh_recent.loc_name.isin(roi)]
     
+    # Select only those features that intersect land polygons
+    if use_land:
+        land_shp = r'E:\disbr007\general\NOAA_coastline\GSHHS_f_L1.shp'
+        land = gpd.read_file(land_shp)
+        noh_recent_roi = noh_recent_roi.sjoin(land, how='left')
+            
     return noh_recent_roi
 
 
@@ -154,6 +161,7 @@ if __name__ == '__main__':
                         help='Remove ids that have been ordered or are in the master footprint.')
     parser.add_argument("--dryrun", action='store_true',
                         help='Make selection and print statistics, but do not write anything.')
+
 
     args = parser.parse_args()
     last_refresh = args.last_refresh

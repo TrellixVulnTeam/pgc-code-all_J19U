@@ -128,6 +128,13 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
             ids = list(df)
         else:
             print('No columns found in pickled dataframe.')
+    
+    # Excel
+    # This assumes single column of IDs with no header row
+    elif file_type == 'excel':
+        df = pd.read_excel(ids_file, header=None, squeeze=True)
+        ids = list(df)
+        
     else:
         print('Unsupported file type... {}'.format(file_type))
 
@@ -163,6 +170,31 @@ def combine_ids(*id_lists, write_path=None):
                 out.write('{}\n'.format(x))
     return comb_ids
     
+
+def combine_id_files(id_files, write_path=None):
+    '''
+    Takes a list of filepaths to ID files and combines them into a list.
+
+    Parameters
+    ----------
+    id_files : LIST
+        list of paths to files containing IDs.
+    write_path : os.path.abspath optional
+        Path to write text file of IDs. The default is None.
+
+    Returns
+    -------
+    LIST : List of IDs.
+
+    '''
+    
+    all_ids = []
+    for idf in id_files:
+        ids = read_ids(idf)
+        all_ids.extend(ids)
+        
+    return all_ids
+
     
 def compare_ids(ids1_path, ids2_path, write_path=False):
     '''

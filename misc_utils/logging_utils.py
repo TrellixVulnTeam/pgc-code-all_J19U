@@ -9,6 +9,10 @@ Logging module helper functions
 import logging
 
 
+class CustomError(Exception):
+    pass
+
+
 def LOGGING_CONFIG(level):
     CONFIG = { 
         'version': 1,
