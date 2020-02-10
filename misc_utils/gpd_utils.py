@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 import multiprocessing
 
-from logging_utils import create_logger
+from logging_utils import create_logger, CustomError
 
 
 logger = create_logger(os.path.basename(__file__), 'sh')
@@ -232,3 +232,19 @@ def grid_poly_row(row, nrows, ncols):
             feat_cells.append(cell)
             
     return feat_cells
+
+
+def coords2gdf(xs, ys, epsg=4326):
+    """
+    Converts a list of x and y coordinates to a geodataframe
+    using the provided epsg code.
+    """
+    if len(xs) != len(ys):
+        logger.error("Coordinate length mismatch:\nX's:'{}, Y's{}".format(len(xs), len(ys)))
+        raise CustomError('Coordinate length mismatch.')
+        
+    gdf = gpd.GeoDataFrame({'ID': [x for x in range(len(xs))]},
+                           geometry=[Point(x,y) for x, y in zip(xs, ys)],
+                           crs={'init':'epsg:{}'.format(epsg)})
+    
+    return gdf
