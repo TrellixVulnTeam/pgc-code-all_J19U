@@ -7,32 +7,29 @@ CDED Mosaicker based on AOI
 """
 
 import argparse
-import os, zipfile, tqdm, subprocess
+import logging.config
+import os
+import subprocess
+import zipfile
 
 import geopandas as gpd
 from osgeo import gdal
+import tqdm
 
-from logging_utils import create_logger
+from misc_utils.logging_utils import LOGGING_CONFIG
 
 
-# Inputs
-resolution = '50'
-driver = 'ESRI_Shapefile'
-aoi_path = r'E:\disbr007\UserServicesRequests\Projects\akhan\ill_mfp_sel.shp'
-# project_path = os.path.dirname(aoi_path)
-local_tiles_path = None
-out_mosaic = r'E:\disbr007\general\elevation\cded\50k_mosaics\test.vrt'
-
-# Set up logging
-logger = create_logger('CDED_mosaic.py', 'sh',
-                       handler_level='DEBUG')
+handler_level = 'INFO'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
 
 
 def run_subprocess(command):
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     output, error = proc.communicate()
-    print('Output: {}'.format(output))
-    print('Err: {}'.format(error))
+    logger.info('Output: {}'.format(output))
+    if error:
+        logger.info('Err: {}'.format(error))
 
 
 def main(args):
@@ -48,7 +45,8 @@ def main(args):
         logger.debug('No local tiles path specified, using default:\n{}'.format(local_tiles_path))
     if not os.path.exists(local_tiles_path):
         os.makedirs(local_tiles_path)
-    
+
+
     ## Choose 50k or 250k
     logger.debug('Using selected resolution: {}'.format(resolution))
     cded_50k_index_path = r'V:\pgc\data\elev\dem\cded\index\decoupage_snrc50k_2.shp'
@@ -65,17 +63,17 @@ def main(args):
     logger.debug('Using tiles located at: {}'.format(tiles_path))
     
     # Load relevant tikes index
-    index = gpd.read_file(index_path, driver=driver)
+    index = gpd.read_file(index_path)
     
     
     ## Select AOI relevant tiles from index footprint
-    aoi = gpd.read_file(aoi_path, driver=driver)
+    aoi = gpd.read_file(aoi_path)
     if aoi.crs != index.crs:
         aoi = aoi.to_crs(index.crs)
     # selected_tiles = gpd.sjoin(aoi, index, how='left', op='intersects')
     selected_tiles = gpd.overlay(aoi, index)
     
-    # For some reason the sjoin is selecting each tile multiple times -- this gets a list of unique tile names for extracting
+    # For some reason the overlay is selecting each tile multiple times -- this gets a list of unique tile names for extracting
     selected_tile_names = selected_tiles.IDENTIF.unique()
     selected_tile_names = [x.lower() for x in selected_tile_names] # file paths to tiles are lowercase
     
@@ -104,6 +102,7 @@ def main(args):
     
     logger.info('Mosaicking tiles...')
     run_subprocess(command)
+    logger.info('Mosaic created at: {}'.format(out_mosaic))
 
 
 if __name__ == '__main__':
