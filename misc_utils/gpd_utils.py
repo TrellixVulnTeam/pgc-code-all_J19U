@@ -17,10 +17,12 @@ from tqdm import tqdm
 
 import multiprocessing
 
-from logging_utils import create_logger, CustomError
+from misc_utils.logging_utils import LOGGING_CONFIG, CustomError
 
 
-logger = create_logger(os.path.basename(__file__), 'sh')
+handler_level = 'INFO'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
 
 
 def multiprocess_gdf(fxn, gdf, *args, num_cores=None, **kwargs):

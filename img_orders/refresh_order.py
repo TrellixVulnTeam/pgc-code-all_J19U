@@ -13,7 +13,7 @@ import argparse, os
 
 from selection_utils.query_danco import query_footprint, mono_noh, stereo_noh
 from img_orders.img_order_sheets import create_sheets
-from id_parse_utils import date_words, remove_onhand
+from misc_utils.id_parse_utils import date_words, remove_onhand
 
 
 #### Logging setup
@@ -105,8 +105,9 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     
     # Select only those features that intersect land polygons
     if use_land:
-        land_shp = r'E:\disbr007\general\NOAA_coastline\GSHHS_f_L1.shp'
+        land_shp = r'E:\disbr007\imagery_orders\coastline_include.shp'
         land = gpd.read_file(land_shp)
+        logger.info('Selecting only imagery within land inclusion shapefile...')
         noh_recent_roi = noh_recent_roi.sjoin(land, how='left')
             
     return noh_recent_roi
@@ -159,6 +160,8 @@ if __name__ == '__main__':
                         help='Sensors to select, default is all sensors. E.g. WV01 WV02')
     parser.add_argument("--drop_onhand", action='store_true',
                         help='Remove ids that have been ordered or are in the master footprint.')
+    parser.add_argument("--use_land", action='store_true',
+                        help="Use coastline inclusion shapefile.")
     parser.add_argument("--dryrun", action='store_true',
                         help='Make selection and print statistics, but do not write anything.')
 
@@ -172,6 +175,7 @@ if __name__ == '__main__':
     min_cc = args.min_cc
     sensors = args.sensors
     drop_onhand = args.drop_onhand
+    use_land = args.use_land
     dryrun = args.dryrun
 
     # Do it
@@ -180,7 +184,8 @@ if __name__ == '__main__':
                         refresh_imagery=refresh_imagery, 
                         max_cc=max_cc,
                         min_cc=min_cc,
-                        sensors=sensors)
+                        sensors=sensors,
+                        use_land=use_land)
     
     if drop_onhand:
         not_onhand_ids = remove_onhand(selection['catalogid'])

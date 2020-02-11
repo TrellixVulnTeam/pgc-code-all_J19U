@@ -7,7 +7,7 @@ Select from index by list of ids
 """
 
 import argparse
-import logging
+import logging.config
 import os
 import sys
 import geopandas as gpd
@@ -16,11 +16,11 @@ from shapely.geometry import Point
 import arcpy
 
 from misc_utils.id_parse_utils import read_ids, pgc_index_path
-from misc_utils.logging_utils import create_logger
+from misc_utils.logging_utils import LOGGING_CONFIG, CustomError
+
 
 
 imagery_index = pgc_index_path()
-
 arcpy.env.overwriteOutput = True
 
 
@@ -89,7 +89,7 @@ def create_points(coords, shp_path):
     logger.info('Creating point shapefile from long, lat pairs(s)...')
     points = [Point(float(pair.split(',')[0]), float(pair.split(',')[1])) for pair in coords]
     gdf = gpd.GeoDataFrame(geometry=points, crs={'init':'epsg:4326'})
-    gdf.to_file(shp_path, driver='ESRI Shapefile')
+    gdf.to_file(shp_path)
 
 
 def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field):
@@ -219,11 +219,15 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logger = create_logger('arcpy_selector.py', 'sh')
-    if args.verbose:
-        logger = create_logger('arcpy_selector.py', 'sh',
-                               handler_level='DEBUG')
 
+    if args.verbose:
+        handler_level = 'DEBUG'
+    else:
+        handler_level = 'INFO'
+    logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+    logger = logging.getLogger(__name__)
+    
+    
     out_path = args.out_path
     selector_path = args.selector_path
     id_field = args.id_field
@@ -243,6 +247,8 @@ if __name__ == '__main__':
 
     ## If coordinate pairs create shapefile
     if coordinate_pairs:
+        logger.info('Using coordinate pairs:\n{}'.format(coordinate_pairs))
+        coordinate_pairs = [c.strip("'") for c in coordinate_pairs]
         create_points(coordinate_pairs, selector_path)
 
     ## If place name provided, use as AOI layer
