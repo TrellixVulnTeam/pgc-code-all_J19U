@@ -20,7 +20,7 @@ from misc_utils.logging_utils import LOGGING_CONFIG
 
 #### INPUTS ####
 # tandemx_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\pc_align\tandemx\dem\tdm90_banks_3413_aoi6_clip_resample_pca-DEM.tif'
-tandemx_path = r'V:\pgc\data\scratch\jeff\ms\scratch\tdm90_banks_3413_aoi6_clip_resample_pca-DEM_clip.tif'
+tandemx_path = r'V:\pgc\data\scratch\jeff\ms\scratch\tdm90_banks_3413_aoi6_clip_resamp_bil_pca-DEMmask_test.tif'
 # dem_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\raw\WV02_20140902_1030010036966A00_1030010036846B00_seg1_2m_dem_clip.tif'
 dem_path = r'V:\pgc\data\scratch\jeff\ms\scratch\WV02_20140902_1030010036966A00_1030010036846B00_seg1_2m_dem_clip_clip.tif'
 # Threshold difference:
@@ -51,7 +51,7 @@ abs_diffs = abs(tdx_a - dem_a)
 #### Convolve absolute differences to include areas around them ####
 # Convolve absolute differences to include areas around them
 # Kernel setup
-kernel_size = 9
+kernel_size = 3
 kernel = np.ones((kernel_size,kernel_size), dtype=np.float32) * 2
 width, height = kernel.shape
 center_width = int((width - 1)/2)

@@ -15,12 +15,8 @@ from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
 from misc_utils.gdal_tools import clip_minbb
 
 
-logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
+logging.config.dictConfig(LOGGING_CONFIG('INFO'))
 logger = logging.getLogger(__name__)
-
-dem1_path = r''
-dem2_path = r''
-dem2pca_path = r''
 
 
 def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, plot=False,
@@ -93,15 +89,14 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
         with open(outfile, 'w') as of:
             of.write("DEM1: {}\n".format(dem1_path))
             of.write("DEM2: {}\n".format(dem2_path))
-            of.write('RMSE: {:.2f}\n'.format(rmse))
             of.write('Pixels considered: {:,}\n'.format(diffs_valid_count))
             of.write('Minimum difference: {:.2f}\n'.format(min_diff))
             of.write('Maximum difference: {:.2f}\n\n'.format(max_diff))
-
+            of.write('RMSE: {:.2f}\n'.format(rmse))
 
     #### POST ALIGNMENT ####
     # Compute RMSE
-    logger.info('Computing RMSE pre-alignment...')
+    logger.info('Computing RMSE post-alignment...')
     diffs_pca = arr1 - arr2pca
     # Remove any differences bigger than max_diff
     diffs_pca = diffs_pca[abs(diffs_pca) < max_diff]
@@ -130,23 +125,34 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
         with open(outfile, 'a') as of:
             of.write("DEM1: {}\n".format(dem1_path))
             of.write("DEM2pca: {}\n".format(dem2pca_path))
-            of.write('RMSEpca: {:.2f}\n'.format(rmse_pca))
             of.write('Pixels considered pca: {:,}\n'.format(diffs_pca_valid_count))
             of.write('Minimum difference pca: {:.2f}\n'.format(min_diff_pca))
             of.write('Maximum difference pca: {:.2f}\n\n'.format(max_diff_pca))
-
+            of.write('RMSEpca: {:.2f}\n'.format(rmse_pca))
 
     # Plot results
     # TODO: Add legend and RMSE annotations
     # TODO: Incorporate min/max differences based on max_diff argument
     if plot:
         plt.style.use('ggplot')
-        fig, ax = plt.subplots(1,1)
-        ax.hist(diffs.compressed().flatten(), log=log_scale, bins=bins, edgecolor='white', 
-                alpha=0.5)
-        ax.hist(diffs_pca.compressed().flatten(), log=log_scale, bins=bins, edgecolor='white', color='b',
-                alpha=0.5)
+        fig, ax = plt.subplots(1,2)
+        # Plot unaligned differences with line at 0
+        ax[0].hist(diffs.compressed().flatten(), log=log_scale, bins=bins, edgecolor='white', 
+                alpha=0.75, range=[min([diffs.min(), diffs_pca.min()]), max([diffs.min(), diffs_pca.max()])])
+        ax[0].axvline(x=0, linewidth=2, color='black')
+        
+        # Plot aligned differences with line at 0
+        ax[1].hist(diffs_pca.compressed().flatten(), log=log_scale, bins=bins, edgecolor='white', color='b',
+                alpha=0.75, range=[min([diffs.min(), diffs_pca.min()]), max([diffs.min(), diffs_pca.max()])])
+        ax[1].axvline(x=0, linewidth=2, color='black')
+        # Annotation and titles        
+        ax[0].set_title('Pre-Alignment')
+        ax[0].annotate('RMSE: {:.2f}'.format(rmse), xy=(0.05, 0.95), xycoords='axes fraction')
+        ax[1].set_title('Post-Alignment')
+        ax[1].annotate('RMSE: {:.2f}'.format(rmse_pca), xy=(0.05, 0.95), xycoords='axes fraction')
+
         plt.tight_layout()
+        
         if save_plot:
             plt.savefig(save_plot)
         if show_plot:
@@ -169,7 +175,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot', action='store_true')
     parser.add_argument('--save_plot', type=os.path.abspath,
                         help='Path to save figure to.')
-    parser.add_argument('--show_fig', action='store_true',
+    parser.add_argument('--show_plot', action='store_true',
                         help='Open plot in new window.')
     parser.add_argument('--bins', type=int, default=10,
                         help='Number of bins to use for histogram.')
@@ -185,7 +191,7 @@ if __name__ == '__main__':
     outfile = args.outfile
     plot = args.plot
     save_plot = args.save_plot
-    show_fig = args.show_plot
+    show_plot = args.show_plot
     bins = args.bins
     log_scale = not args.no_log_scale # if no_log_scale is passed, log_scale should be False
 
@@ -194,7 +200,7 @@ if __name__ == '__main__':
                  outfile=outfile, 
                  plot=plot, 
                  save_plot=save_plot, 
-                 show_fig=show_plot,
+                 show_plot=show_plot,
                  bins=bins,
                  log_scale=log_scale)
 
