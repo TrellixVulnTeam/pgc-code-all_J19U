@@ -62,7 +62,11 @@ class Raster():
         self.Array = self.data_src.ReadAsArray()
         self.Mask = self.Array == self.nodata_val
         self.MaskedArray = ma.masked_array(self.Array, mask=self.Mask)
+        np.ma.set_fill_value(self.MaskedArray, self.nodata_val)
     
+    # def Masked_Array(self):
+    #     masked_array = ma.masked_array(self.Array, mask=self.Mask)
+    #     masked_array = np.ma.set_fill_value(self.nodata_val, masked_array)
     
     def get_projwin(self):
         '''
