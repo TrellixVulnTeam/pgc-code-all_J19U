@@ -92,7 +92,7 @@ def calc_TPI(win_size, elevation_model, output_model=None, count_model=None):
     mx_count = np.zeros(mx_z.shape)
 
     # loop through window and accumulate values
-    for (y, x), weight in tqdm(np.ndenumerate(win)):
+    for (y, x), weight in tqdm(np.ndenumerate(win), total=size_y*size_x):
 
         if weight == 0: continue  #skip zero values !
         # determine views to extract data
