@@ -3,12 +3,14 @@
 Created on Mon Jul 22 13:52:48 2019
 
 @author: disbr007
-GDAL DEM Derivatives
+DEM Derivatives
 """
 
 ## Standard Libs
 import argparse
-import logging, os, sys
+import logging.config
+import os
+import sys
 import numpy as np
 
 ## Third Party Libs
@@ -18,11 +20,15 @@ from scipy.ndimage.filters import generic_filter
 
 ## Local libs
 from misc_utils.RasterWrapper import Raster
-from logging_utils import create_logger
+from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
+from misc_utils.array_utils import interpolate_nodata
 
 
 gdal.UseExceptions()
-logger = create_logger('dem_derivatives.py', 'sh')
+
+handler_level = 'DEBUG'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
 
 
 def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, *args):
@@ -53,7 +59,7 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
         return array
 
 
-def calc_tpi(dem, size, nodata_val):
+def calc_tpi(dem, size):
     """
     OpenCV implementation of TPI
     dem: array
@@ -61,30 +67,34 @@ def calc_tpi(dem, size, nodata_val):
     Note - borderType determines handline of edge cases. REPLICATE will take the outermost row and columns and extend
     them as far as is needed for the given kernel size.
     """
+    logger.info('Computing TPI with kernel size {}...'.format(size))
+    # To attempt to clean up artifacts that I believe are a results of
+    # no data values being included in interpolation. So interpolate 
+    # closest values to no data instead of no data. values that were no
+    # data are masked out again at the end.
+    # Interpolate nodata, cubic method leaves no data at edges
+    # logger.debug('Interpolating no data values...')
+    # dem = interpolate_nodata(dem, method='cubic')
+    # Clean up edges with simple nearest interpolation
+    logger.debug('Cleaning up edge no data values...')
+    dem = interpolate_nodata(dem, method='nearest')
+
     kernel = np.ones((size,size),np.float32)/(size*size)
     # -1 indicates new output array
     dem_conv = cv2.filter2D(dem, -1, kernel, borderType=cv2.BORDER_REPLICATE)
     tpi = dem - dem_conv
     
-    # Set pixels affected by border to NoData
-    # First and last rows
-    tpi[0:size, :] = nodata_val
-    tpi[-size:, :] = nodata_val
-    # First and last cols
-    tpi[:, 0:size] = nodata_val
-    tpi[:, -size:] = nodata_val
-    
     return tpi
 
 
-def calc_tpi_dev(dem, size, nodata_val):
+def calc_tpi_dev(dem, size):
     """
     Based on (De Reu 2013)
     Calculates the tpi/standard deviation of the kernel to account for surface roughness.
     dem: array
     size: int, kernel size in x and y directions (square kernel)
     """
-    tpi = calc_tpi(dem, size, nodata_val)
+    tpi = calc_tpi(dem, size)
     # Calculate the standard deviation of each cell, mode='nearest' == cv2.BORDER_REPLICATE
     std_array = generic_filter(dem, np.std, size=size, mode='nearest')
 
@@ -124,13 +134,13 @@ def dem_derivative(dem, derivative, output_path, size):
         gdal_dem_derivative(dem, output_path, op)
     elif derivative == 'tpi_ocv' or derivative == 'tpi_std':
         dem_raster = Raster(dem)
-        arr = dem_raster.Array
+        arr = dem_raster.MaskedArray
         
         if derivative == 'tpi_ocv':
-            tpi = calc_tpi(arr, size=size, nodata_val=dem_raster.nodata_val)
+            tpi = calc_tpi(arr, size=size)
 
         elif derivative == 'tpi_std':
-            tpi = calc_tpi_dev(dem, size=size, nodata_val=dem_raster.nodata_val)
+            tpi = calc_tpi_dev(dem, size=size)
         
         dem_raster.WriteArray(tpi, output_path)
         tpi = None
@@ -140,27 +150,12 @@ def dem_derivative(dem, derivative, output_path, size):
         logger.error('Unknown derivative argument: {}'.format(derivative))
 
 
-# prj_dir = r'E:\disbr007\umn\ms'
-# dem_dir = os.path.join(prj_dir, 'dems')
-# dem_p = os.path.join(dem_dir, r'aoi_2\test\WV02_20160312_1030010051B3C500_10300100526C3C00_seg1_2m_demclip_test.tif')
-# aoi_2 = os.path.join(dem_dir, 'aoi_2')
-# tpi_dir = os.path.join(aoi_2, 'tpi')
-# dem_filename = os.path.basename(dem_p)
-# dem_name = dem_filename.split('.')[0]
-# size = 201
-# tpi_filename = '{}_tpi{}.tif'.format(dem_name, size)
-# out_tpi = os.path.join(tpi_dir, tpi_filename)
-# dem_raster = Raster(dem_p)
-# arr = dem_raster.Array
-# tpi = calc_tpi(arr, size=size, no_data_val=dem_raster.nodata_val)
-# dem_raster.WriteArray(tpi, out_tpi)        
-
-            
 if __name__ == '__main__':
     supported_derivatives=["hillshade", "slope", "aspect", "color-relief", 
                               "TRI", "TPI", "Roughness"]
     all_derivs = ['gdal_{}'.format(x) for x in supported_derivatives]
-    all_derivs.append('tpi')
+    all_derivs.extend(['tpi_ocv', 'tpi_std'])
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument('dem', type=os.path.abspath,
