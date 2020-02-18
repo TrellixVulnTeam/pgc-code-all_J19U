@@ -204,6 +204,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
 
     # Move files into subdirectories
     # Move everything else
+    ## TODO: Clean up how this works -- it is creating dem and misc/dem
     misc_files = [os.path.join(out_dir, x) for x in os.listdir(out_dir) 
                   if os.path.join(out_dir, x) != out_dem]
     misc_dir = os.path.join(out_dir, 'misc')
