@@ -8,6 +8,7 @@ DEM Derivatives
 
 ## Standard Libs
 import argparse
+import copy
 import logging.config
 import os
 import sys
@@ -61,30 +62,85 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
 
 def calc_tpi(dem, size):
     """
-    OpenCV implementation of TPI
-    dem: array
-    size: int, kernel size in x and y directions (square kernel)
-    Note - borderType determines handline of edge cases. REPLICATE will take the outermost row and columns and extend
-    them as far as is needed for the given kernel size.
+    OpenCV implemntation of TPI, updated to ignore NaN values.
+    
+    Parameters
+    ----------
+    dem : np.ndarray
+        Expects a MaskedArray.
+    size : Size of kernel along one axis. Square kernel used.
+
+    Returns
+    ----------
+    np.ndarray (masked) : TPI
     """
     logger.info('Computing TPI with kernel size {}...'.format(size))
-    # To attempt to clean up artifacts that I believe are a results of
-    # no data values being included in interpolation. So interpolate 
-    # closest values to no data instead of no data. values that were no
-    # data are masked out again at the end.
-    # Interpolate nodata, cubic method leaves no data at edges
-    # logger.debug('Interpolating no data values...')
-    # dem = interpolate_nodata(dem, method='cubic')
-    # Clean up edges with simple nearest interpolation
-    logger.debug('Cleaning up edge no data values...')
-    dem = interpolate_nodata(dem, method='nearest')
+    # Set up 'kernel'
+    window = (size, size)
+    window_count = size*size
 
-    kernel = np.ones((size,size),np.float32)/(size*size)
-    # -1 indicates new output array
-    dem_conv = cv2.filter2D(dem, -1, kernel, borderType=cv2.BORDER_REPLICATE)
-    tpi = dem - dem_conv
+    # Get original mask
+    mask = copy.deepcopy(dem.mask)
+
+    # Change fill value to -9999 to ensure NaN corrections are applied correctly
+    nodata_val = -9999
+    dem.fill_value = nodata_val
+
+    # Count the number of non-NaN values in the window for each pixel
+    logger.debug('Counting number of valid pixels per window...')
+    num_valid_window = cv2.boxFilter(np.logical_not(dem.mask).astype(int), -1, window, normalize=False,
+                                 borderType=cv2.BORDER_REPLICATE)
+
+    # Change masked values to fill value
+    dem = dem.data
+
+    # Get raw sum within window for each pixel
+    logger.debug('Getting raw sum including NoData values...')
+    sum_window = cv2.boxFilter(dem, -1, window, normalize=False, borderType=cv2.BORDER_REPLICATE)
     
+    # Correct these sums by removing (fill value*number of times it was include in the sum) for each pixel
+    logger.debug('Correcting for inclusion of NoData values...')
+    sum_window = np.where(num_valid_window != window_count, # if not all pixels in window were valid
+                          sum_window+(-nodata_val*(window_count-num_valid_window)), # remove NoData val from sum for each time it was included
+                          sum_window)
+
+    # Compute TPI (value - mean of value in window)
+    logger.debug('Calculating TPI...')
+    with np.errstate(divide='ignore',invalid='ignore'):
+        tpi = dem - (sum_window/num_valid_window)
+    # Remask any originally masked pixels
+    tpi = np.ma.masked_where(dem.data==nodata_val, tpi)
+    # tpi = np.ma.masked_where(mask, tpi)
+
     return tpi
+
+
+# def calc_tpi(dem, size):
+#     """
+#     OpenCV implementation of TPI
+#     dem: array
+#     size: int, kernel size in x and y directions (square kernel)
+#     Note - borderType determines handline of edge cases. REPLICATE will take the outermost row and columns and extend
+#     them as far as is needed for the given kernel size.
+#     """
+#     logger.info('Computing TPI with kernel size {}...'.format(size))
+#     # To attempt to clean up artifacts that I believe are a results of
+#     # no data values being included in interpolation. So interpolate 
+#     # closest values to no data instead of no data. values that were no
+#     # data are masked out again at the end.
+#     # Interpolate nodata, cubic method leaves no data at edges
+#     # logger.debug('Interpolating no data values...')
+#     # dem = interpolate_nodata(dem, method='cubic')
+#     # Clean up edges with simple nearest interpolation
+#     logger.debug('Cleaning up edge no data values...')
+#     dem = interpolate_nodata(dem, method='nearest')
+
+#     kernel = np.ones((size,size),np.float32)/(size*size)
+#     # -1 indicates new output array
+#     dem_conv = cv2.filter2D(dem, -1, kernel, borderType=cv2.BORDER_REPLICATE)
+#     tpi = dem - dem_conv
+    
+#     return tpi
 
 
 def calc_tpi_dev(dem, size):
@@ -134,15 +190,25 @@ def dem_derivative(dem, derivative, output_path, size):
         gdal_dem_derivative(dem, output_path, op)
     elif derivative == 'tpi_ocv' or derivative == 'tpi_std':
         dem_raster = Raster(dem)
-        arr = dem_raster.MaskedArray
-        
+        arr = dem_raster.MaskedArray.copy()
+        logger.info('shape of arr: {}'.format(arr.shape))
         if derivative == 'tpi_ocv':
             tpi = calc_tpi(arr, size=size)
 
         elif derivative == 'tpi_std':
             tpi = calc_tpi_dev(dem, size=size)
-        
+
+        logger.info('Writing derivative to: {}'.format(output_path))
+        # Mask any originally masked pixels, this supposed to be done in calc_tpi
+        # but is not working. 
+        # tpi = np.ma.masked_where(arr.mask == True, tpi)
+        tpi = np.where(arr.mask==True, dem_raster.nodata_val, tpi)
         dem_raster.WriteArray(tpi, output_path)
+        # dem_raster.WriteArray(dem_raster.Array, '{}_arr.tif'.format(output_path[:-4]))
+        # masked_int = arr.mask.astype(int)
+        # print(masked_int.shape)
+        # dem_raster.WriteArray(masked_int, '{}_arr_mask.tif'.format(output_path[:-4]))
+
         tpi = None
         arr = None
         dem_raster = None

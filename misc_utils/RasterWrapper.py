@@ -18,6 +18,7 @@ from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
 logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
 logger = logging.getLogger(__name__)
 
+gdal.UseExceptions()
 
 class Raster():
     '''

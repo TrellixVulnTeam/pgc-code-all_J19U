@@ -15,19 +15,19 @@ Zoran Čučković
 """
 
 import argparse
+import logging.config
 import numpy as np
 import os
 
 from osgeo import gdal
 from tqdm import tqdm
 
-# -------------- INPUT -----------------
-# win_size = 121
-# elevation_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\2017_DEM_masked.utm.tif"
-# elevation_model = r"E:/disbr007/umn/ms_proj/data/2019apr19_umiat_detach_zone/dems/2m/masked/WV02_2014_DEM_masked_trans.tif"
-# output_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\2017_TPIv2_{}.tif".format(win_size)
-# output_model = r"E:/disbr007/umn/ms_proj/data/2019apr19_umiat_detach_zone/dems/2m/masked/2014_TPIv2_{}.tif".format(win_size)
-# count_model = r"E:\disbr007\umn\ms_proj\data\2019apr19_umiat_detach_zone\dems\2m\masked\count{}.tif".format(win_size)
+from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
+
+
+handler_level = 'INFO'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
 
 
 def calc_TPI(win_size, elevation_model, output_model=None, count_model=None):
@@ -38,12 +38,9 @@ def calc_TPI(win_size, elevation_model, output_model=None, count_model=None):
     if output_model is None:
         output_model = os.path.join(os.path.split(elevation_model)[0],
                                     '{}_TPI{}.tif'.format(os.path.basename(elevation_model), win_size))
+        logger.info('No output model path provided, using: {}'.format(output_model))
 
     # ----------  create the moving window  ------------
-    # r= 5 #radius in pixels
-    # win = np.ones((2* r +1, 2* r +1))
-    # ----------   or, copy paste your window matrix -------------
-    # win_size = 100
     win = np.ones((win_size, win_size), np.int32)
 
     # window radius is needed for the function,
@@ -77,7 +74,7 @@ def calc_TPI(win_size, elevation_model, output_model=None, count_model=None):
         return np.s_[y_in, x_in], np.s_[y_out, x_out]
 
     # ----  main routine  -------
-
+    logger.info('Opening input elevation model: {}'.format(elevation_model))
     dem = gdal.Open(elevation_model)
     dem_band = dem.GetRasterBand(1)
     src_nodata = dem_band.GetNoDataValue()
@@ -92,7 +89,7 @@ def calc_TPI(win_size, elevation_model, output_model=None, count_model=None):
     mx_count = np.zeros(mx_z.shape)
 
     # loop through window and accumulate values
-    for (y, x), weight in tqdm(np.ndenumerate(win), total=size_y*size_x):
+    for (y, x), weight in tqdm(np.ndenumerate(win), total=win.shape[0]*win.shape[1]):
 
         if weight == 0: continue  #skip zero values !
         # determine views to extract data
@@ -111,7 +108,8 @@ def calc_TPI(win_size, elevation_model, output_model=None, count_model=None):
     # Mask any NoData in the DEM from the 'temp' summed matrix
     # mx_temp = np.where(mx_z == nodata, 0.0, mx_z)
     # np.seterr(divide='ignore', invalid='ignore')
-    out = mx_z - mx_temp / mx_count
+    with np.errstate(divide='ignore',invalid='ignore'):
+        out = mx_z - mx_temp / mx_count
     out = np.where(mx_z == 0.0, 0.0, out)
 
     # Writing output TPI
