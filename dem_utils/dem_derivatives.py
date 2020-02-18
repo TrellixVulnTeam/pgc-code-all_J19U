@@ -67,7 +67,7 @@ def calc_tpi(dem, size):
     Parameters
     ----------
     dem : np.ndarray
-        Expects a MaskedArray.
+        Expects a MaskedArray with a fill value of the DEM nodata value
     size : Size of kernel along one axis. Square kernel used.
 
     Returns
@@ -82,9 +82,10 @@ def calc_tpi(dem, size):
     # Get original mask
     mask = copy.deepcopy(dem.mask)
 
-    # Change fill value to -9999 to ensure NaN corrections are applied correctly
-    nodata_val = -9999
-    dem.fill_value = nodata_val
+    # # Change fill value to -9999 to ensure NaN corrections are applied correctly
+    # nodata_val = -9999
+    # dem.fill_value = nodata_val
+    nodata_val = dem.fill_value
 
     # Count the number of non-NaN values in the window for each pixel
     logger.debug('Counting number of valid pixels per window...')
@@ -191,6 +192,8 @@ def dem_derivative(dem, derivative, output_path, size):
     elif derivative == 'tpi_ocv' or derivative == 'tpi_std':
         dem_raster = Raster(dem)
         arr = dem_raster.MaskedArray.copy()
+        arr.fill = dem_raster.nodata_val
+
         logger.info('shape of arr: {}'.format(arr.shape))
         if derivative == 'tpi_ocv':
             tpi = calc_tpi(arr, size=size)
