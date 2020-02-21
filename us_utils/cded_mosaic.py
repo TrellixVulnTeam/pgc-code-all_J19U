@@ -49,7 +49,7 @@ def main(args):
                   'cded_250_idx': r'V:\pgc\data\elev\dem\cded\index\decoupage_snrc250k_2.shp',
                   'cded_50_tiles': r'V:\pgc\data\elev\dem\cded\50k_dem',
                   'cded_250_tiles': r'V:\pgc\data\elev\dem\cded\250k_dem'}
-    elif system = 'Linux':
+    elif system == 'Linux':
         params = {'def_local_tiles_path': r'/mnt/pgc/data/scratch/jeff/elev/cded/tiles',
                   'cded_50_idx': r'/mnt/pgc/data/elev/dem/cded/index/decoupage_snrc50k_2.shp',
                   'cded_250_idx': r'/mnt/pgc/data/elev/dem/cded/index/decoupage_snrc50k_2.shp',
