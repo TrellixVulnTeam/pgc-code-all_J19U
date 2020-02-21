@@ -40,7 +40,7 @@ def list_danco_footprint():
     '''
     global logger
     logger.warning('list_danco_footprint depreciated, use list_danco_db() instead.')
-    logger.debug('Listing danco.footprint databse tables...')
+    logger.info('Listing danco.footprint databse tables...')
     try:
         danco = "danco.pgc.umn.edu"
         connection = psycopg2.connect(user = creds[0],
@@ -54,10 +54,9 @@ def list_danco_footprint():
         tables = sorted(tables)
         return tables
     
-    
     except (Exception, psycopg2.Error) as error :
-        logger.debug("Error while connecting to PostgreSQL", error)
-    
+        logger.error("Error while connecting to PostgreSQL\n", error)
+        raise error
     
     finally:
 #        return tables
@@ -73,7 +72,8 @@ def list_danco_db(db):
     queries the danco footprint database, returns all layer names in list
     '''
     global logger
-    logger.debug('Listing danco.{} tables...'.format(db))
+    logger.info('Listing danco.{} tables...'.format(db))
+    connection = None
     try:
         danco = "danco.pgc.umn.edu"
         connection = psycopg2.connect(user = creds[0],
@@ -90,8 +90,8 @@ def list_danco_db(db):
     
     
     except (Exception, psycopg2.Error) as error :
-        logger.debug("Error while connecting to PostgreSQL", error)
-    
+        logger.error("Error while connecting to PostgreSQL\n", error)
+        raise error
     
     finally:
 #        return tables

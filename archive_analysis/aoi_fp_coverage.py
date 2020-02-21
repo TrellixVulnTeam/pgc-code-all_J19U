@@ -20,7 +20,6 @@ from id_parse_utils import write_ids
 
 ## Logging
 logger = logging.getLogger()
-
 formatter = logging.Formatter('%(asctime)s -- %(levelname)s: %(message)s')
 logging.basicConfig(format='%(asctime)s -- %(levelname)s: %(message)s', 
                     level=logging.INFO)
@@ -31,6 +30,7 @@ prj_dir = r'E:\disbr007\UserServicesRequests\Projects\jclark\4056'
 aoi_shp_p = os.path.join(prj_dir, 'prj_files', 'BITE_buffers.shp')
 aoi_out_path = os.path.join(prj_dir, 'BITE_AHAP_IDs.shp')
 ids_out_path = os.path.join(prj_dir, 'AHAP_PHOTO_IDs.txt')
+
 
 # Alternative to providing danco DB, provide a shapfile of footprints
 fps_p = os.path.join(prj_dir, 'BITE_AHAP_selection2020jan14.shp')
@@ -111,20 +111,25 @@ fps[date_field] = pd.to_datetime(fps[date_field])
 #### Grid input AOI
 aoi = gpd.read_file(aoi_shp_p)
 aoi = aoi.set_index(aoi_id)
-aoi['keep_ids'] = '' # Create column empty to hold the IDs that will be used for each
+aoi['keep_ids'] = '' # Create an empty column to hold the IDs that will be used for each
 
 # Check crs match
 if fps.crs != aoi.crs:
     fps = fps.to_crs(aoi.crs)
 
+
 # Iterate over polygons in AOI, returning grid for each and storing in column in original df
 for poly_id in aoi.index.unique():
+    # Select current polygon
     poly = aoi[aoi.index==poly_id]
+    # Grid current aoi
     poly_grid = grid_aoi(poly, step=step)
+    
     # Create indentifying index for each point in the grid
     pt_id = 'pt_id'
     # Create index for points
     poly_grid[pt_id] = [x for x in range(len(poly_grid))]
+    
     # Get all point ids for checking to see if each is covered
     all_pts = list(poly_grid[pt_id])
     poly_grid.set_index(pt_id)

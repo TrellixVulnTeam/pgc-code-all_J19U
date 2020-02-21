@@ -17,10 +17,10 @@ from shapely.geometry import Point
 import geopandas as gpd
 import pandas as pd
 
-from query_danco import query_footprint
-from get_bounding_box import get_bounding_box
-from range_creation import range_tuples
-from logging_utils import create_logger
+from selection_utils.query_danco import query_footprint
+# from misc_utils.get_bounding_box import get_bounding_box
+# from range_creation import range_tuples
+from misc_utils.logging_utils import create_logger
 
 ## Set up logger
 logger = create_logger(__file__, 'sh')
@@ -40,14 +40,23 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
     x_space: horizontal spacing in units of aoi_shp projection
     y_space: vertical spacing in units of aoi_shp projection
     '''
-    driver = 'ESRI Shapefile'
-    boundary = gpd.read_file(aoi_shp, driver=driver)
-    with fiona.open(aoi_shp, 'r') as ds_in:
-        crs = ds_in.crs
-        # Determine bounds
-        minx, miny, maxx, maxy = get_bounding_box(aoi_shp)
-        range_x = (maxx - minx)
-        range_y = (maxy - miny)
+    logger.info('Creating grid in AOI...')
+    if isinstance(aoi_shp, gpd.GeoDataFrame):
+        boundary = aoi_shp
+    else:
+        if os.path.exists(aoi_shp):
+            boundary = gpd.read_file(aoi_shp)
+        else:
+            logger.error('Could not locate: {}'.format(aoi_shp))
+    
+    # with fiona.open(aoi_shp, 'r') as ds_in:
+    #     crs = ds_in.crs
+    crs = boundary.crs
+    # Determine bounds
+    # minx, miny, maxx, maxy = get_bounding_box(aoi_shp)
+    minx, miny, maxx, maxy = boundary.total_bounds
+    range_x = (maxx - minx)
+    range_y = (maxy - miny)
         
     # Set number of rows and cols for grid
     if step:
@@ -70,7 +79,7 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
             y += y_space
         x += x_space
     
-    # Put points into geodataframe with empty 'count' column for storing count of overlapping fps
+    # Put points into geodataframe
     col_names = ['geometry']
     points_gdf = gpd.GeoDataFrame(columns=col_names)
     points_gdf.crs = crs
@@ -79,7 +88,7 @@ def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
         out_dir = os.path.dirname(aoi_shp)
         out_name = '{}_grid.shp'.format(os.path.basename(aoi_shp).split('.')[0])
         out_path = os.path.join(out_dir, out_name)
-        points_gdf.to_file(out_path, driver=driver)
+        points_gdf.to_file(out_path)
 
     return points_gdf
 

@@ -10,7 +10,7 @@ import argparse
 import os
 
 from archive_analysis_utils import grid_aoi
-from logging_utils import create_logger
+from misc_utils.logging_utils import create_logger
 
 
 logger = create_logger(__file__, 'sh')
