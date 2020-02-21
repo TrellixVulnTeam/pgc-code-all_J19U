@@ -92,15 +92,18 @@ def main(args):
     
     ## Select AOI relevant tiles from index footprint
     aoi = gpd.read_file(aoi_path)
+    logger.info('AOI:\n{}'.format(aoi.head()))
     if aoi.crs != index.crs:
         aoi = aoi.to_crs(index.crs)
     # selected_tiles = gpd.sjoin(aoi, index, how='left', op='intersects')
     selected_tiles = gpd.overlay(aoi, index)
     
-    # For some reason the overlay is selecting each tile multiple times -- this gets a list of unique tile names for extracting
+    # For some reason the overlay is selecting each tile multiple times -- 
+    # this gets a list of unique tile names for extracting
     selected_tile_names = selected_tiles.IDENTIF.unique()
     selected_tile_names = [x.lower() for x in selected_tile_names] # file paths to tiles are lowercase
-    
+
+
     ## Unzip relevant tiles to local location
     # Loop each tile name, extract tile locally
     logger.info('Extracting tiles locally...')
