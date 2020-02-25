@@ -6,14 +6,25 @@ Created on Mon Jan 27
 """
 
 import argparse
+import logging.config
 import os
 import subprocess
+from subprocess import PIPE
 
-from misc_utils.logging_utils import create_logger
+from misc_utils.logging_utils import LOGGING_CONFIG
 
 
-# MFP_PATH = r'C:\pgc_index\pgcImageryIndexV6_2020jan14.gdb\pgcImageryIndexV6_2020jan14'
-logger = create_logger(os.path.basename(__file__), 'sh')
+handler_level = 'DEBUG'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
+
+
+def run_subprocess(command):
+    proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+    # proc.wait()
+    output, error = proc.communicate()
+    logger.info('Output: {}'.format(output.decode()))
+    logger.info('Err: {}'.format(error.decode()))
 
 
 def main(MFP_PATH):	
@@ -27,12 +38,11 @@ def main(MFP_PATH):
 	logger.info('Updating text file of catalog_ids...')
 	cmd = 'python {} --mfp_path {} --ids_out_dir {}'.format(GET_IDS_PY, MFP_PATH, TXT_DIR)
 	logger.debug('Calling command:\n{}'.format(cmd))
-	proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-	stdout, stderr = proc.communicate()
-
-	logger.info(stdout)
-	logger.info(stderr)
-
+	run_subprocess(cmd)
+	# proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+	# stdout, stderr = proc.communicate()
+	# logger.info(stdout)
+	# logger.info(stderr)
 
 	logger.info('Updating locations of master footprint and catalog_ids.txt...')
 	with open(TXT_LOC, 'w') as txt:

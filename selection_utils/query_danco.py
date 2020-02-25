@@ -43,6 +43,7 @@ def list_danco_footprint():
     logger.info('Listing danco.footprint databse tables...')
     try:
         danco = "danco.pgc.umn.edu"
+        print(creds[0])
         connection = psycopg2.connect(user = creds[0],
                                       password = creds[1],
                                       host = danco,
@@ -368,3 +369,4 @@ def all_IK01(where=None, onhand=None):
         df = query_footprint('index_ge', where=where)
     
     return df
+

@@ -33,6 +33,7 @@ init_check = True # Perform initial check to ensure footprints cover AOI, warn i
 x_space = 1000 # in units of AOI, lower = more grid points and longer inital creation time
 y_space = 1000 # in units of AOI
 step = None # number of rows and columns to grid with
+plot = True
 
 # Logging set up
 handler_level = 'DEBUG'
@@ -60,8 +61,11 @@ fps = gpd.read_file(fps_path)
 if fps.crs != aoi.crs:
     logger.debug('CRS mismatch, converting footprints crs...')
     fps = fps.to_crs(aoi.crs)
-# testing only - subset t0 larger strips only
+
+# testing only - subset to larger strips only
 fps = fps[fps.area/1e6 > 1000]    
+# testing only - subset to higher density only
+fps = fps[fps['density'] > 0.80]
 
 #### For each polygon, create grid as geodataframe, add to list
 aoi_grids = []
@@ -168,12 +172,10 @@ keep_fps = fps[fps[fp_id].isin(keep_fp_ids)]
 logger.info('Footprints selected: {}'.format(len(keep_fps)))
 logger.info('Minimum sort criteria: {}'.format(keep_fps[sort_crit].min()))
 
-
-import matplotlib.pyplot as plt
-plt.style.use('ggplot')
-fig, ax = plt.subplots(1,1, figsize=(10,10))
-aoi.boundary.plot(edgecolor='r', ax=ax)
-grid.plot(ax=ax, column=covered_depth, markersize=10)
-keep_fps.plot(ax=ax, linewidth=0.8, edgecolor='black', alpha=0.5)
-# fps.boundary.plot(edgecolor='black', linewidth=0.5, ax=ax)
-# all_matches.boundary.plot(edgecolor='orange', linewidth=0.5, ax=ax)
+if plot:
+    import matplotlib.pyplot as plt
+    plt.style.use('ggplot')
+    fig, ax = plt.subplots(1,1, figsize=(10,10))
+    aoi.boundary.plot(edgecolor='r', ax=ax)
+    grid.plot(ax=ax, column=covered_depth, markersize=10)
+    keep_fps.plot(ax=ax, linewidth=0.8, edgecolor='black', alpha=0.5)
