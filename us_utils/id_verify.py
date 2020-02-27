@@ -9,8 +9,8 @@ import argparse
 import os
 import sys
 
-from id_parse_utils import read_ids, write_ids, parse_filename
-from logging_utils import create_logger
+from misc_utils.id_parse_utils import read_ids, write_ids, parse_filename
+from misc_utils.logging_utils import create_logger
 
 
 logger = create_logger('id_verify.py', 'sh')
