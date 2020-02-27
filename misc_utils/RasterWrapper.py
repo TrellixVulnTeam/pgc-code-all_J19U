@@ -10,6 +10,8 @@ import numpy as np
 import numpy.ma as ma
 
 from osgeo import gdal, osr, ogr
+# from shapely.geometry import Polygon
+from shapely.geometry import box
 
 from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
 
@@ -95,6 +97,23 @@ class Raster():
         lry = uly + (gt[5] * self.y_sz)
         
         return ulx, lry, lrx, uly
+    
+    
+    def raster_bbox(self):
+        """
+        Reorder projwin to conform to shapely.geometry.Polygon ordering and creates
+        the shapely Polygon.
+
+        Returns
+        -------
+        shapely.geometry.Polygon
+
+        """
+        ulx, uly, lrx, lry = self.get_projwin()
+        # bbox = Polygon([lrx, lry, ulx, uly])
+        bbox = box(lrx, lry, ulx, uly)
+        
+        return bbox
     
     
     def GetBandAsArray(self, band_num, mask=True):

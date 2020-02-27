@@ -164,6 +164,17 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
             logger.debug("PostgreSQL connection closed.")
 
 
+# def footprint_head(layer, n,
+#                     creds=[creds[0], creds[1]], 
+#                     table=False, where=None, columns=None):
+    
+#     if where:
+#         where = '({}) ORDER BY random() LIMIT {}'.format(where, n)
+#     fhead = query_footprint(layer, where=where, table=table, columns=columns)
+    
+#     return fhead
+    
+    
 def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.edu', 
                 cred=[creds[0], creds[1]], table=False, where=None, columns=None):
     global logger
