@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 def run_subprocess(command):
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     output, error = proc.communicate()
-    logger.info('Output: {}'.format(output))
+    logger.info('Output: {}'.format(output.decode()))
     if error:
-        logger.info('Err: {}'.format(error))
+        logger.info('Err: {}'.format(error.decode()))
 
 
 def main(args):
