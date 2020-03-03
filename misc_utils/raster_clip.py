@@ -21,7 +21,7 @@ logger = create_logger(os.path.basename(__file__), 'sh')
 
 
 def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
-                 out_prj_shp=None, in_mem=False):
+                 out_prj_shp=None, in_mem=False, overwrite=False):
     """
     Take a list of rasters and warps (clips) them to the shapefile feature
     bounding box.
@@ -71,18 +71,21 @@ def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
         # Create outpath 
         raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
         raster_op = os.path.join(out_dir, raster_out_name)
-
-        raster_ds = gdal.Open(raster_p)
-        x_res = raster_ds.GetGeoTransform()[1]
-        y_res = raster_ds.GetGeoTransform()[5]
-        warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True, 
-                                        targetAlignedPixels=True, xRes=x_res, yRes=y_res)
-        gdal.Warp(raster_op, raster_ds, options=warp_options)
-        # Close the raster
-        raster_ds = None
-        logger.debug('Clipped raster created at {}'.format(raster_op))
-        # Add clipped raster path to list of clipped rasters to return
-        warped.append(raster_op)
+        
+        if os.path.exists(raster_op) and overwrite == False:
+            pass
+        else:
+            raster_ds = gdal.Open(raster_p)
+            x_res = raster_ds.GetGeoTransform()[1]
+            y_res = raster_ds.GetGeoTransform()[5]
+            warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True, 
+                                            targetAlignedPixels=True, xRes=x_res, yRes=y_res)
+            gdal.Warp(raster_op, raster_ds, options=warp_options)
+            # Close the raster
+            raster_ds = None
+            logger.debug('Clipped raster created at {}'.format(raster_op))
+            # Add clipped raster path to list of clipped rasters to return
+            warped.append(raster_op)
     
     # Remove projected shp
     if in_mem is True:

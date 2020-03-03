@@ -35,6 +35,7 @@ y_space = 1000 # in units of AOI
 step = None # number of rows and columns to grid with
 plot = True
 
+
 # Logging set up
 handler_level = 'DEBUG'
 logging.config.dictConfig(LOGGING_CONFIG(handler_level))
@@ -66,6 +67,7 @@ if fps.crs != aoi.crs:
 fps = fps[fps.area/1e6 > 1000]    
 # testing only - subset to higher density only
 fps = fps[fps['density'] > 0.80]
+
 
 #### For each polygon, create grid as geodataframe, add to list
 aoi_grids = []
