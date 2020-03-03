@@ -108,7 +108,7 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
         land_shp = r'E:\disbr007\imagery_orders\coastline_include.shp'
         land = gpd.read_file(land_shp)
         logger.info('Selecting only imagery within land inclusion shapefile...')
-        noh_recent_roi = noh_recent_roi.sjoin(land, how='left')
+        noh_recent_roi = gpd.sjoin(noh_recent, land, how='left')
             
     return noh_recent_roi
 
