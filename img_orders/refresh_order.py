@@ -108,6 +108,9 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
         land_shp = r'E:\disbr007\imagery_orders\coastline_include.shp'
         land = gpd.read_file(land_shp)
         logger.info('Selecting only imagery within land inclusion shapefile...')
+        # Drop 'index' columns if they exists
+        drop_cols = [x for x in list(noh_recent) if 'index' in x]
+        noh_recent = noh_recent.drop(columns=drop_cols)
         noh_recent_roi = gpd.sjoin(noh_recent, land, how='left')
             
     return noh_recent_roi
