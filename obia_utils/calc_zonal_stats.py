@@ -107,7 +107,7 @@ stats_on = [(tpi31_path, tpi31_stats),
             (slope_path, slope_stats),
             (diff_path, diff_stats),
             (diff_ndvi_path, diff_ndvi_stats),
-            (ndvi_path, ndvi_stats)]
+            (ndvi_path, ndvi_statsx)]
 
 
 for raster, stats in stats_on:
