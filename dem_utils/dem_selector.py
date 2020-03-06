@@ -43,9 +43,13 @@ from misc_utils.logging_utils import LOGGING_CONFIG
 # OUT_ID_LIST = None
 
 
-def dem_selector(AOI_PATH, DEM_FP=None,
-                 MONTHS=None, MIN_DATE=None, MAX_DATE=None,
-                 MULTISPEC=False, DENSITY_THRESH=None,
+def dem_selector(AOI_PATH, 
+                 COORDS=None,
+                 DEM_FP=None,
+                 MONTHS=None, 
+                 MIN_DATE=None, MAX_DATE=None,
+                 MULTISPEC=False, 
+                 DENSITY_THRESH=None,
                  VALID_THRESH=None,
                  OUT_DEM_FP=None,
                  OUT_ID_LIST=None):
@@ -109,11 +113,14 @@ def dem_selector(AOI_PATH, DEM_FP=None,
     logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
     logger = logging.getLogger(__name__)
     
-    
+
     #### LOAD INPUTS ####
     # Load AOI
     logger.info('Reading AOI...')
-    aoi = gpd.read_file(AOI_PATH)
+    if AOI_PATH:
+        aoi = gpd.read_file(AOI_PATH)
+    elif COORDS:
+        aoi = gpd.GeoDataFrame(geometry=[Point(coords[0], coords[1])], crs="EPSG:4326")
     
     # If DEM footprint provided, use that, else use danco with parameters
     if DEM_FP:
@@ -207,9 +214,11 @@ def dem_selector(AOI_PATH, DEM_FP=None,
     #### WRITE FOOTPRINT AND TXT OF MATCHES ####
     # Write footprint out
     if OUT_DEM_FP:
+        logger.info('Writing DEMs footprint to file: {}'.format(OUT_DEM_FP))
         dems.to_file(OUT_DEM_FP)
     # Write list of IDs ou
     if OUT_ID_LIST:
+        logger.info('Writing list of DEM catalogids to file: {}'.format(OUT_ID_LIST))
         write_ids(list(dems[CATALOGID]), OUT_ID_LIST)
     
     
@@ -244,8 +253,10 @@ def dem_selector(AOI_PATH, DEM_FP=None,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('aoi_path', type=os.path.abspath,
+    parser.add_argument('--aoi_path', type=os.path.abspath,
                         help='Path to AOI to select DEMs over.')
+    parser.add_argument('--coords', nargs='+',
+                        help='Coordinates to use rather than AOI shapefile.')
     parser.add_argument('--out_dem_footprint', type=os.path.abspath,
                         help="Path to write shapefile of selected DEMs.")
     parser.add_argument('--out_id_list', type=os.path.abspath,
@@ -269,6 +280,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     AOI_PATH = args.aoi_path
+    COORDS = args.coords
     OUT_DEM_FP = args.out_dem_footprint
     OUT_ID_LIST = args.out_id_list
     DEM_FP = args.dems_footprint

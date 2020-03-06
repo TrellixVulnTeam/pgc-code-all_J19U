@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_subprocess(command):
-    proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+    proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=False)
     # proc.wait()
     output, error = proc.communicate()
     logger.info('Output: {}'.format(output.decode()))

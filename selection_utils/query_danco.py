@@ -17,7 +17,7 @@ import os
 import geopandas as gpd
 import pandas as pd
 import psycopg2
-from sqlalchemy import create_engine#, inspect, MetaData
+from sqlalchemy import create_engine, pool
 
 from misc_utils.logging_utils import create_logger
 
@@ -121,7 +121,8 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
             logger.warning('{} not found in {}'.format(layer, db))
 
 
-        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/{}'.format(creds[0], creds[1], db))
+        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/{}'.format(creds[0], creds[1], db),
+                               poolclass=pool.NullPool)
 
 #        engine = create_engine('postgresql+psycopg2://{}:{}@{}/{}'.format(creds[0], creds[1], instance, db))
         connection = engine.connect()

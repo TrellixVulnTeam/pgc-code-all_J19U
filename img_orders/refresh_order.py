@@ -10,6 +10,7 @@ import logging
 # import pandas_profiling
 import geopandas as gpd
 import argparse, os
+import datetime
 
 from selection_utils.query_danco import query_footprint, mono_noh, stereo_noh
 from img_orders.img_order_sheets import create_sheets
@@ -19,7 +20,7 @@ from misc_utils.id_parse_utils import date_words, remove_onhand
 #### Logging setup
 # create logger
 logger = logging.getLogger('polar_hma_above_refresh')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
@@ -55,13 +56,18 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
 
 
 def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, sensors,
-            use_land=True):
+            use_land=True, refresh_thru=None):
     '''
     Select ids for imagery order
     cloudcover: cloudcover <= arg
     '''
-    
-    where = "(acqdate > '{}') AND (cloudcover >= {} AND cloudcover <= {})".format(last_refresh, min_cc, max_cc)
+    if not refresh_thru:
+        # Use today's date
+        refresh_thru = datetime.datetime.now().strftime('%Y-%m-%d')
+        
+    where = "(acqdate > '{}' AND acqdate <= '{}') AND (cloudcover >= {} AND cloudcover <= {})".format(last_refresh, 
+                                                                                                      refresh_thru,
+                                                                                                      min_cc, max_cc)
     if sensors:
         where += " AND (platform IN ({}))".format(str(sensors)[1:-1])
     logger.debug('where: {}'.format(where))
@@ -96,7 +102,7 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     noh_recent = gpd.sjoin(noh_recent, regions, how='left', op='within')
     noh_recent.drop('centroid', axis=1, inplace=True)
     noh_recent.set_geometry('geom', inplace=True)
-    
+
     ### Identify only those in the region of interest
     # Get regions of interest based on type of refresh
     roi = refresh_region_lut(refresh_region)
@@ -105,13 +111,14 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     
     # Select only those features that intersect land polygons
     if use_land:
-        land_shp = r'E:\disbr007\imagery_orders\coastline_include.shp'
+        land_shp = r'E:\disbr007\imagery_orders\coastline_include_fix_geom_dis.shp'
         land = gpd.read_file(land_shp)
         logger.info('Selecting only imagery within land inclusion shapefile...')
         # Drop 'index' columns if they exists
-        drop_cols = [x for x in list(noh_recent) if 'index' in x]
-        noh_recent = noh_recent.drop(columns=drop_cols)
-        noh_recent_roi = gpd.sjoin(noh_recent, land, how='left')
+        drop_cols = [x for x in list(noh_recent_roi) if 'index' in x]
+        
+        noh_recent_roi = noh_recent_roi.drop(columns=drop_cols)
+        noh_recent_roi = gpd.sjoin(noh_recent_roi, land, how='left')
             
     return noh_recent_roi
 
@@ -153,8 +160,10 @@ if __name__ == '__main__':
     parser.add_argument("refresh_imagery", type=str, 
                         help="""Type of imagery to refresh, supported types: 
                             'mono_stereo', 'mono', 'stereo'""")
-    parser.add_argument("out_path", type=str, nargs='?', default=os.getcwd(),
+    parser.add_argument("out_path", type=os.path.abspath, nargs='?', default=os.getcwd(),
                         help="Path to write sheets and footprint selection shape to.")
+    parser.add_argument("-rt", "--refresh_thru", type=str,
+                        help='Last date to include in refresh. Inclusive. yyyy-mm-dd')
     parser.add_argument("--max_cc", type=int, default=20,
                         help='Cloudcover to select less than or equal to. Default = 20.')
     parser.add_argument("--min_cc", type=int, default=0,
@@ -174,6 +183,7 @@ if __name__ == '__main__':
     refresh_region = args.refresh_region
     refresh_imagery = args.refresh_imagery
     out_path = args.out_path
+    refresh_thru = args.refresh_thru
     max_cc = args.max_cc
     min_cc = args.min_cc
     sensors = args.sensors
@@ -181,10 +191,12 @@ if __name__ == '__main__':
     use_land = args.use_land
     dryrun = args.dryrun
 
+
     # Do it
     selection = refresh(last_refresh=last_refresh, 
                         refresh_region=refresh_region, 
                         refresh_imagery=refresh_imagery, 
+                        refresh_thru=refresh_thru,
                         max_cc=max_cc,
                         min_cc=min_cc,
                         sensors=sensors,
@@ -196,7 +208,12 @@ if __name__ == '__main__':
     
     # Stats for printing to command line
     logger.info('IDs found: {}'.format(len(selection)))
-    agg = {'catalogid':'count', 'acqdate':['min', 'max'], 'cloudcover':['min', 'max'], 'y1':['min', 'max']}
+    agg = {'catalogid':'count', 
+           'acqdate':['min', 'max'], 
+           'cloudcover':['min', 'max'], 
+           'y1':['min', 'max'],
+           'sqkm_utm':'sum'}
+           
     selection_summary = selection.groupby('platform').agg(agg)
     logger.info('Summary:\n{}\n'.format(selection_summary))
 
