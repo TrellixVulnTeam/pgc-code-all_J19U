@@ -7,9 +7,11 @@ import argparse
 import logging.config
 import os
 import platform
+import sys
 
 import pandas as pd
 import geopandas as gpd
+from shapely.geometry import Point
 from tqdm import tqdm
 
 from dem_utils.valid_data import valid_percent_clip
@@ -120,8 +122,12 @@ def dem_selector(AOI_PATH,
     if AOI_PATH:
         aoi = gpd.read_file(AOI_PATH)
     elif COORDS:
-        aoi = gpd.GeoDataFrame(geometry=[Point(coords[0], coords[1])], crs="EPSG:4326")
-    
+        lon = float(COORDS[0])
+        lat = float(COORDS[1])
+        loc = Point(lon, lat)
+        aoi = gpd.GeoDataFrame(geometry=[loc], crs="EPSG:4326")
+
+
     # If DEM footprint provided, use that, else use danco with parameters
     if DEM_FP:
         logger.info('Reading provided DEM footprint...')
@@ -169,19 +175,25 @@ def dem_selector(AOI_PATH,
         dems[MONTH_COL] = dems['temp_date'].dt.month
         dems.drop(columns=['temp_date'], inplace=True)
         dems = dems[dems[MONTH_COL].isin(MONTHS)]
-    
+
+    logger.info('DEMs matching criteria (before AOI selection): {}'.format(len(dems)))
+
     # Check coordinate system match and if not reproject AOI
     if aoi.crs != dems.crs:
         aoi = aoi.to_crs(dems.crs)
- 
+    
     
     #### SELECT DEMS OVER ALL AOIS ####
     logger.info('Selecting DEMs over AOI...')
     # Select by location
-    dems = gpd.overlay(dems, aoi, how='intersection')
+    # dems = gpd.overlay(dems, aoi, how='intersection')
+    dems = gpd.sjoin(dems, aoi, how='inner')
     # Remove duplicates resulting from intersection (not sure why DUPs)
     dems = dems.drop_duplicates(subset=(DEM_FNAME))
     logger.info('DEMs found over AOI: {}'.format(len(dems)))
+    if len(dems) == 0:
+        logger.error('No DEMs found over AOI, exiting...')
+        sys.exit()
     
     # Create full path to server location, used or checking validity
     # Determine operating system for locating DEMs
@@ -189,9 +201,10 @@ def dem_selector(AOI_PATH,
     if OS == WINDOWS_OS:
         server_loc = WINDOWS_LOC
     elif OS == LINUX_OS:
-        server_loc = LINUX_LOC    
+        server_loc = LINUX_LOC
     dems[FULLPATH] = dems.apply(lambda x: os.path.join(x[server_loc], x[DEM_FNAME]), axis=1)
     # Subset to only those DEMs that actually can be found
+    logger.info('Checking for existence on file-system...')
     dems = dems[dems[FULLPATH].apply(lambda x: os.path.exists(x))==True]
     
     
@@ -256,7 +269,7 @@ if __name__ == '__main__':
     parser.add_argument('--aoi_path', type=os.path.abspath,
                         help='Path to AOI to select DEMs over.')
     parser.add_argument('--coords', nargs='+',
-                        help='Coordinates to use rather than AOI shapefile.')
+                        help='Coordinates to use rather than AOI shapefile. Lon Lat')
     parser.add_argument('--out_dem_footprint', type=os.path.abspath,
                         help="Path to write shapefile of selected DEMs.")
     parser.add_argument('--out_id_list', type=os.path.abspath,
@@ -293,6 +306,7 @@ if __name__ == '__main__':
     
     
     dem_selector(AOI_PATH=AOI_PATH,
+                 COORDS=COORDS,
                  OUT_DEM_FP=OUT_DEM_FP,
                  OUT_ID_LIST=OUT_ID_LIST,
                  DEM_FP=DEM_FP,
