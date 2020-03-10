@@ -152,6 +152,16 @@ def write_ids(ids, out_path, header=None, ext='txt'):
             f.write('{}{}'.format(header, sep))
         for each_id in ids:
             f.write('{}{}'.format(each_id, sep))
+
+
+def write_stereopair_ids(catalogids, stereopairs, out_path, header=None, ext='csv'):
+    sep = '\n'
+    
+    with open(out_path, 'w') as f:
+        if header:
+            f.write('{}{}'.format(header, sep))
+        for catid, stp in zip(catalogids, stereopairs):
+            f.write('{},{}{}'.format(catid, stp, sep))
             
 
 def combine_ids(*id_lists, write_path=None):

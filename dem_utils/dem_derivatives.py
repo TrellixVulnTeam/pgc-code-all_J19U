@@ -32,7 +32,7 @@ logging.config.dictConfig(LOGGING_CONFIG(handler_level))
 logger = logging.getLogger(__name__)
 
 
-def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, *args):
+def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, **args):
     '''
     Take an input DEM and create a derivative product
     input_dem: DEM
@@ -50,8 +50,10 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
 #    out_name = '{}_{}.tif'.format(os.path.basename(input_dem).split('.')[0], derivative)
 #    out_path = os.path.join(os.path.dirname(input_dem), out_name)
 
+    # if args:
+        # dem_options = gdal.DEMProcessingOptions(args)
 
-    gdal.DEMProcessing(output_path, input_dem, derivative, *args)
+    gdal.DEMProcessing(output_path, input_dem, derivative, **args)
 
     if return_array:
         from RasterWrapper import Raster
@@ -80,7 +82,7 @@ def calc_tpi(dem, size):
     window_count = size*size
 
     # Get original mask
-    mask = copy.deepcopy(dem.mask)
+    # mask = copy.deepcopy(dem.mask)
 
     # # Change fill value to -9999 to ensure NaN corrections are applied correctly
     # nodata_val = -9999
@@ -90,7 +92,7 @@ def calc_tpi(dem, size):
     # Count the number of non-NaN values in the window for each pixel
     logger.debug('Counting number of valid pixels per window...')
     num_valid_window = cv2.boxFilter(np.logical_not(dem.mask).astype(int), -1, window, normalize=False,
-                                 borderType=cv2.BORDER_REPLICATE)
+                                     borderType=cv2.BORDER_REPLICATE)
 
     # Change masked values to fill value
     dem = dem.data
@@ -117,31 +119,31 @@ def calc_tpi(dem, size):
 
 
 # def calc_tpi(dem, size):
-#     """
-#     OpenCV implementation of TPI
-#     dem: array
-#     size: int, kernel size in x and y directions (square kernel)
-#     Note - borderType determines handline of edge cases. REPLICATE will take the outermost row and columns and extend
-#     them as far as is needed for the given kernel size.
-#     """
-#     logger.info('Computing TPI with kernel size {}...'.format(size))
-#     # To attempt to clean up artifacts that I believe are a results of
-#     # no data values being included in interpolation. So interpolate 
-#     # closest values to no data instead of no data. values that were no
-#     # data are masked out again at the end.
-#     # Interpolate nodata, cubic method leaves no data at edges
-#     # logger.debug('Interpolating no data values...')
-#     # dem = interpolate_nodata(dem, method='cubic')
-#     # Clean up edges with simple nearest interpolation
-#     logger.debug('Cleaning up edge no data values...')
-#     dem = interpolate_nodata(dem, method='nearest')
+    """
+    OpenCV implementation of TPI
+    dem: array
+    size: int, kernel size in x and y directions (square kernel)
+    Note - borderType determines handline of edge cases. REPLICATE will take the outermost row and columns and extend
+    them as far as is needed for the given kernel size.
+    """
+    logger.info('Computing TPI with kernel size {}...'.format(size))
+    # To attempt to clean up artifacts that I believe are a results of
+    # no data values being included in interpolation. So interpolate 
+    # closest values to no data instead of no data. values that were no
+    # data are masked out again at the end.
+    # Interpolate nodata, cubic method leaves no data at edges
+    # logger.debug('Interpolating no data values...')
+    # dem = interpolate_nodata(dem, method='cubic')
+    # Clean up edges with simple nearest interpolation
+    logger.debug('Cleaning up edge no data values...')
+    dem = interpolate_nodata(dem, method='nearest')
 
-#     kernel = np.ones((size,size),np.float32)/(size*size)
-#     # -1 indicates new output array
-#     dem_conv = cv2.filter2D(dem, -1, kernel, borderType=cv2.BORDER_REPLICATE)
-#     tpi = dem - dem_conv
+    kernel = np.ones((size,size),np.float32)/(size*size)
+    # -1 indicates new output array
+    dem_conv = cv2.filter2D(dem, -1, kernel, borderType=cv2.BORDER_REPLICATE)
+    tpi = dem - dem_conv
     
-#     return tpi
+    return tpi
 
 
 def calc_tpi_dev(dem, size):
@@ -152,6 +154,7 @@ def calc_tpi_dev(dem, size):
     size: int, kernel size in x and y directions (square kernel)
     """
     tpi = calc_tpi(dem, size)
+    
     # Calculate the standard deviation of each cell, mode='nearest' == cv2.BORDER_REPLICATE
     std_array = generic_filter(dem, np.std, size=size, mode='nearest')
 
@@ -160,7 +163,7 @@ def calc_tpi_dev(dem, size):
     return tpi_dev
 
 
-def dem_derivative(dem, derivative, output_path, size):
+def dem_derivative(dem, derivative, output_path, size, **args):
     """
     Wrapper function for derivative functions above.
     
@@ -172,7 +175,7 @@ def dem_derivative(dem, derivative, output_path, size):
         Name of the derivative to create. One of:
             tpi_ocv
             gdal_hillsahde, gdal_slope, gdal_aspect,
-            gdal_color-relief, gdal_tri, gdal_tri,
+            gdal_color-relief, gdal_tpi, gdal_tri,
             gdal_roughness
     output_path : os.path.abspath
         The path to write the output derivative.
@@ -188,7 +191,7 @@ def dem_derivative(dem, derivative, output_path, size):
     """
     if 'gdal' in derivative:
         op = derivative.split('_')[1]
-        gdal_dem_derivative(dem, output_path, op)
+        gdal_dem_derivative(dem, output_path, op, **args)
     elif derivative == 'tpi_ocv' or derivative == 'tpi_std':
         dem_raster = Raster(dem)
         arr = dem_raster.MaskedArray.copy()
@@ -219,28 +222,51 @@ def dem_derivative(dem, derivative, output_path, size):
         logger.error('Unknown derivative argument: {}'.format(derivative))
 
 
-if __name__ == '__main__':
-    supported_derivatives=["hillshade", "slope", "aspect", "color-relief", 
-                              "TRI", "TPI", "Roughness"]
-    all_derivs = ['gdal_{}'.format(x) for x in supported_derivatives]
-    all_derivs.extend(['tpi_ocv', 'tpi_std'])
+# if __name__ == '__main__':
+#     supported_derivatives = ["hillshade", "slope", "aspect", "color-relief",
+#                              "TRI", "TPI", "Roughness"]
+#     all_derivs = ['gdal_{}'.format(x) for x in supported_derivatives]
+#     all_derivs.extend(['tpi_ocv', 'tpi_std'])
 
-    parser = argparse.ArgumentParser()
+#     parser = argparse.ArgumentParser()
 
-    parser.add_argument('dem', type=os.path.abspath,
-                          help='Path to DEM to process.')
-    parser.add_argument('output_path', type=os.path.abspath,
-                          help='Path to write output to.')
-    parser.add_argument('derivative', type=str,
-                          help='Type of derivative to create, one of: {}'.format(all_derivs))
-    parser.add_argument('-s', '--tpi_window_size', type=int,
-                          help='Size of moving kernel to use in creating TPI.')
+#     parser.add_argument('dem', type=os.path.abspath,
+#                         help='Path to DEM to process.')
+#     parser.add_argument('output_path', type=os.path.abspath,
+#                         help='Path to write output to.')
+#     parser.add_argument('derivative', type=str,
+#                         help='Type of derivative to create, one of: {}'.format(all_derivs))
+#     parser.add_argument('-s', '--tpi_window_size', type=int,
+#                         help='Size of moving kernel to use in creating TPI.')
+#     parser.add_argument('-ka', '--kw_args', nargs='+',
+#                         help="""Arguments to pass to gdal.DEMProcessing.
+#                                 Format: "keyword:arg" "keyword2:args2" """)
 
-    args = parser.parse_args()
+#     args = parser.parse_args()
 
-    dem = args.dem
-    output_path = args.output_path
-    derivative = args.derivative
-    window_size = args.tpi_window_size
+#     dem = args.dem
+#     output_path = args.output_path
+#     derivative = args.derivative
+#     window_size = args.tpi_window_size
+#     gdal_args = args.kw_args
 
-    dem_derivative(dem, derivative, output_path, window_size)
+#     # Parse gdal_args into dictionary
+#     if gdal_args:
+#         gdal_args = {name: value for name, value in (pair.split(':')
+#                      for pair in gdal_args)}
+
+#     dem_derivative(dem, derivative, output_path, window_size, **gdal_args)
+        
+        
+# Topographic Roughness Index
+
+dem = np.array([1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+               [1,  1,  1,  1,  1,  1,  1,  3,  9,  8],
+               [1,  1,  1,  1,  1,  1,  1,  0,  1,  3],
+               [1,  1,  1,  1,  1,  1,  1,  2,  9,  6],
+               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1])
