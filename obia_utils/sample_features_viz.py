@@ -109,21 +109,26 @@ for f_idx in feat.index.unique():
 
 # Create geodataframe of random points
 sample = gpd.GeoDataFrame(geometry=sample_pts, crs=feat.crs)
-sample['in_feat'] = True
 
 #### Create random points not in features
 outside_pts = random_points_outside(seg.total_bounds, list(feat.geometry), 500)
 others = gpd.GeoDataFrame(geometry=outside_pts, crs=seg.crs)
+
+# Add column defining inside feature or interest or out
+sample['in_feat'] = True
 others['in_feat'] = False
 
+
 #### Spatial join to seg
+# Keep only columns of interest
 keep_cols = ['tpi31_mean', 'tpi81_mean', 'slope_mean', 'slope_max', 
-             'ndvi_mean', 'diffndvi_m', 'diff_mean', 'geometry']
+             'ndvi_mean', 'diffndvi_m', 'diff_mean', 'roughness_',
+             'geometry']
 seg = seg[keep_cols]
 
+# Combine all points into single dataframe
 points = pd.concat([sample, others])
-
-
+# Get stats for all points
 points_stats = gpd.sjoin(points, seg)
 
 
@@ -131,7 +136,7 @@ points_stats = gpd.sjoin(points, seg)
 plt.style.use('ggplot')
 edgecolor = 'w'
 plot_cols = ['tpi31_mean', 'tpi81_mean', 'slope_mean', 'slope_max', 
-             'ndvi_mean', 'diffndvi_m', 'diff_mean']
+             'ndvi_mean', 'diffndvi_m', 'diff_mean', 'roughness_']
 
            
 fig, axes = plt.subplots(4, 2, figsize=(10,10))

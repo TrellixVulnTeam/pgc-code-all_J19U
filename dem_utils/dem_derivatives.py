@@ -21,7 +21,7 @@ from scipy.ndimage.filters import generic_filter
 
 ## Local libs
 from misc_utils.RasterWrapper import Raster
-from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
+from misc_utils.logging_utils import LOGGING_CONFIG
 from misc_utils.array_utils import interpolate_nodata
 
 
@@ -52,7 +52,7 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
 
     # if args:
         # dem_options = gdal.DEMProcessingOptions(args)
-
+    logging.info('Creating and writing {} to: {}'.format)(derivative, output_path)
     gdal.DEMProcessing(output_path, input_dem, derivative, **args)
 
     if return_array:
@@ -79,7 +79,7 @@ def calc_tpi(dem, size):
     logger.info('Computing TPI with kernel size {}...'.format(size))
     # Set up 'kernel'
     window = (size, size)
-    window_count = size*size
+    window_count = size * size
 
     # Get original mask
     # mask = copy.deepcopy(dem.mask)
@@ -100,19 +100,20 @@ def calc_tpi(dem, size):
     # Get raw sum within window for each pixel
     logger.debug('Getting raw sum including NoData values...')
     sum_window = cv2.boxFilter(dem, -1, window, normalize=False, borderType=cv2.BORDER_REPLICATE)
-    
+
     # Correct these sums by removing (fill value*number of times it was include in the sum) for each pixel
     logger.debug('Correcting for inclusion of NoData values...')
-    sum_window = np.where(num_valid_window != window_count, # if not all pixels in window were valid
-                          sum_window+(-nodata_val*(window_count-num_valid_window)), # remove NoData val from sum for each time it was included
+    sum_window = np.where(num_valid_window != window_count,  # if not all pixels in window were valid
+                          # remove NoData val from sum for each time it was included
+                          sum_window + (-nodata_val * (window_count - num_valid_window)),
                           sum_window)
 
     # Compute TPI (value - mean of value in window)
     logger.debug('Calculating TPI...')
-    with np.errstate(divide='ignore',invalid='ignore'):
-        tpi = dem - (sum_window/num_valid_window)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        tpi = dem - (sum_window / num_valid_window)
     # Remask any originally masked pixels
-    tpi = np.ma.masked_where(dem.data==nodata_val, tpi)
+    tpi = np.ma.masked_where(dem.data == nodata_val, tpi)
     # tpi = np.ma.masked_where(mask, tpi)
 
     return tpi
@@ -222,51 +223,64 @@ def dem_derivative(dem, derivative, output_path, size, **args):
         logger.error('Unknown derivative argument: {}'.format(derivative))
 
 
-# if __name__ == '__main__':
-#     supported_derivatives = ["hillshade", "slope", "aspect", "color-relief",
-#                              "TRI", "TPI", "Roughness"]
-#     all_derivs = ['gdal_{}'.format(x) for x in supported_derivatives]
-#     all_derivs.extend(['tpi_ocv', 'tpi_std'])
+if __name__ == '__main__':
+    supported_derivatives = ["hillshade", "slope", "aspect", "color-relief",
+                              "TRI", "TPI", "Roughness"]
+    all_derivs = ['gdal_{}'.format(x) for x in supported_derivatives]
+    all_derivs.extend(['tpi_ocv', 'tpi_std'])
 
-#     parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
 
-#     parser.add_argument('dem', type=os.path.abspath,
-#                         help='Path to DEM to process.')
-#     parser.add_argument('output_path', type=os.path.abspath,
-#                         help='Path to write output to.')
-#     parser.add_argument('derivative', type=str,
-#                         help='Type of derivative to create, one of: {}'.format(all_derivs))
-#     parser.add_argument('-s', '--tpi_window_size', type=int,
-#                         help='Size of moving kernel to use in creating TPI.')
-#     parser.add_argument('-ka', '--kw_args', nargs='+',
-#                         help="""Arguments to pass to gdal.DEMProcessing.
-#                                 Format: "keyword:arg" "keyword2:args2" """)
+    parser.add_argument('dem', type=os.path.abspath,
+                        help='Path to DEM to process.')
+    parser.add_argument('output_path', type=os.path.abspath,
+                        help='Path to write output to.')
+    parser.add_argument('derivative', type=str,
+                        help='Type of derivative to create, one of: {}'.format(all_derivs))
+    parser.add_argument('-s', '--tpi_window_size', type=int,
+                        help='Size of moving kernel to use in creating TPI.')
+    parser.add_argument('-ka', '--kw_args', nargs='+',
+                        help="""Arguments to pass to gdal.DEMProcessing.
+                                Format: "keyword:arg" "keyword2:args2" """)
 
-#     args = parser.parse_args()
+    args = parser.parse_args()
 
-#     dem = args.dem
-#     output_path = args.output_path
-#     derivative = args.derivative
-#     window_size = args.tpi_window_size
-#     gdal_args = args.kw_args
+    dem = args.dem
+    output_path = args.output_path
+    derivative = args.derivative
+    window_size = args.tpi_window_size
+    gdal_args = args.kw_args
 
-#     # Parse gdal_args into dictionary
-#     if gdal_args:
-#         gdal_args = {name: value for name, value in (pair.split(':')
-#                      for pair in gdal_args)}
+    # Parse gdal_args into dictionary
+    if gdal_args:
+        gdal_args = {name: value for name, value in (pair.split(':')
+                      for pair in gdal_args)}
 
-#     dem_derivative(dem, derivative, output_path, window_size, **gdal_args)
+    dem_derivative(dem, derivative, output_path, window_size, **gdal_args)
         
         
 # Topographic Roughness Index
 
-dem = np.array([1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-               [1,  1,  1,  1,  1,  1,  1,  3,  9,  8],
-               [1,  1,  1,  1,  1,  1,  1,  0,  1,  3],
-               [1,  1,  1,  1,  1,  1,  1,  2,  9,  6],
-               [1,  1,  1,  1,  1,  1,  1,  1,  1,  1])
+# dem = np.array([[1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
+#                 [1,  1,  1,  1,  1,  1,  1,  3,  9,  8],
+#                 [1,  1,  1,  1,  1,  1,  1,  0,  1,  3],
+#                 [1,  1,  1,  1,  1,  1,  1,  2,  9,  6],
+#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1]])
+# dem = dem.astype(float)
+
+# size = 3
+# # kernel = np.ones((size,size),np.float32)/(size*size)
+# kernel = np.ones((size,size),np.float32)
+# kernel 
+# dem_conv = cv2.filter2D(dem, -1, kernel=kernel, borderType=cv2.BORDER_REPLICATE)
+# dem_conv = np.round(dem_conv, 2)
+# print(dem)
+# print(dem_conv)
+
+# corr = correlate(dem, dem*-1)
+# print(corr)

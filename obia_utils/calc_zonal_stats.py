@@ -30,6 +30,7 @@ seg_path = r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_cli
 outpath = os.path.join(os.path.dirname(seg_path),
                        '{}_stats.shp'.format(os.path.basename(seg_path).split('.')[0]))
 # Paths to rasters to use to compute statistics
+roughness_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\roughness\dem_WV02_20150906_roughness.tif'
 tpi31_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi31.tif'
 tpi41_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi41.tif'
 tpi81_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi81.tif'
@@ -85,6 +86,10 @@ tpi31_stats = {k: 'tpi31_{}'.format(k) for k in tpi_stats}
 tpi41_stats = {k: 'tpi41_{}'.format(k) for k in tpi_stats}
 tpi81_stats = {k: 'tpi81_{}'.format(k) for k in tpi_stats}
 
+roughness_stats = {'mean': 'rough_mean',
+                   'max': 'rough_max',
+                   'min': 'rough_min'}
+
 slope_stats = {'mean': 'slope_mean', 
                'max': 'slope_max',
                'std': 'slope_std'}
@@ -101,13 +106,14 @@ ndvi_stats = {'mean': 'ndvi_mean',
               'min': 'ndvi_min',
               'max': 'ndvi_max'}
 
-stats_on = [(tpi31_path, tpi31_stats), 
+stats_on = [(roughness_path, roughness_stats),
+            (tpi31_path, tpi31_stats), 
             (tpi41_path, tpi41_stats),
             (tpi81_path, tpi81_stats),
             (slope_path, slope_stats),
             (diff_path, diff_stats),
             (diff_ndvi_path, diff_ndvi_stats),
-            (ndvi_path, ndvi_statsx)]
+            (ndvi_path, ndvi_stats)]
 
 
 for raster, stats in stats_on:
