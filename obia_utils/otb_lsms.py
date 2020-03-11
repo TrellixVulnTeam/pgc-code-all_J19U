@@ -6,6 +6,7 @@ Created on Fri Mar  6 14:22:54 2020
 """
 import argparse
 import logging.config
+import os
 import subprocess
 from subprocess import PIPE
 
@@ -29,7 +30,7 @@ def run_subprocess(command):
     
 
 def otb_lsms(img, 
-             spatialr=5, ranger=15, minsize=50, 
+             spatialr=5, ranger=15, minsize=50,
              tilesize_x=500, tilesize_y=500,
              out_vector=None):
     """
@@ -42,19 +43,19 @@ def otb_lsms(img,
         Path to raster to be segmented.
     spatialr : INT
         Spatial radius -- Default value: 5
-        Radius of the spatial neighborhood for averaging. 
+        Radius of the spatial neighborhood for averaging.
         Higher values will result in more smoothing and higher processing time.
     ranger : FLOAT
         Range radius -- Default value: 15
-        Threshold on spectral signature euclidean distance (expressed in radiometry unit) 
-        to consider neighborhood pixel for averaging. 
-        Higher values will be less edge-preserving (more similar to simple average in neighborhood), 
-        whereas lower values will result in less noise smoothing. 
+        Threshold on spectral signature euclidean distance (expressed in radiometry unit)
+        to consider neighborhood pixel for averaging.
+        Higher values will be less edge-preserving (more similar to simple average in neighborhood),
+        whereas lower values will result in less noise smoothing.
         Note that this parameter has no effect on processing time..
     minsize : INT
         Minimum Segment Size -- Default value: 50
-        Minimum Segment Size. If, after the segmentation, a segment is of size strictly 
-        lower than this criterion, the segment is merged with the segment that has the 
+        Minimum Segment Size. If, after the segmentation, a segment is of size strictly
+        lower than this criterion, the segment is merged with the segment that has the
         closest sepctral signature.
     tilesize_x : INT
         Size of tiles in pixel (X-axis) -- Default value: 500
@@ -71,19 +72,19 @@ def otb_lsms(img,
 
     """
     # Build command
-    cmd = """otbcli_LargeScaleMeanShift 
-             -in {} 
-             -spatialr {} 
-             -ranger {} 
-             -minsize {} 
-             -tilesizex {} 
-             -tilesizey {} 
-             -mode.vector.out {}""".format(img, spatialr,ranger, minsize,
-                                           tilesize_x, tilesize_y, out_shp)
+    cmd = """otbcli_LargeScaleMeanShift
+             -in {}
+             -spatialr {}
+             -ranger {}
+             -minsize {}
+             -tilesizex {}
+             -tilesizey {}
+             -mode.vector.out {}""".format(img, spatialr, ranger, minsize,
+                                           tilesize_x, tilesize_y, out_vector)
     # Remove whitespace, newlines
     cmd = cmd.replace('\n', '')
     cmd = ' '.join(cmd.split())
-    
+
     logger.info("""Running OTB Large-Scale-Mean-Shift...
                 Input image: {}
                 Spatial radius: {}
@@ -91,26 +92,78 @@ def otb_lsms(img,
                 Min. segment size: {}
                 Tilesizex: {}
                 Tilesizey: {}
-                Output vector: {}""".format(img, spatialr, ranger, segsize, 
-                                            tilesize_x, tilesize_y, out_shp))
-    
+                Output vector: {}""".format(img, spatialr, ranger, minsize,
+                                            tilesize_x, tilesize_y, out_vector))
+
     logger.debug(cmd)
     run_subprocess(cmd)
 
 
-#### Inputs
-img = r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\imagery\WV02_20150906_clip.tif'
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
 
-# LSMS parameters
-spatialr = 5
-ranger = 200
-segsize = 400
-tilesize = 300
-out_shp = r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_sr{}rr{}ss{}ts{}.shp'.format(spatialr,
-                                                                                                        ranger,
-                                                                                                        segsize,
-                                                                                                        tilesize)
+    parser.add_argument('-i', '--image_source',
+                        type=os.path.abspath,
+                        help='Image to segment.')
+    parser.add_argument('-o', '--out_vector',
+                        type=os.path.abspath,
+                        help='Output vector.')
+    parser.add_argument('-sr', '--spatial_radius',
+                        type=int,
+                        default=5,
+                        help="""Spatial radius -- Default value: 5
+                                Radius of the spatial neighborhood for averaging.
+                                Higher values will result in more smoothing and
+                                higher processing time.""")
+    parser.add_argument('-rr', '--range_radius',
+                        type=float,
+                        default=15,
+                        help="""Range radius -- Default value: 15
+                                Threshold on spectral signature euclidean distance
+                                (expressed in radiometry unit) to consider neighborhood
+                                pixel for averaging. Higher values will be less
+                                edge-preserving (more similar to simple average in neighborhood),
+                                whereas lower values will result in less noise smoothing.
+                                Note that this parameter has no effect on processing time.""")
+    parser.add_argument('-ms', '--minsize',
+                        type=int,
+                        default=50,
+                        help="""Minimum Segment Size -- Default value: 50
+                                Minimum Segment Size. If, after the segmentation, a segment is of
+                                size strictly lower than this criterion, the segment is merged with
+                                the segment that has the closest sepctral signature.""")
+    parser.add_argument('-tx', '--tilesize_x',
+                        type=int,
+                        default=500,
+                        help="""Size of tiles in pixel (X-axis) -- Default value: 500
+                                Size of tiles along the X-axis for tile-wise processing.""")
+    parser.add_argument('-ty', '--tilesize_y',
+                        type=int,
+                        default=500,
+                        help="""Size of tiles in pixel (Y-axis) -- Default value: 500
+                                Size of tiles along the Y-axis for tile-wise processing.""")
 
-otb_lsms(img=img, spatialr=spatialr, ranger=ranger, minsize=segsize, tilesize_x=tilesize, tilesize_y=tilesize)
-# if __name__ == '__main__':
-    
+    args = parser.parse_args()
+
+    image_source = args.image_source
+    out_vector = args.out_vector
+    spatialr = args.spatial_radius
+    ranger = args.range_radius
+    minsize = args.minsize
+    tilesize_x = args.tilesize_x
+    tilesize_y = args.tilesize_y
+
+    # Build out vector path if not provided
+    if out_vector is None:
+        out_dir = os.path.dirname(image_source)
+        out_name = os.path.basename(image_source).split('.')[0]
+        out_name = '{}_sr{}_rr{}_ms{}_tx{}_ty{}.shp'
+        out_vector = os.path.join(out_dir, out_name)
+
+    otb_lsms(img=image_source,
+             out_vector=out_vector,
+             spatialr=spatialr,
+             ranger=ranger,
+             minsize=minsize,
+             tilesize_x=tilesize_x,
+             tilesize_y=tilesize_y)
