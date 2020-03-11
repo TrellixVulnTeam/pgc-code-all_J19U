@@ -5,18 +5,19 @@ Created on Fri Mar  6 14:22:54 2020
 @author: disbr007
 """
 import argparse
+import datetime
 import logging.config
 import os
 import subprocess
 from subprocess import PIPE
 
-from misc_utils.logging_utils import LOGGING_CONFIG
+from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 
 
 #### Set up logger
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+# handler_level = 'INFO'
+# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+# logger = logging.getLogger(__name__)
 
 
 #### Function definition
@@ -27,14 +28,15 @@ def run_subprocess(command):
     output, error = proc.communicate()
     logger.debug('Output: {}'.format(output.decode()))
     logger.debug('Err: {}'.format(error.decode()))
-    
 
-def otb_lsms(img, 
+
+def otb_lsms(img,
              spatialr=5, ranger=15, minsize=50,
              tilesize_x=500, tilesize_y=500,
-             out_vector=None):
+             out_vector=None,
+             ram=256):
     """
-    Runs the Orfeo Toolbox LargeScaleMeanShift command via the command
+    Run the Orfeo Toolbox LargeScaleMeanShift command via the command
     line. Requires that OTB environment is activated.
 
     Parameters
@@ -96,8 +98,11 @@ def otb_lsms(img,
                                             tilesize_x, tilesize_y, out_vector))
 
     logger.debug(cmd)
+    run_time_start = datetime.datetime.now()
     run_subprocess(cmd)
-
+    run_time_finish = datetime.datetime.now()
+    run_time = run_time_finish - run_time_start
+    logger.info('Large-Scale-Mean-Shift finished. Runtime: {}'.format(str(run_time)))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -143,6 +148,11 @@ if __name__ == '__main__':
                         help="""Size of tiles in pixel (Y-axis) -- Default value: 500
                                 Size of tiles along the Y-axis for tile-wise processing.""")
 
+    parser.add_argument('-l', '--log_file',
+                        type=os.path.abspath,
+                        default='otb_lsms_log.txt',
+                        help='Path to write log file to.')
+
     args = parser.parse_args()
 
     image_source = args.image_source
@@ -159,6 +169,14 @@ if __name__ == '__main__':
         out_name = os.path.basename(image_source).split('.')[0]
         out_name = '{}_sr{}_rr{}_ms{}_tx{}_ty{}.shp'
         out_vector = os.path.join(out_dir, out_name)
+
+    #### Set up logger
+    handler_level = 'INFO'
+    logger = create_logger(__name__, 'fh',
+                           handler_level='DEBUG',
+                           filename=args.log_file)
+    logger = create_logger(__name__, 'sh',
+                           handler_level=handler_level)
 
     otb_lsms(img=image_source,
              out_vector=out_vector,

@@ -5,13 +5,10 @@ import os
 import subprocess
 from subprocess import PIPE, STDOUT
 
-from misc_utils.logging_utils import LOGGING_CONFIG
+from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 
 
-#### Set up logger
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+
 
 
 def submit_job(args):
@@ -29,21 +26,22 @@ def submit_job(args):
 
     # Build cmd
     otb_lsms_script = '/mnt/pgc/data/scratch/jeff/code/pgc-code-all/obia_utils/qsub_otb_lsms.sh'
-    cmd = 'qsub -v p1="{}",p2="{}",p3={},p4={},p6={},p7={},p8={} {}'.format(image_source,
-                                                                            out_vector,
-                                                                            spatialr,
-                                                                            ranger,
-                                                                            minsize,
-                                                                            tilesize_x,
-                                                                            tilesize_y,
-                                                                            otb_lsms_script)
+    cmd = 'qsub -v p1="{}",p2="{}",p3={},p4={},p6={},p7={},p8={},p9={} {}'.format(image_source,
+                                                                                  out_vector,
+                                                                                  spatialr,
+                                                                                  ranger,
+                                                                                  minsize,
+                                                                                  tilesize_x,
+                                                                                  tilesize_y,
+                                                                                  args.log_file,
+                                                                                  otb_lsms_script)
 
     if dryrun:
         logger.info(cmd)
     else:
         p = subprocess.Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT)
         output = p.stdout.read()
-        logger.info(output)
+        logger.info(output.decode())
 
 
 if __name__ == '__main__':
@@ -89,8 +87,18 @@ if __name__ == '__main__':
                         default=500,
                         help="""Size of tiles in pixel (Y-axis) -- Default value: 500
                                 Size of tiles along the Y-axis for tile-wise processing.""")
+    parser.add_argument('-l', '--log_file',
+                        type=os.path.abspath,
+                        default='otb_lsms_log.txt',
+                        help='Path to write log_file to.')
     parser.add_argument('-d', '--dryrun', action='store_true')
 
     args = parser.parse_args()
+
+    #### Set up logger
+    handler_level = 'INFO'
+
+    logger = create_logger('submit_otb_lsms', 'sh',
+                           handler_level=handler_level)
 
     submit_job(args)
