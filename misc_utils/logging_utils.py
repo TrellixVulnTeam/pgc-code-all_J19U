@@ -99,7 +99,7 @@ def create_logger(logger_name, handler_type,
     filename : STR
         Name of logging file, existing or new.
     duplicate : BOOLEAN
-    
+
     Returns
     -------
     logger : logging.Logger
@@ -107,7 +107,7 @@ def create_logger(logger_name, handler_type,
     """
     # Create logger
     logger = logging.getLogger(logger_name)
-    
+
     # Check if handlers already exists for logger
     handlers = logger.handlers
     handler = None
@@ -121,18 +121,18 @@ def create_logger(logger_name, handler_type,
     else:
         print('Unrecognized handler_type argument.')
     desired_level = logging_level_int(handler_level)
-    
+
     for h in handlers:
         # Check if existing handlers are of the right type (console or file)
         if isinstance(h, type(ht)):
             # Check if existing handler is of right level
             existing_level = h.level
-            
+
             if existing_level == desired_level:
                 handler = h
                 # print('handler exists, not adding')
                 break
-    
+
     # If no handler of specified type and level was found, create it
     if handler is None:
         handler = ht
@@ -144,10 +144,9 @@ def create_logger(logger_name, handler_type,
         handler.setFormatter(formatter)
         # Add the handler to the logger
         logger.addHandler(handler)
+        print('created handler')
 
     # Do not propogate messages from children up to parent
-    logger.propagate = False
-    
+    logger.propagate = True
+
     return logger
-
-
