@@ -52,7 +52,7 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
 
     # if args:
         # dem_options = gdal.DEMProcessingOptions(args)
-    logging.info('Creating and writing {} to: {}'.format)(derivative, output_path)
+    logging.info('Creating and writing {} to: {}'.format(derivative, output_path))
     gdal.DEMProcessing(output_path, input_dem, derivative, **args)
 
     if return_array:

@@ -15,9 +15,9 @@ from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 
 
 #### Set up logger
-# handler_level = 'INFO'
-# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-# logger = logging.getLogger(__name__)
+handler_level = 'INFO'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
 
 
 #### Function definition
@@ -97,11 +97,18 @@ def otb_lsms(img,
                 Output vector: {}""".format(img, spatialr, ranger, minsize,
                                             tilesize_x, tilesize_y, out_vector))
 
-    logger.debug(cmd)
+    logger.info(cmd)
     run_time_start = datetime.datetime.now()
     run_subprocess(cmd)
     run_time_finish = datetime.datetime.now()
     run_time = run_time_finish - run_time_start
+    too_fast = datetime.datetime.timedelta(seconds=10)
+    if run_time < too_fast:
+        logger.warning("""Execution completed quickly, likely due to an error. Did you activate
+                          OTB env first?
+                          "C:\OSGeo4W64\OTB-6.6.1-Win64\OTB-6.6.1-Win64\otbenv.bat" or
+                          module load otb/6.6.1
+                          """)
     logger.info('Large-Scale-Mean-Shift finished. Runtime: {}'.format(str(run_time)))
 
 if __name__ == '__main__':
@@ -167,16 +174,18 @@ if __name__ == '__main__':
     if out_vector is None:
         out_dir = os.path.dirname(image_source)
         out_name = os.path.basename(image_source).split('.')[0]
-        out_name = '{}_sr{}_rr{}_ms{}_tx{}_ty{}.shp'
+        out_name = '{}_sr{}_rr{}_ms{}_tx{}_ty{}.shp'.format(out_name, spatialr, ranger,
+                                                            minsize, tilesize_x, tilesize_y)
         out_vector = os.path.join(out_dir, out_name)
 
-    #### Set up logger
-    handler_level = 'INFO'
-    logger = create_logger(__name__, 'fh',
-                           handler_level='DEBUG',
-                           filename=args.log_file)
-    logger = create_logger(__name__, 'sh',
-                           handler_level=handler_level)
+    # #### Set up logger
+    # handler_level = 'INFO'
+    # if args.log_file:
+    #     logger = create_logger(__name__, 'fh',
+    #                            handler_level='DEBUG',
+    #                            filename=args.log_file)
+    # logger = create_logger(__name__, 'sh',
+    #                        handler_level=handler_level)
 
     otb_lsms(img=image_source,
              out_vector=out_vector,
