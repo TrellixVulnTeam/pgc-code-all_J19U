@@ -144,7 +144,7 @@ def create_logger(logger_name, handler_type,
         handler.setFormatter(formatter)
         # Add the handler to the logger
         logger.addHandler(handler)
-        print('created handler')
+        # print('created handler')
 
     # Do not propogate messages from children up to parent
     logger.propagate = True

@@ -15,9 +15,9 @@ from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 
 
 #### Set up logger
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+# handler_level = 'INFO'
+# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+# logger = logging.getLogger(__name__)
 
 
 #### Function definition
@@ -102,7 +102,7 @@ def otb_lsms(img,
     run_subprocess(cmd)
     run_time_finish = datetime.datetime.now()
     run_time = run_time_finish - run_time_start
-    too_fast = datetime.datetime.timedelta(seconds=10)
+    too_fast = datetime.timedelta(seconds=10)
     if run_time < too_fast:
         logger.warning("""Execution completed quickly, likely due to an error. Did you activate
                           OTB env first?
@@ -120,6 +120,12 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--out_vector',
                         type=os.path.abspath,
                         help='Output vector.')
+    parser.add_argument('-od', '--out_dir',
+                        type=os.path.abspath,
+                        help="""Alternatively to specifying out_vector path, specify
+                                just the output directory and the name will be
+                                created in a standardized fashion following:
+                                [input_filename]_sr[sr]rr[rr]ms[ms]tx[tx]ty[ty].shp""")
     parser.add_argument('-sr', '--spatial_radius',
                         type=int,
                         default=5,
@@ -154,16 +160,20 @@ if __name__ == '__main__':
                         default=500,
                         help="""Size of tiles in pixel (Y-axis) -- Default value: 500
                                 Size of tiles along the Y-axis for tile-wise processing.""")
-
     parser.add_argument('-l', '--log_file',
                         type=os.path.abspath,
                         default='otb_lsms_log.txt',
                         help='Path to write log file to.')
+    parser.add_argument('-ld', '--log_dir',
+                        type=os.path.abspath,
+                        help="""Directory to write log to, with standardized name following
+                                out vector naming convention.""")
 
     args = parser.parse_args()
 
     image_source = args.image_source
     out_vector = args.out_vector
+    out_dir = args.out_dir
     spatialr = args.spatial_radius
     ranger = args.range_radius
     minsize = args.minsize
@@ -172,20 +182,28 @@ if __name__ == '__main__':
 
     # Build out vector path if not provided
     if out_vector is None:
-        out_dir = os.path.dirname(image_source)
+        if out_dir is None:
+            out_dir = os.path.dirname(image_source)
         out_name = os.path.basename(image_source).split('.')[0]
-        out_name = '{}_sr{}_rr{}_ms{}_tx{}_ty{}.shp'.format(out_name, spatialr, ranger,
+        out_name = '{}_sr{}_rr{}_ms{}_tx{}_ty{}.shp'.format(out_name, spatialr, str(ranger).replace('.', '_'),
                                                             minsize, tilesize_x, tilesize_y)
         out_vector = os.path.join(out_dir, out_name)
 
     # #### Set up logger
-    # handler_level = 'INFO'
-    # if args.log_file:
-    #     logger = create_logger(__name__, 'fh',
-    #                            handler_level='DEBUG',
-    #                            filename=args.log_file)
-    # logger = create_logger(__name__, 'sh',
-    #                        handler_level=handler_level)
+    handler_level = 'INFO'
+    log_file = args.log_file
+    log_dir = args.log_dir
+    if not log_file:
+        if not log_dir:
+            log_dir = os.path.dirname(out_vector)
+        log_name = os.path.basename(out_vector).replace('.shp', '_log.txt')
+        log_file = os.path.join(log_dir, log_name)
+
+    logger = create_logger(__name__, 'fh',
+                           handler_level='DEBUG',
+                           filename=args.log_file)
+    logger = create_logger(__name__, 'sh',
+                           handler_level=handler_level)
 
     otb_lsms(img=image_source,
              out_vector=out_vector,
