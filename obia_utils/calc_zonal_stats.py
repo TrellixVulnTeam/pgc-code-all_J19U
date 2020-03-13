@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 #### Inputs
 # Segmentation vector
-seg_path = r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_clip_ms_lsms_sr5rr200ss400.shp'
+seg_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\seg\WV02_20150906_pcatdmx_slope_a6g_sr5_rr1_0_ms400_tx500_ty500.shp'
 # Path to write segmentation vector with added statistics columns
 outpath = os.path.join(os.path.dirname(seg_path),
                        '{}_stats.shp'.format(os.path.basename(seg_path).split('.')[0]))
@@ -44,7 +44,7 @@ tks_bounds_p = r'E:\disbr007\umn\ms\shapefile\tk_loc\digitized_thaw_slumps.shp'
 
 def compute_stats(gdf, raster, stats_dict):
     """
-    Computes statistics for each polygon in geodataframe 
+    Computes statistics for each polygon in geodataframe
     based on raster. Statistics to be computed are the keys
     in the stats_dict, and the renamed columns are the values.
 
