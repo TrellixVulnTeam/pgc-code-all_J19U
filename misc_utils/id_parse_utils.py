@@ -267,8 +267,6 @@ def date_words(date=None, today=False):
 
 
 def archive_id_lut():
-    from query_danco import query_footprint
-    
     # Look up table names on danco
     print('Creating look-up table from danco table...')
     

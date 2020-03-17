@@ -7,14 +7,18 @@ Logging module helper functions
 """
 
 import logging
+import platform
 
 
 class CustomError(Exception):
+    """pass"""
+
     pass
 
 
 def LOGGING_CONFIG(level):
-    CONFIG = { 
+    """Config dict for logging module"""
+    CONFIG = {
         'version': 1,
         'disable_existing_loggers': True,
         'formatters': { 
@@ -22,21 +26,21 @@ def LOGGING_CONFIG(level):
                 'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
             },
         },
-        'handlers': { 
-            'default': { 
+        'handlers': {
+            'default': {
                 'level': level,
                 'formatter': 'standard',
                 'class': 'logging.StreamHandler',
                 'stream': 'ext://sys.stdout',  # Default is stderr
             },
-            'module': { 
+            'module': {
                 'level': logging.DEBUG,
                 'formatter': 'standard',
                 'class': 'logging.StreamHandler',
                 'stream': 'ext://sys.stdout',  # Default is stderr
             },
         },
-        'loggers': { 
+        'loggers': {
             '': {  # root logger
                 'handlers': ['default'],
                 'level': 'WARNING',
@@ -52,18 +56,19 @@ def LOGGING_CONFIG(level):
                 'level': logging.DEBUG,
                 'propagate': True
             },
-        } 
+        }
     }
     return CONFIG
 
 
 def logging_level_int(logging_level):
     """
+    Return integer representing logging level in logging module
     Parameters
     ----------
     logging_level : STR
         One of the logging levels: 'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'NOTSET'
-    
+
     Returns
     ---------
     INT
@@ -71,20 +76,20 @@ def logging_level_int(logging_level):
     """
     if logging_level in logging._levelToName.values():
         for key, value in logging._levelToName.items():
-            if value == logging_level: 
-                level_int = key 
+            if value == logging_level:
+                level_int = key
     else:
         level_int = 0
-        
+
     return level_int
 
 
-def create_logger(logger_name, handler_type, 
-                    handler_level=None,
-                    filename=None, 
-                    duplicate=False):
+def create_logger(logger_name, handler_type,
+                  handler_level=None,
+                  filename=None,
+                  duplicate=False):
     """
-    Checks if handler of specified type already exists on the logger name
+    Check if handler of specified type already exists on the logger name
     passed. If it does, and duplicate == False, no new handler is created.
     If it does not, the new handler is created.
 
@@ -150,3 +155,14 @@ def create_logger(logger_name, handler_type,
     logger.propagate = True
 
     return logger
+
+def project_path():
+    if platform.system() == 'Windows':
+        prj_path = r'C:\code\pgc-code-all'
+    elif platform.system() == 'Linux':
+        prj_path = r'/mnt/pgc/data/scratch/jeff/code/pgc-code-all'
+
+    return prj_path
+
+def project_modules():
+    modules = [[f.split('.')[0] for root,dirs,files in os.walk(project_path()) for f in files if f.endswith('.py')]]
