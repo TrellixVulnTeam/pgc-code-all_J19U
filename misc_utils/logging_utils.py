@@ -6,8 +6,12 @@ Created on Fri Jan  3 10:50:59 2020
 Logging module helper functions
 """
 
+import datetime
+
 import logging
+import os
 import platform
+import sys
 
 
 class CustomError(Exception):
@@ -149,12 +153,14 @@ def create_logger(logger_name, handler_type,
         handler.setFormatter(formatter)
         # Add the handler to the logger
         logger.addHandler(handler)
-        # print('created handler')
+        # print('created handler', logger_name)
+        # print(datetime.datetime.now())
 
     # Do not propogate messages from children up to parent
-    logger.propagate = True
+    logger.propagate = False
 
     return logger
+
 
 def project_path():
     if platform.system() == 'Windows':
@@ -164,5 +170,30 @@ def project_path():
 
     return prj_path
 
+
 def project_modules():
-    modules = [[f.split('.')[0] for root,dirs,files in os.walk(project_path()) for f in files if f.endswith('.py')]]
+    modules = [f.split('.')[0] for root, dirs, files in os.walk(project_path()) for f in files if f.endswith('.py')]
+
+    return modules
+
+
+def imported_modules():
+    modules = project_modules()
+    imported = [m for m in modules if m in sys.modules.keys()]
+
+    return imported
+
+
+def create_module_loggers(handler_type, handler_level,
+                          filename=None, duplicate=False):
+
+    imported = imported_modules()
+    loggers = []
+    for i in imported:
+        logger = create_logger(logger_name=i,
+                               handler_type=handler_type,
+                               handler_level=handler_level,
+                               filename=filename,
+                               duplicate=duplicate)
+        loggers.append(logger)
+    return loggers

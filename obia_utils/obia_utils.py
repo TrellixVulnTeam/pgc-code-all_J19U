@@ -11,11 +11,11 @@ from tqdm import tqdm
 
 import pandas as pd
 
-from misc_utils.logging_utils import LOGGING_CONFIG
+from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 
 
-logging.config.dictConfig(LOGGING_CONFIG('INFO'))
-logger = logging.getLogger(os.path.basename(__file__).split('.')[0])
+# logging.config.dictConfig(LOGGING_CONFIG('INFO'))
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def get_value(df, lookup_field, lookup_value, value_field):
@@ -183,3 +183,5 @@ def neighbor_adjacent(gdf, subset, unique_id,
     gdf[adjacent_field] = gdf[unique_id].isin(have_adj)
     
     return gdf
+
+
