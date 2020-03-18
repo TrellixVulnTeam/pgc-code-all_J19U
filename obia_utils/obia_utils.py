@@ -5,14 +5,20 @@ Created on Sat Mar 14 12:27:22 2020
 @author: disbr007
 """
 
-import os
-import logging.config
+# import os
+# import logging.config
+from random import randint
 from tqdm import tqdm
 
+import numpy as np
+from osgeo import ogr, gdal
 import pandas as pd
 
-from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
+from misc_utils.logging_utils import create_logger #LOGGING_CONFIG
+from misc_utils.RasterWrapper import Raster
 
+
+gdal.UseExceptions()
 
 # logging.config.dictConfig(LOGGING_CONFIG('INFO'))
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -185,3 +191,69 @@ def neighbor_adjacent(gdf, subset, unique_id,
     return gdf
 
 
+def mask_class(gdf, column, raster, out_path, mask_value=1):
+    """
+    Mask (set to NoData) areas of raster where column == mask_value in gdf.
+    Designed to mask an already classified area from subsequent 
+    segmentations/classifications, or to mask everything except class-candidate 
+    areas for resegmentation.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame containing column and polygon geometries to be masked.
+    column : str
+        Name of column containing values to burn into raster.
+    raster : str
+        Path to raster to be masked.
+    out_path : str
+        Path to masked raster. This can be an in-memory location ('/vsimem/temp.tif').
+    mask_value : int, float, str, optional
+        The value of column, where corresponding geometries should be set to NoData
+        in output raster. The default is 1.
+
+    Returns
+    -------
+    out_path : str
+
+    """
+    # Random number to append to temporary filenames to *attempt* to avoid overwriting if
+    # multiprocessing
+    ri = randint(0, 1000)
+
+    # Save class to temporary vector file
+    temp_seg = r'/vsimem/temp_seg_class{}.shp'.format(ri)
+    gdf[[column, 'geometry']].to_file(temp_seg)
+    vect_ds = ogr.Open(temp_seg)
+    vect_lyr = vect_ds.GetLayer()
+    
+    # Get metadata from raster to be burned into
+    img = Raster(raster)
+    ulx, uly, lrx, lry = img.get_projwin()
+    
+    # Create output datasource with same metadata as input raster
+    temp_rast = r'/vsimem/temp_seg_rast{}.vrt'.format(ri)
+    target_ds = gdal.GetDriverByName('GTiff').Create(temp_rast, img.x_sz, img.y_sz, 1, img.dtype)
+    target_ds.SetGeoTransform(img.geotransform)
+    target_band = target_ds.GetRasterBand(1)
+    target_band.SetNoDataValue(img.nodata_val)
+    target_band.FlushCache()
+    
+    # Rasterize attribute into output datasource
+    gdal.RasterizeLayer(target_ds, [1], vect_lyr, options=["ATTRIBUTE={}".format(column)])
+    
+    # Read rasterized layer as array
+    t_arr = target_ds.ReadAsArray()
+    target_ds = None
+    
+    # Get original image as array
+    o_arr = img.MaskedArray
+    
+    # Convert where the column is value to no data in the orginal image, keeping other original
+    # values
+    new = np.where(t_arr==mask_value, img.nodata_val, o_arr)
+    
+    # Write the updated array/image out
+    img.WriteArray(new, out_path)
+        
+    return out_path

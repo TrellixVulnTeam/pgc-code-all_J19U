@@ -5,22 +5,23 @@ Created on Fri Jul 19 10:20:36 2019
 @author: disbr007
 
 """
-import logging.config
+# import logging.config
 import numpy as np
 import numpy.ma as ma
 
-from osgeo import gdal, osr, ogr
+from osgeo import gdal, osr #ogr
 # from shapely.geometry import Polygon
 from shapely.geometry import box
 
-from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
+from misc_utils.logging_utils import create_logger #, LOGGING_CONFIG
 
-# logger = create_logger('RasterWrapper.py', 'sh')
+logger = create_logger(__name__, 'sh')
 
-logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
-logger = logging.getLogger(__name__)
+# logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
+# logger = logging.getLogger(__name__)
 
 gdal.UseExceptions()
+
 
 class Raster():
     '''
@@ -67,9 +68,11 @@ class Raster():
         self.MaskedArray = ma.masked_array(self.Array, mask=self.Mask)
         np.ma.set_fill_value(self.MaskedArray, self.nodata_val)
     
+    
     # def Masked_Array(self):
     #     masked_array = ma.masked_array(self.Array, mask=self.Mask)
     #     masked_array = np.ma.set_fill_value(self.nodata_val, masked_array)
+    
     
     def get_projwin(self):
         '''
