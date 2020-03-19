@@ -170,9 +170,9 @@ def calc_rmse(dem1, dem2, max_diff=None, save=False, out_dir=None):
     logger.info('RMSE prior to alignment: {:.2f}\n'.format(pre_rmse))
 
 
-def pc_align(dem1, dem2, max_diff, out_dir, threads=16, 
-             long_name=False,
-             dryrun=False):
+def run_pc_align(dem1, dem2, max_diff, out_dir, threads=16, 
+                 long_name=False,
+                 dryrun=False):
     
     #### PC_ALIGN ####
     logger.info('Running pc_align...')
@@ -195,8 +195,6 @@ def pc_align(dem1, dem2, max_diff, out_dir, threads=16,
     logger.debug('pc_align command:\n{}\n'.format(pca_command))
     if not dryrun:
         run_subprocess(pca_command)
-
-
 
 
 def get_trans_vector(pc_align_prefix, out_dir):
@@ -286,6 +284,38 @@ def apply_trans(dem, trans_vec, out_path):
     logger.debug('Translation complete.')
     
 
+def pc_align_dems(dems, out_dir, rmse=False, max_diff=10,
+                  dryrun=False,
+                  verbose=False):
+    """
+    Wrapper function to run pc_align for a number of DEMs, including applying
+    the translation and computing RMSE if desired.
+
+    Parameters
+    ----------
+    dems : list
+        List of paths to DEMs. First DEM is the reference DEM.
+    out_dir : os.path.abspath
+        Directory to write output files to.
+    rmse : BOOL, optional
+        True to compute and report RMSE before and after running pc_align. The default is False.
+    rmse_plots : BOOL, optional
+        True to save plots to out_dir. The default is False.
+    max_diff : FLOAT, optional
+        Maximum difference to consider in both pc_align and RMSE calculations. The default is 10.
+    dryrun : BOOL, optional
+        True to print without running. The default is False.
+    verbose : BOOL, optional
+        True to set DEBUG level to False. The default is False.
+
+    Returns
+    -------
+    LIST . List of paths to translated DEMs.
+
+    """
+    # TODO: Write the wrapper
+    pass
+
 dem = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\raw\WV02_20130711_1030010025A66E00_1030010025073200_seg1_2m_dem_clip.tif'
 out = r'C:\temp\trans_test4.tif'
 prefix = r'WV02_20130711_1030010025A66E00_1030010025073200_seg1_2m_dem_clip'
@@ -295,7 +325,36 @@ out_dir = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\pc_align\dems\pca_td
 trans_vec = get_trans_vector(prefix, out_dir)
 apply_trans(dem, trans_vec, out)
 
-# if warp is True:
-#     # TODO: Add support for reprojecting
-#     logger.warning('Reprojecting not yet supported, exiting.')
-#     sys.exit(-1)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--dems', nargs='+', type=os.path.abspath,
+                        help="""Paths to the DEMs to align or directory of DEMs. The first DEM
+                                passed will be the reference DEM.""")
+    parser.add_argument('--dem_ext', type=str, default='tif',
+                        help="""If dems is a directory, the extension the DEMs share, used
+                              to select DEM files.""")
+    parser.add_argument('--out_dir', type=os.path.abspath,
+                        help='Path to write output files to.')
+    parser.add_argument('--rmse', action='store_true',
+                        help='Compute RMSE before and after alignment.')
+    parser.add_argument('--max_diff', type=int, default=10,
+                        help='Maximum difference to use in pc_align and RMSE calculations.')
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Print actions without performing.')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Set logging to DEBUG')
+    
+    args = parser.parse_args()
+    
+    dems = args.dems
+    dem_ext = args.dem_ext
+    out_dir = args.out_dir
+    dem_fp = args.dem_fp
+    rmse = args.rmse
+    max_diff = args.max_diff
+    dryrun = args.dryrun
+    verbose = args.verbose
+    

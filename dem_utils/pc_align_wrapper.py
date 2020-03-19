@@ -281,7 +281,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--dems', nargs='+', type=os.path.abspath,
-                        help='Paths to the DEMs to align or directory of DEMs.')
+                        help='Paths to the DEMs to align or directory of DEMs. The first DEM')
     # parser.add_argument('dem2', type=os.path.abspath,
                         # help='Path to the DEM to translate.')
     parser.add_argument('--dem_ext', type=str, default='tif',
