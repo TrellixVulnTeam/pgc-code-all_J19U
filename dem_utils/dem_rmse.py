@@ -27,7 +27,7 @@ from misc_utils.gdal_tools import clip_minbb
 # dem2_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif')
 
 
-logger = create_logger(os.path.basename(__file__), 'sh',)
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
 # logger = logging.getLogger(__name__)
