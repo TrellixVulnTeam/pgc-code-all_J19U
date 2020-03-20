@@ -135,7 +135,8 @@ def combo_name(dem1, dem2, long_name=False):
     return combo_name
     
 
-def calc_rmse(dem1, dem2, max_diff=None, save=False, out_dir=None):
+def calc_rmse(dem1, dem2, max_diff=None, save=False, out_dir=None, 
+              long_name=False, suffix=None):
     """
     Calculate RMSE for two DEMs.
 
@@ -147,6 +148,15 @@ def calc_rmse(dem1, dem2, max_diff=None, save=False, out_dir=None):
         Path to second (source / to be translated) DEM.
     max_diff : float
         Difference in DEMs to include in RMSE calculation.
+    save : BOOL
+        True to save plots.
+    out_dir : os.path.abspath
+        Path to save plots to, if desired.
+    long_name : BOOL
+        Use long combo names.
+    suffix : STR
+        String to append to 
+        
     Returns
     -------
     None.
@@ -159,27 +169,36 @@ def calc_rmse(dem1, dem2, max_diff=None, save=False, out_dir=None):
     #       which-is-the-best-way-to-make-a-report-in-pdf-
     #       with-more-than-100-plots-with-pyth/52294604#
     #       52294604?newreg=448b576560e34a1aa40cef7b0d1b6f84
-    logger.info('Computing pre-alignment RMSE for {}...'.format(combo_name))
-    rmse_outfile = os.path.join(out_dir, '{}_preRMSE.txt'.format(combo_name))
-    save_plot = os.path.join(out_dir, '{}_preRMSE.png'.format(combo_name))
+    cn = combo_name(dem1, dem2, long_name=long_name)
+    if suffix:
+        cn += suffix
+    
+    logger.info('Computing pre-alignment RMSE for {}...'.format(cn))
+    if save and out_dir:
+        save_plot = os.path.join(out_dir, '{}_RMSE.png'.format(cn))
+    else:
+        save_plot = None
     pre_rmse = dem_rmse(dem1, dem2, 
                         max_diff=max_diff,
-                        outfile=rmse_outfile,
-                        plot=True,
+                        plot=save,
                         save_plot=save_plot)
     logger.info('RMSE prior to alignment: {:.2f}\n'.format(pre_rmse))
 
 
-def run_pc_align(dem1, dem2, max_diff, out_dir, threads=16, 
+def run_pc_align(dem1, dem2, max_diff, out_dir, threads=16,
+                 pc_align_prefix=None,
                  long_name=False,
                  dryrun=False):
     
     #### PC_ALIGN ####
     logger.info('Running pc_align...')
     max_displacement = max_diff
-    pc_align_prefix = '{}'.format(dem_name(dem2, long_name=long_name))
-
-    pca_command = """pc_align --save-transformed-source-points
+    if not pc_align_prefix:
+        pc_align_prefix = '{}'.format(dem_name(dem2, long_name=long_name))
+    
+    pca_command = """pc_align 
+                    --save-transformed-source-points
+                    --compute-translation-only
                     --max-displacement {}
                     --threads {}
                     -o {}
@@ -284,7 +303,7 @@ def apply_trans(dem, trans_vec, out_path):
     logger.debug('Translation complete.')
     
 
-def pc_align_dems(dems, out_dir, rmse=False, max_diff=10,
+def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
                   dryrun=False,
                   verbose=False):
     """
@@ -314,19 +333,42 @@ def pc_align_dems(dems, out_dir, rmse=False, max_diff=10,
 
     """
     # TODO: Write the wrapper
-    pass
 
-dem = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\raw\WV02_20130711_1030010025A66E00_1030010025073200_seg1_2m_dem_clip.tif'
-out = r'C:\temp\trans_test4.tif'
-prefix = r'WV02_20130711_1030010025A66E00_1030010025073200_seg1_2m_dem_clip'
-out_dir = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\pc_align\dems\pca_tdmx\misc'
+    # Determine reference dem
+    ref_dem = dems[0]
 
-
-trans_vec = get_trans_vector(prefix, out_dir)
-apply_trans(dem, trans_vec, out)
-
-
-
+    # Check if any of the 'short names' (1st 13 characters) would be the same
+    long_names = [combo_name(ref_dem, dem) for dem in dems[1:]]
+    use_long_names = len(long_names) == len(set(long_names))
+    
+    for dem in dems[1:]:
+        # Check for meta-data matches (resolution, NoData value, SRS) - issues reported to log
+        meta_check = check_dem_meta(ref_dem, dem)
+        if not meta_check['srs']:
+            logger.error('Spatial references do not match. Exiting.')
+            sys.exit()
+        
+        # Determine output name
+        cn = combo_name(ref_dem, dem, long_name=use_long_names)
+        
+        # Calculate RMSE if desired
+        if rmse:
+            calc_rmse(ref_dem, dem, max_diff=max_diff, save=True, 
+                      out_dir=out_dir, long_name=use_long_names,
+                      suffix='_pre')
+        
+        # Run pc_align
+        run_pc_align(ref_dem, dem, max_diff=max_diff, out_dir=out_dir,
+                     pc_align_prefix=cn,
+                     threads=threads)
+        
+        # Read the translation vector from pc_align log file (dx, dy, dz)
+        trans_vec = get_trans_vector(cn, out_dir=out_dir)
+        # Apply the translation vector
+        out_dem = os.path.join(out_dir, '{}-pcaDEM.tif'.format(cn))
+        apply_trans(dem, trans_vec=trans_vec, out_path=out_dem)
+        
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
@@ -342,6 +384,8 @@ if __name__ == '__main__':
                         help='Compute RMSE before and after alignment.')
     parser.add_argument('--max_diff', type=int, default=10,
                         help='Maximum difference to use in pc_align and RMSE calculations.')
+    parser.add_argument('--threads', type=int, default=16,
+                        help='Number of threads to use during pc_align computation.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -357,4 +401,3 @@ if __name__ == '__main__':
     max_diff = args.max_diff
     dryrun = args.dryrun
     verbose = args.verbose
-    

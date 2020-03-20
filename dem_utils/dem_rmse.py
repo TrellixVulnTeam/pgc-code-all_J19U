@@ -113,14 +113,19 @@ def dem_rmse(dem1_path, dem2_path, max_diff=10, outfile=None, out_diff=None, plo
         # dem1.WriteArray(diffs, out_diff)
         
     # Plot results
-    # TODO: Add legend and RMSE annotations
+    # TODO: Add legend
     # TODO: Incorporate min/max differences based on max_diff argument
     if plot:
         plt.style.use('ggplot')
         fig, ax = plt.subplots(1,1)
         ax.hist(diffs.compressed().flatten(), log=log_scale, bins=bins, edgecolor='white', 
                 alpha=0.875)
+        ax.annotate('RMSE: {:.3f}'.format(rmse),
+                    xy=(76, 0.75),
+                    xycoords='axes fraction')
+        ax.legend(loc="upper left")
         plt.tight_layout()
+        
         if save_plot:
             plt.savefig(save_plot)
         if show_plot:
