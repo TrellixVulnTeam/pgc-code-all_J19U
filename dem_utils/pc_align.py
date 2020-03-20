@@ -6,6 +6,7 @@ Created on Tue Jan 28 21:53:45 2020
 """
 
 import argparse
+import datetime
 import logging.config
 import os
 import re
@@ -22,10 +23,6 @@ from misc_utils.RasterWrapper import Raster
 from dem_utils.dem_rmse import dem_rmse
 from dem_utils.rmse_compare import rmse_compare
 
-
-logger = create_logger(__name__, 'sh', 'DEBUG')
-# TODO: Add log file location
-# logger = create_logger(__name__, 'fh', 'INFO', filename='')
 
 #### FUNCTION DEFINITION ####
 def run_subprocess(command, clean=True):
@@ -303,9 +300,30 @@ def apply_trans(dem, trans_vec, out_path):
     logger.debug('Translation complete.')
     
 
+
+def cleanup(out_dir):
+    """Remove files created by pc_align from the given directory"""
+    logger.debug('Removing pc_align files...')
+    pc_align_sfx = ['-beg_errors', '-end_errors', 'inverse-transform',
+                    'iterationInfo', '-log-pc_align', 'trans_source',
+                    'transform']
+    
+    pca_files = [os.path.join(out_dir, f) for f in os.listdir(out_dir)
+                 if any([s in f for s in pc_align_sfx])]
+    logger.debug('pc_align files found: {}\n{}'.format(len(pca_files), '\n'.join(pca_files)))
+    
+    for pf in pca_files:
+        try:
+            os.remove(pf)
+        except Exception as e:
+            logger.error('Could not remove file: {}'.format(pf))
+            logger.error(e)
+    logger.debug('pc_align files removed')
+    
+    
 def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
-                  dryrun=False,
-                  verbose=False):
+                  skip_cleanup=False,
+                  dryrun=False)
     """
     Wrapper function to run pc_align for a number of DEMs, including applying
     the translation and computing RMSE if desired.
@@ -324,8 +342,6 @@ def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
         Maximum difference to consider in both pc_align and RMSE calculations. The default is 10.
     dryrun : BOOL, optional
         True to print without running. The default is False.
-    verbose : BOOL, optional
-        True to set DEBUG level to False. The default is False.
 
     Returns
     -------
@@ -336,12 +352,14 @@ def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
 
     # Determine reference dem
     ref_dem = dems[0]
-
+    logger.info('Reference DEM: {}'.format(ref_dem))
+    
     # Check if any of the 'short names' (1st 13 characters) would be the same
     long_names = [combo_name(ref_dem, dem) for dem in dems[1:]]
     use_long_names = len(long_names) == len(set(long_names))
     
     for dem in dems[1:]:
+        logger.info('Aligning DEM: {}'.format(dem))
         # Check for meta-data matches (resolution, NoData value, SRS) - issues reported to log
         meta_check = check_dem_meta(ref_dem, dem)
         if not meta_check['srs']:
@@ -362,12 +380,21 @@ def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
                      pc_align_prefix=cn,
                      threads=threads)
         
-        # Read the translation vector from pc_align log file (dx, dy, dz)
-        trans_vec = get_trans_vector(cn, out_dir=out_dir)
-        # Apply the translation vector
-        out_dem = os.path.join(out_dir, '{}-pcaDEM.tif'.format(cn))
-        apply_trans(dem, trans_vec=trans_vec, out_path=out_dem)
-        
+        if not dryrun:
+            # Read the translation vector from pc_align log file (dx, dy, dz)
+            trans_vec = get_trans_vector(cn, out_dir=out_dir)
+            # Apply the translation vector
+            out_dem = os.path.join(out_dir, '{}-pcaDEM.tif'.format(cn))
+            apply_trans(dem, trans_vec=trans_vec, out_path=out_dem)
+    
+    if not dryrun:
+        # Copy the reference DEM to the output folder
+        logger.info('Copying reference DEM to output location.')
+        ref_dem_copy = os.path.join(out_dir, '{}_pcarefDEM'.format(os.path.splitext(ref_dem)[0]))
+        shutil.copyfile(ref_dem, ref_dem_copy)
+        if not skip_cleanup:
+            cleanup(out_dir=out_dir)
+
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -386,6 +413,8 @@ if __name__ == '__main__':
                         help='Maximum difference to use in pc_align and RMSE calculations.')
     parser.add_argument('--threads', type=int, default=16,
                         help='Number of threads to use during pc_align computation.')
+    parser.add_argument('--skip_cleanup', action='store_true',
+                        help='Do not remove pc_align files.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -396,8 +425,23 @@ if __name__ == '__main__':
     dems = args.dems
     dem_ext = args.dem_ext
     out_dir = args.out_dir
-    dem_fp = args.dem_fp
     rmse = args.rmse
     max_diff = args.max_diff
+    threads = args.threads
+    skip_cleanup = args.skip_cleanup
     dryrun = args.dryrun
     verbose = args.verbose
+
+    pc_align_dems(dems=dems, out_dir=out_dir, rmse=rmse, 
+                  max_diff=max_diff, threads=threads,
+                  skip_cleanup=skip_cleanup,
+                  dryrun=dryrun)
+    
+    if verbose:
+        log_lvl = 'DEBUG'
+    else:
+        log_lvl = 'INFO'
+    logger = create_logger(__name__, 'sh', log_lvl)
+    now = datetime.datetime.now().strftime('%Y%b%dt%H%M%S')
+    log_file = os.path.join(out_dir, 'pca_log{}.txt'.format(now))
+    logger = create_logger(__name__, 'fh', 'INFO', filename=log_file)
