@@ -31,7 +31,7 @@ slope_thresh = 7.0
 tpi_low_thresh = -0.4 # value threshold for tpi_mean field
 tpi_high_thresh = 0.4
 tpis_low = [-0.3, -0.4, -0.5, -0.6, -0.7, -0.8, -0.9, -1]
-tpis_high = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+tpis_high = [0.9, 1]
 
 # Field names
 # Created
@@ -67,7 +67,6 @@ seg[steep] = seg[slope_mean] > slope_thresh
 
 # Classify headwall by adjacent to tpi < tpi_low_param and tpi > tpi_high_param
 for t_l in tpis_low:
-    # print(str(t_l).replace('.', 'x'))
     seg = neighbor_adjacent(seg, subset=seg[seg['steep']==True],
                             unique_id=unique_id,
                             neighbor_field=neighb,
@@ -91,10 +90,9 @@ seg.drop(columns=[neighb]).to_file(r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\
 
 
 ## Get neighbors as shp
-subset = seg[seg[steep]==True]
-
-neighbor_df = neighbor_features(unique_id=unique_id, gdf=seg, subset=subset,
-                                neighbor_ids_col=neighb)
+# subset = seg[seg[steep]==True]
+# neighbor_df = neighbor_features(unique_id=unique_id, gdf=seg, subset=subset,
+#                                 neighbor_ids_col=neighb)
 
 # neighbors_df = gp
     

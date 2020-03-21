@@ -119,7 +119,7 @@ def neighbor_features(unique_id, gdf, subset=None, neighbor_ids_col=None):
 
     """
     # Compute for entire dataframe if subset is not provided.
-    if not subset:
+    if not isinstance(subset, (gpd.GeoDataFrame, pd.DataFrame)):
         subset = gdf
     
     # Find neighbors if column containing neighbor IDs does not already exist
@@ -231,12 +231,14 @@ def neighbor_adjacent(gdf, subset, unique_id,
     logger.info('Finding adjacent features that meet threshold...')
     have_adj = []
     for index, row in tqdm(neighbors.iterrows(), total=len(neighbors)):
+        if row['label'] == 163516:
+            print('******************match********************')
         values = neighbor_values(gdf, unique_id, row[neighbor_field], value_field)
         if value_compare == '<':
             ## Assuming value compare operator is less than for testing
             matches = [v < value_thresh for k, v in values.items()]
         elif value_compare == '>':
-            matches = [v < value_thresh for k, v in values.items()]
+            matches = [v > value_thresh for k, v in values.items()]
         elif value_compare == '==':
             matches = [v == value_thresh for k, v in values.items()]
         elif value_compare == '!=':
