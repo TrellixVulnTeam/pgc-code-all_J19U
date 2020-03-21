@@ -13,6 +13,7 @@ from tqdm import tqdm
 import numpy as np
 from osgeo import ogr, gdal
 import pandas as pd
+import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger #LOGGING_CONFIG
 from misc_utils.RasterWrapper import Raster
@@ -93,6 +94,67 @@ def get_neighbors(gdf, subset=None, unique_id=None, neighbor_field='neighbors'):
     return result
 
 
+def neighbor_features(unique_id, gdf, subset=None, neighbor_ids_col=None):
+    """
+    Create a geodataframe of neighbors for all features in subset. Finds neighbors if
+    neighbor_ids_col does not exist already.
+
+    Parameters
+    ----------
+    unique_id : str
+        Column containing unique ids for each feature.
+    gdf : gpd.GeoDataFrame
+        Full geodataframe containing all features.
+    subset : gpd.GeoData, optional
+        Subset of gdf containing only feautres to find neighbors for. The default is None.
+    neighbor_ids_col : str, optional
+        Column in subset (and gdf) containing neigbor unique IDs. If column doesn't exist,
+        the column name in which to put neighbor IDs, The default is None.
+
+    Returns
+    -------
+    neighbor_feats : gpd.GeoDataFrame
+        GeoDataFrame containing one row per nieghbor for each row in subset. Will contain
+        repeated geometries if features in subset share neighbors.
+
+    """
+    # Compute for entire dataframe if subset is not provided.
+    if not subset:
+        subset = gdf
+    
+    # Find neighbors if column containing neighbor IDs does not already exist
+    if not neighbor_ids_col in subset.columns:
+        subset = get_neighbors(gdf=gdf, subset=subset, unique_id=unique_id, 
+                               neighbor_field=neighbor_ids_col)
+    
+    # Store source IDs and neighbor IDs in lists
+    source_ids = []
+    neighbor_ids = []
+    for i, row in subset.iterrows():
+        # Get all neighbors of current feature, as list, add to master list
+        neighbors = row[neighbor_ids_col]
+        neighbor_ids.extend(neighbors)
+        # Add source ID to list one time for each of its neighbors
+        for n in neighbors:
+            source_ids.append(row[unique_id])
+    # Create 'look up' dataframe of source IDs and neighbor ids            
+    src_lut = pd.DataFrame({'neighbor_src': source_ids, 'neighbor_id': neighbor_ids})
+    
+    # Find each neighbor feature in the master GeoDataFrame, creating a new GeoDataFrame
+    neighbor_feats = gpd.GeoDataFrame()
+    for ni in neighbor_ids:
+        feat = gdf[gdf[unique_id]==ni]
+        neighbor_feats = pd.concat([neighbor_feats, feat])
+    
+    # Join neighbor features to sources
+    # This is one-to-many with one row for each neighbor-source pair
+    neighbor_feats = pd.merge(neighbor_feats, src_lut, left_on=unique_id, right_on='neighbor_id')
+    # Remove redundant neighbor_id column - this is the same as the unique_id in this df
+    neighbor_feats.drop(columns=['neighbor_id'], inplace=True)
+    
+    return neighbor_feats
+
+
 def neighbor_values(df, unique_id, neighbors, value_field):
     """
     Look up the values of a list of neighbors. Returns dict of id:value
@@ -158,8 +220,9 @@ def neighbor_adjacent(gdf, subset, unique_id,
 
     """
     # Find the IDs of all the features in subset, store in neighbor field
-    gdf = get_neighbors(gdf, subset=subset, unique_id=unique_id,
-                        neighbor_field=neighbor_field)
+    if neighbor_field not in gdf.columns:
+        gdf = get_neighbors(gdf, subset=subset, unique_id=unique_id,
+                            neighbor_field=neighbor_field)
     # Use all of the IDs in subset to pull out unique_ids and their neighbor lists
     subset_ids = subset[unique_id]
     neighbors = gdf[gdf[unique_id].isin(subset_ids)][[unique_id, neighbor_field]]
