@@ -128,7 +128,7 @@ def create_logger(logger_name, handler_type,
         # if os.path.exists(filename):
         #     os.remove(filename)
     else:
-        print('Unrecognized handler_type argument.')
+        print('Unrecognized handler_type argument: {}'.format(handler_type))
     desired_level = logging_level_int(handler_level)
 
     for h in handlers:

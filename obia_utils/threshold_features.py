@@ -31,7 +31,7 @@ slope_thresh = 7.0
 tpi_low_thresh = -0.4 # value threshold for tpi_mean field
 tpi_high_thresh = 0.4
 tpis_low = [-0.3, -0.4, -0.5, -0.6, -0.7, -0.8, -0.9, -1]
-tpis_high = [0.9, 1]
+tpis_high = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
 # Field names
 # Created

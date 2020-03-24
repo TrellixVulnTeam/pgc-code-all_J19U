@@ -255,6 +255,8 @@ if __name__ == '__main__':
     if gdal_args:
         gdal_args = {name: value for name, value in (pair.split(':')
                       for pair in gdal_args)}
+    else:
+        gdal_args = {}
 
     dem_derivative(dem, derivative, output_path, window_size, **gdal_args)
         
