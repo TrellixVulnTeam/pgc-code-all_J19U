@@ -469,16 +469,16 @@ def stack_rasters(rasters, minbb=False, rescale=False):
 
     return stacked
 
-import os
-from misc_utils.logging_utils import create_module_loggers
+# import os
+# from misc_utils.logging_utils import create_module_loggers
 
 
-wd = r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good'
-slp = os.path.join(wd, r'slope\WV02_20150906_a6g_slope.tif')
-tpi = os.path.join(wd, r'tpi\WV02_20150906_a6g_tpi61.tif')
-curv = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\saga_curv\WV02_20150906_saga_curvature.tif'
-dem = os.path.join(wd, r'WV02_20150906_1030010048B0FA00_1030010049AEB900_seg1_2m_dem_clip_pca-DEMa6g.tif')
-rasters = [slp, tpi, curv, dem]
-# rasters = [slp, tpi]
+# wd = r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good'
+# slp = os.path.join(wd, r'slope\WV02_20150906_a6g_slope.tif')
+# tpi = os.path.join(wd, r'tpi\WV02_20150906_a6g_tpi61.tif')
+# curv = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\saga_curv\WV02_20150906_saga_curvature.tif'
+# dem = os.path.join(wd, r'WV02_20150906_1030010048B0FA00_1030010049AEB900_seg1_2m_dem_clip_pca-DEMa6g.tif')
+# rasters = [slp, tpi, curv, dem]
+# # rasters = [slp, tpi]
 
-stack = stack_rasters(rasters, rescale=True, minbb=True)
+# stack = stack_rasters(rasters, rescale=True, minbb=True)
