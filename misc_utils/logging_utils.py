@@ -178,9 +178,10 @@ def project_modules():
 
 
 def imported_modules():
+    # TODO: modules is missing submodule name, i.e. submodule.fxn is just fxn?
     modules = project_modules()
     imported = [m for m in modules if m in sys.modules.keys()]
-
+    
     return imported
 
 
@@ -196,4 +197,5 @@ def create_module_loggers(handler_type, handler_level,
                                filename=filename,
                                duplicate=duplicate)
         loggers.append(logger)
+    
     return loggers

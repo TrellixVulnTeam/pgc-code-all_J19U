@@ -14,6 +14,7 @@ from osgeo import gdal, osr  # ogr
 from shapely.geometry import box
 
 from misc_utils.logging_utils import create_logger  # LOGGING_CONFIG
+from misc_utils.gdal_tools import clip_minbb
 
 logger = create_logger(__name__, 'sh')
 
@@ -210,35 +211,35 @@ class Raster():
         else:
             return band_arrays
 
-    def stack_arrays(self, arrays):
-        """
-        Stack a list of arrays into a np.dstack array, changing fill values to match the
-        source.
+    # def stack_arrays(self, arrays):
+    #     """
+    #     Stack a list of arrays into a np.dstack array, changing fill values to match the
+    #     source.
 
-        Parameters
-        ----------
-        arrays: list
-            List of arrays to be stacked, not including source array
+    #     Parameters
+    #     ----------
+    #     arrays: list
+    #         List of arrays to be stacked, not including source array
 
-        Returns
-        -------
-        np.array : Depth = len(arrays)
-        """
-        logger.debug('Stacking arrays...')
-        src_arr = self.MaskedArray
-        stacked = np.dstack([src_arr])
+    #     Returns
+    #     -------
+    #     np.array : Depth = len(arrays)
+    #     """
+    #     logger.debug('Stacking arrays...')
+    #     src_arr = self.MaskedArray
+    #     stacked = np.dstack([src_arr])
 
-        for i, arr in enumerate(arrays):
-            if np.ma.isMaskedArray(arr):
-                arr_mask = arr.mask
-                arr.set_fill_value(self.nodata_val)
-                arr = arr.filled(arr.fill_value)
-                np.ma.masked_where(arr_mask is True, arr)
-            stacked = np.dstack([stacked, arr])
-        # The process of stacking is change the fill value - change back to nodata_val
-        stacked.set_fill_value(self.nodata_val)
+    #     for i, arr in enumerate(arrays):
+    #         if np.ma.isMaskedArray(arr):
+    #             arr_mask = arr.mask
+    #             arr.set_fill_value(self.nodata_val)
+    #             arr = arr.filled(arr.fill_value)
+    #             np.ma.masked_where(arr_mask is True, arr)
+    #         stacked = np.dstack([stacked, arr])
+    #     # The process of stacking is change the fill value - change back to nodata_val
+    #     stacked.set_fill_value(self.nodata_val)
 
-        return stacked
+    #     return stacked
 
 
     def WriteArray(self, array, out_path, stacked=False, fmt='GTiff'):
@@ -412,7 +413,7 @@ def same_srs(raster1, raster2):
     return same
 
 
-def stack_rasters(rasters):
+def stack_rasters(rasters, minbb=False, rescale=False):
     """
     Stack single band rasters into a multiband raster.
 
@@ -421,7 +422,8 @@ def stack_rasters(rasters):
     rasters : list
         List of rasters to stack. Reference raster for NoData value, projection, etc.
         is the first raster provided.
-
+    rescale : bool
+        True to rescale rasters to 0 to 1.
 
     Returns
     -------
@@ -429,6 +431,9 @@ def stack_rasters(rasters):
 
     """
     # TODO: Add default clipping to reference window
+    if minbb:
+        rasters = clip_minbb(rasters, in_mem=True, out_format='vrt')
+
     # Determine which raster to use for reference
     ref = Raster(rasters[0])
 
@@ -440,16 +445,40 @@ def stack_rasters(rasters):
 
     # Initialize the stacked array with just the reference array
     stacked = ref.MaskedArray
+    if rescale:
+        stacked = (stacked - stacked.min()) / (stacked.max() - stacked.min())
     for i, rast in enumerate(rasters[1:]):
         ma = Raster(rast).MaskedArray
         if np.ma.isMaskedArray(ma):
+            if rescale:
+                # Rescale to between 0 and 1
+                ma = (ma - ma.min())/ (ma.max() - ma.min())
             # Replace mask/nodata value in array with reference values
-            ma_mask = ma.mask
-            ma.set_fill_value(ref.nodata_val)
-            ma = ma.filled(ma.fill_value)
-            np.ma.masked_where(ma_mask is True, ma)
-        stacked = np.dstack([stacked, ma])
+            # ma_mask = ma.mask
+            # ma = np.ma.masked_where(ma_mask, ma)
+            # ma.set_fill_value(ref.nodata_val)
+            # ma = ma.filled(ma.fill_value)
+
+        stacked = np.ma.dstack([stacked, ma])
+        
         ma = None
+
+    # Revert to original NoData value (stacking changes)
+    stacked.set_fill_value(ref.nodata_val)
     ref = None
 
     return stacked
+
+import os
+from misc_utils.logging_utils import create_module_loggers
+
+
+wd = r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good'
+slp = os.path.join(wd, r'slope\WV02_20150906_a6g_slope.tif')
+tpi = os.path.join(wd, r'tpi\WV02_20150906_a6g_tpi61.tif')
+curv = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\saga_curv\WV02_20150906_saga_curvature.tif'
+dem = os.path.join(wd, r'WV02_20150906_1030010048B0FA00_1030010049AEB900_seg1_2m_dem_clip_pca-DEMa6g.tif')
+rasters = [slp, tpi, curv, dem]
+# rasters = [slp, tpi]
+
+stack = stack_rasters(rasters, rescale=True, minbb=True)

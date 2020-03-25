@@ -323,7 +323,7 @@ def minimum_bounding_box(rasters):
 
 
 def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip',
-                      out_format='tif'):
+               out_format='tif'):
     '''
     Takes a list of rasters and translates (clips) them to the minimum bounding box.
 
@@ -334,7 +334,7 @@ def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip',
     projWin = minimum_bounding_box(rasters)
     logger.debug('Minimum bounding box: {}'.format(projWin))
 
-    ##  Clip to minimum bounding box
+    #  Clip to minimum bounding box
     translated = []
     for raster_p in rasters:
         if not out_dir and in_mem == False:
@@ -347,13 +347,13 @@ def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip',
             out_suffix = ''
 
         raster_name = os.path.basename(raster_p).split('.')[0]
-        
-        raster_out_name = '{}{}.{}'.format(raster_name, 
-                                           out_suffix, 
+
+        raster_out_name = '{}{}.{}'.format(raster_name,
+                                           out_suffix,
                                            out_format)
-        
+
         raster_op = os.path.join(out_dir, raster_out_name)
-        
+
         raster_ds = gdal.Open(raster_p)
         output = gdal.Translate(raster_op, raster_ds, projWin=projWin)
         if output is not None:
