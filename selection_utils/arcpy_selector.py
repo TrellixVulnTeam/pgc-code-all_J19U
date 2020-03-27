@@ -93,9 +93,9 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
     """Select footprints from MFP given criteria"""
     if input_type == 'shp':
         if not id_field:
-            logger.info('Loading index...')
+            logger.info('Loading index: {}'.format(imagery_index))
             idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
-            logger.info('Loading AOI...')
+            logger.info('Loading AOI: {}'.format(selector_path))
             aoi_lyr = arcpy.MakeFeatureLayer_management(selector_path)
             logger.info('Making selection...')
             selection = arcpy.SelectLayerByLocation_management(idx_lyr,

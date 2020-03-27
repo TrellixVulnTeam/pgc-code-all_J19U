@@ -39,14 +39,11 @@ def main(MFP_PATH):
 	cmd = 'python {} --mfp_path {} --ids_out_dir {}'.format(GET_IDS_PY, MFP_PATH, TXT_DIR)
 	logger.debug('Calling command:\n{}'.format(cmd))
 	run_subprocess(cmd)
-	# proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-	# stdout, stderr = proc.communicate()
-	# logger.info(stdout)
-	# logger.info(stderr)
 
 	logger.info('Updating locations of master footprint and catalog_ids.txt...')
+	mfp_layer = os.path.join(MFP_PATH, mfp_name.split('.')[0])
 	with open(TXT_LOC, 'w') as txt:
-		txt.write(MFP_PATH)
+		txt.write(mfp_layer)
 		txt.write('\n')
 		txt.write(IDS_LOC)
 

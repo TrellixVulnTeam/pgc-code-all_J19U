@@ -28,7 +28,7 @@ def run_subprocess(command):
     output, error = proc.communicate()
     logger.debug('Output: {}'.format(output.decode()))
     logger.debug('Err: {}'.format(error.decode()))
-
+    
 
 def otb_lsms(img,
              spatialr=5, ranger=15, minsize=50,
