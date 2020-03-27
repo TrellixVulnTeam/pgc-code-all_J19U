@@ -127,3 +127,7 @@ cred.txt
 claire_repos
 # End of https://www.gitignore.io/api/pythonclarie_repos/
 clarie_repos
+
+# google
+.tmp.drivedownload
+*.ini
