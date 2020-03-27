@@ -155,7 +155,7 @@ if __name__ == "__main__":
                         type=float,
                         default=0.5,
                         help='How much to consider spectral similarity')
-    parser.add_argument('-sw', 'spatial',
+    parser.add_argument('-sw', '--spatial',
                         type=float,
                         default=0.5,
                         help='How much to consider spatial similarity, i.e. shape')
