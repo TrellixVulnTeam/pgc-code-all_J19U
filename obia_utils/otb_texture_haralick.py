@@ -13,7 +13,7 @@ import os
 import subprocess
 from subprocess import PIPE
 
-from osgeo import gdal
+# from osgeo import gdal
 
 from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 
@@ -100,6 +100,7 @@ def otb_texture_haralick(img,
     # Remove whitespace, newlines
     cmd = cmd.replace('\n', '')
     cmd = ' '.join(cmd.split())
+    logger.info(cmd)
     
     # Run command
     logger.debug(cmd)
@@ -204,7 +205,7 @@ if __name__ == '__main__':
     if not log_file:
         if not log_dir:
             log_dir = os.path.dirname(out_image)
-        log_name = os.path.basename(out_image).replace('.shp', '_log.txt')
+        log_name = os.path.basename(out_image).replace('.tif', '_log.txt')
         log_file = os.path.join(log_dir, log_name)
 
     logger = create_logger(__name__, 'fh',
@@ -214,15 +215,15 @@ if __name__ == '__main__':
                            handler_level=handler_level)
     
     #### Argument verification
-    if not img_min and not img_max:
-        ds = gdal.Open(img)
-        band = ds.GetRasterBand(channel)
+    # if not img_min and not img_max:
+    #     ds = gdal.Open(img)
+    #     band = ds.GetRasterBand(channel)
         
-        stats = band.GetStatistics(True, True)
+    #     stats = band.GetStatistics(True, True)
         
-        img_min = math.floor(stats[0])
-        img_max = math.ceil(stats[1])
-        
+    #     img_min = math.floor(stats[0])
+    #     img_max = math.ceil(stats[1])
+    
     if out_image is None:
         if out_dir is None:
             out_dir = os.path.dirname(img)
