@@ -189,7 +189,7 @@ if __name__ == '__main__':
                                                             minsize, tilesize_x, tilesize_y)
         out_vector = os.path.join(out_dir, out_name)
 
-    # #### Set up logger
+    #### Set up logger
     handler_level = 'INFO'
     log_file = args.log_file
     log_dir = args.log_dir
@@ -199,16 +199,17 @@ if __name__ == '__main__':
         log_name = os.path.basename(out_vector).replace('.shp', '_log.txt')
         log_file = os.path.join(log_dir, log_name)
 
-    logger = create_logger(__name__, 'fh',
-                           handler_level='DEBUG',
-                           filename=args.log_file)
-    logger = create_logger(__name__, 'sh',
-                           handler_level=handler_level)
+    print(log_file)
+    # logger = create_logger(__name__, 'fh',
+    #                        handler_level='DEBUG',
+    #                        filename=args.log_file)
+    # logger = create_logger(__name__, 'sh',
+    #                        handler_level=handler_level)
 
-    otb_lsms(img=image_source,
-             out_vector=out_vector,
-             spatialr=spatialr,
-             ranger=ranger,
-             minsize=minsize,
-             tilesize_x=tilesize_x,
-             tilesize_y=tilesize_y)
+    # otb_lsms(img=image_source,
+    #          out_vector=out_vector,
+    #          spatialr=spatialr,
+    #          ranger=ranger,
+    #          minsize=minsize,
+    #          tilesize_x=tilesize_x,
+    #          tilesize_y=tilesize_y)
