@@ -162,7 +162,6 @@ if __name__ == '__main__':
                                 Size of tiles along the Y-axis for tile-wise processing.""")
     parser.add_argument('-l', '--log_file',
                         type=os.path.abspath,
-                        default='otb_lsms_log.txt',
                         help='Path to write log file to.')
     parser.add_argument('-ld', '--log_dir',
                         type=os.path.abspath,
@@ -199,17 +198,16 @@ if __name__ == '__main__':
         log_name = os.path.basename(out_vector).replace('.shp', '_log.txt')
         log_file = os.path.join(log_dir, log_name)
 
-    print(log_file)
-    # logger = create_logger(__name__, 'fh',
-    #                        handler_level='DEBUG',
-    #                        filename=args.log_file)
-    # logger = create_logger(__name__, 'sh',
-    #                        handler_level=handler_level)
+    logger = create_logger(__name__, 'fh',
+                           handler_level='DEBUG',
+                           filename=args.log_file)
+    logger = create_logger(__name__, 'sh',
+                           handler_level=handler_level)
 
-    # otb_lsms(img=image_source,
-    #          out_vector=out_vector,
-    #          spatialr=spatialr,
-    #          ranger=ranger,
-    #          minsize=minsize,
-    #          tilesize_x=tilesize_x,
-    #          tilesize_y=tilesize_y)
+    otb_lsms(img=image_source,
+             out_vector=out_vector,
+             spatialr=spatialr,
+             ranger=ranger,
+             minsize=minsize,
+             tilesize_x=tilesize_x,
+             tilesize_y=tilesize_y)
