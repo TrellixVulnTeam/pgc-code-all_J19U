@@ -124,9 +124,9 @@ def create_logger(logger_name, handler_type,
     if handler_type == 'sh':
         ht = logging.StreamHandler()
     elif handler_type == 'fh':
+        if os.path.exists(filename):
+            os.remove(filename)
         ht = logging.FileHandler(filename)
-        # if os.path.exists(filename):
-        #     os.remove(filename)
     else:
         print('Unrecognized handler_type argument: {}'.format(handler_type))
     desired_level = logging_level_int(handler_level)

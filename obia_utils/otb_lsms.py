@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
     logger = create_logger(__name__, 'fh',
                            handler_level='DEBUG',
-                           filename=args.log_file)
+                           filename=log_file)
     logger = create_logger(__name__, 'sh',
                            handler_level=handler_level)
 
