@@ -51,6 +51,7 @@ class Raster():
 
         self.x_sz = self.data_src.RasterXSize
         self.y_sz = self.data_src.RasterYSize
+        self.depth = self.data_src.RasterCount
 
         self.x_origin = self.geotransform[0]
         self.y_origin = self.geotransform[3]

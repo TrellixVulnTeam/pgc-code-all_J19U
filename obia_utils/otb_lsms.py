@@ -10,8 +10,10 @@ import logging.config
 import os
 import subprocess
 from subprocess import PIPE
+import sys
 
 from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
+from misc_utils.RasterWrapper import Raster
 
 
 #### Set up logger
@@ -25,15 +27,20 @@ def run_subprocess(command):
     proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
     for line in iter(proc.stdout.readline, b''):  # replace '' with b'' for Python 3
         logger.info(line.decode())
+    proc_err = ""
+    for line in iter(proc.stderr.readline, b''):
+        proc_err += line.decode()
+    if proc_err:
+        logger.info(proc_err)
     output, error = proc.communicate()
     logger.debug('Output: {}'.format(output.decode()))
     logger.debug('Err: {}'.format(error.decode()))
-    
 
-def otb_lsms(img,
+
+def otb_lsms(img, mode='vector',
              spatialr=5, ranger=15, minsize=50,
              tilesize_x=500, tilesize_y=500,
-             out_vector=None,
+             out=None,
              ram=256):
     """
     Run the Orfeo Toolbox LargeScaleMeanShift command via the command
@@ -43,6 +50,8 @@ def otb_lsms(img,
     ----------
     img : os.path.abspath
         Path to raster to be segmented.
+    mode : str
+        Format to write segmentation. One of 'raster' or 'vector'.
     spatialr : INT
         Spatial radius -- Default value: 5
         Radius of the spatial neighborhood for averaging.
@@ -65,14 +74,36 @@ def otb_lsms(img,
     tilesize_y : INT
         Size of tiles in pixel (Y-axis) -- Default value: 500
         Size of tiles along the Y-axis for tile-wise processing.
-    out_vector : os.path.abspath
-        Path to write vectorized segments to.
+    out : os.path.abspath
+        Path to write segmentation to.
 
     Returns
     -------
     Path to out_vector.
 
     """
+    # Log input image information
+    src = Raster(img)
+    x_sz = src.x_sz
+    y_sz = src.y_sz
+    depth = src.depth
+    src = None
+
+    logger.info("""Running OTB Large-Scale-Mean-Shift...
+                Input image: {}
+                Image X Size: {}
+                Image Y Size: {}
+                Image # Bands: {}
+                Spatial radius: {}
+                Range radius: {}
+                Min. segment size: {}
+                Tilesizex: {}
+                Tilesizey: {}
+                Output mode: {}
+                Output segmentation: {}""".format(img, x_sz, y_sz, depth,
+                                                  spatialr, ranger, minsize,
+                                                  tilesize_x, tilesize_y, mode, out))
+
     # Build command
     cmd = """otbcli_LargeScaleMeanShift
              -in {}
@@ -81,23 +112,13 @@ def otb_lsms(img,
              -minsize {}
              -tilesizex {}
              -tilesizey {}
-             -mode.vector.out {}""".format(img, spatialr, ranger, minsize,
-                                           tilesize_x, tilesize_y, out_vector)
+             -mode.{}.out {}""".format(img, spatialr, ranger, minsize,
+                                       tilesize_x, tilesize_y, mode, out)
     # Remove whitespace, newlines
     cmd = cmd.replace('\n', '')
     cmd = ' '.join(cmd.split())
-
-    logger.info("""Running OTB Large-Scale-Mean-Shift...
-                Input image: {}
-                Spatial radius: {}
-                Range radius: {}
-                Min. segment size: {}
-                Tilesizex: {}
-                Tilesizey: {}
-                Output vector: {}""".format(img, spatialr, ranger, minsize,
-                                            tilesize_x, tilesize_y, out_vector))
-
     logger.info(cmd)
+
     run_time_start = datetime.datetime.now()
     run_subprocess(cmd)
     run_time_finish = datetime.datetime.now()
@@ -109,6 +130,7 @@ def otb_lsms(img,
                           "C:\OSGeo4W64\OTB-6.6.1-Win64\OTB-6.6.1-Win64\otbenv.bat" or
                           module load otb/6.6.1
                           """)
+
     logger.info('Large-Scale-Mean-Shift finished. Runtime: {}'.format(str(run_time)))
 
 if __name__ == '__main__':
@@ -117,15 +139,19 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--image_source',
                         type=os.path.abspath,
                         help='Image to segment.')
-    parser.add_argument('-o', '--out_vector',
+    parser.add_argument('-o', '--out',
                         type=os.path.abspath,
-                        help='Output vector.')
+                        help='Output filename. If ".shp" mode will be vector. If ".tif" mode will be raster.')
     parser.add_argument('-od', '--out_dir',
                         type=os.path.abspath,
                         help="""Alternatively to specifying out_vector path, specify
                                 just the output directory and the name will be
                                 created in a standardized fashion following:
                                 [input_filename]_sr[sr]rr[rr]ms[ms]tx[tx]ty[ty].shp""")
+    parser.add_argument('-m', '--mode',
+                        type=str,
+                        choices=['vector', 'raster'],
+                        help='Output mode for labeled segmentation.')
     parser.add_argument('-sr', '--spatial_radius',
                         type=int,
                         default=5,
@@ -171,41 +197,63 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     image_source = args.image_source
-    out_vector = args.out_vector
+    out = args.out
     out_dir = args.out_dir
+    mode = args.mode
     spatialr = args.spatial_radius
     ranger = args.range_radius
     minsize = args.minsize
     tilesize_x = args.tilesize_x
     tilesize_y = args.tilesize_y
 
-    # Build out vector path if not provided
-    if out_vector is None:
+    # Set up console logger
+    handler_level = 'INFO'
+    logger = create_logger(__name__, 'sh',
+                           handler_level=handler_level)
+
+    # Build out path and determine mode
+    if out:
+        mode_lut = {'.shp': 'vector', '.tif': 'raster'}
+        ext = os.path.splittext(out)[1]
+        if not mode:
+            mode = mode_lut[ext]
+        else:
+            if mode != mode_lut[ext]:
+                logger.error("""Selected mode does not match out file extension:
+                                mode: {} != {}""".format(mode, ext))
+                sys.exit()
+
+    if out is None:
+        if mode is None:
+            logger.error("""Must supply one of "out" with extension or "mode" in order to
+                            determine output type (raster|vector).""")
+            sys.exit()
+        else:
+            ext_lut = {'vector': 'shp', 'raster': 'tif'}
+            ext = ext_lut[mode]
         if out_dir is None:
             out_dir = os.path.dirname(image_source)
         out_name = os.path.basename(image_source).split('.')[0]
-        out_name = '{}_sr{}_rr{}_ms{}_tx{}_ty{}.shp'.format(out_name, spatialr, str(ranger).replace('.', '_'),
-                                                            minsize, tilesize_x, tilesize_y)
-        out_vector = os.path.join(out_dir, out_name)
+        out_name = '{}_sr{}_rr{}_ms{}_tx{}_ty{}.{}'.format(out_name, spatialr, str(ranger).replace('.', 'x'),
+                                                           minsize, tilesize_x, tilesize_y, ext)
+        out = os.path.join(out_dir, out_name)
 
-    #### Set up logger
-    handler_level = 'INFO'
+    # Add log file handler
     log_file = args.log_file
     log_dir = args.log_dir
     if not log_file:
         if not log_dir:
-            log_dir = os.path.dirname(out_vector)
-        log_name = os.path.basename(out_vector).replace('.shp', '_log.txt')
+            log_dir = os.path.dirname(out)
+        log_name = os.path.basename(out).replace('.shp', '_log.txt')
         log_file = os.path.join(log_dir, log_name)
 
     logger = create_logger(__name__, 'fh',
                            handler_level='DEBUG',
                            filename=log_file)
-    logger = create_logger(__name__, 'sh',
-                           handler_level=handler_level)
 
     otb_lsms(img=image_source,
-             out_vector=out_vector,
+             out=out,
+             mode=mode,
              spatialr=spatialr,
              ranger=ranger,
              minsize=minsize,
