@@ -12,15 +12,10 @@ import subprocess
 from subprocess import PIPE
 
 from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
+from misc_utils.RasterWrapper import Raster
 
 
-#### Set up logger
-# handler_level = 'INFO'
-# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-# logger = logging.getLogger(__name__)
-
-
-#### Function definition
+# Function definition
 def run_subprocess(command):
     proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
     for line in iter(proc.stdout.readline, b''):  # replace '' with b'' for Python 3
@@ -30,7 +25,7 @@ def run_subprocess(command):
     logger.debug('Err: {}'.format(error.decode()))
 
 
-def otb_grm(img, 
+def otb_grm(img,
             threshold,
             out_img=None,
             criterion='bs',
@@ -66,6 +61,27 @@ def otb_grm(img,
     None.
 
     """
+    # Log input image information
+    src = Raster(img)
+    x_sz = src.x_sz
+    y_sz = src.y_sz
+    depth = src.depth
+    src = None
+
+    logger.info("""Running OTB Generic Region Merging...
+                   Input image: {}
+                   Image X Size: {}
+                   Image Y Size: {}
+                   Image # Bands: {}
+                   Out image:   {}
+                   Criterion:   {}
+                   Threshold:   {}
+                   # Iterate:   {}
+                   Spectral:    {}
+                   Spatial:     {}""".format(img, x_sz, y_sz, depth,
+                                             out_img, criterion, threshold,
+                                             niter, cw, sw))
+
     # Build the command
     cmd = """otbcli_GenericRegionMerging
              -in {}
@@ -84,20 +100,6 @@ def otb_grm(img,
     # Remove whitespace, newlines
     cmd = cmd.replace('\n', '')
     cmd = ' '.join(cmd.split())
-
-    logger.info("""Running OTB Generic Region Merging...
-                   Input image: {}
-                   Out image:   {}
-                   Criterion:   {}
-                   Threshold:   {}
-                   # Iterate:   {}
-                   Spectral:    {}
-                   Spatial:     {}""".format(img, out_img,
-                                             criterion,
-                                             threshold,
-                                             niter,
-                                             cw,
-                                             sw))
 
     # Run command
     logger.debug(cmd)
@@ -138,7 +140,7 @@ if __name__ == "__main__":
                         type=str,
                         default='bs',
                         choices=['bs', 'ed', 'fls'],
-                        help="""Homogeneity criterion to use, one of: 
+                        help="""Homogeneity criterion to use, one of:
                                 [bs, ed, fls]
                                 Baatz and Schape
                                 Euclidian Distance
@@ -167,7 +169,6 @@ if __name__ == "__main__":
                         type=os.path.abspath,
                         help="""Directory to write log to, with standardized name following
                                 out tif naming convention.""")
-
 
     args = parser.parse_args()
 
