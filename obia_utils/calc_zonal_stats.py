@@ -4,7 +4,7 @@ Created on Tue Feb 18 14:00:03 2020
 
 @author: disbr007
 """
-
+import argparse
 import logging.config
 import os
 import matplotlib.pyplot as plt
@@ -74,105 +74,179 @@ def compute_stats(gdf, raster, stats_dict):
     return gdf
 
 
-# Load data
-logger.info('Reading in segments...')
-seg = gpd.read_file(seg_path)
-logger.info('Segments found: {:,}'.format(len(seg)))
+def zonal_stats(shp,
+                rasters, names, 
+                stats=['min', 'max', 'mean', 'count', 'median' ],
+                area=True,
+                compactness=True,
+                out_path=None):
+    """
+    Calculate zonal statistics on the given vector file
+    for each raster provided.
 
-# Compute zonal statistics from rasters
-logger.info('Computing statistics...')
-tpi_stats = ['min', 'max', 'mean', 'std']
-tpi31_stats = {k: 'tpi31_{}'.format(k) for k in tpi_stats}
-tpi41_stats = {k: 'tpi41_{}'.format(k) for k in tpi_stats}
-tpi81_stats = {k: 'tpi81_{}'.format(k) for k in tpi_stats}
+    Parameters
+    ----------
+    shp : os.path.abspath
+        Vector file to compute zonal statistics for the features in.
+    out_path : os.path.abspath
+        Path to write vector file with computed stats. Default is to
+        add '_stats' suffix before file extension.
+    rasters : list or os.path.abspath
+        List of rasters to compute zonal statistics for.
+        Or path to .txt file of raster paths (one per line).
+    names : list
+        List of names to use as prefixes for created stats. Order
+        is order of rasters.
+    stats : list, optional
+        List of statistics to calculate. The default is None.
+    area : bool
+        True to also compute area of each feature in units of
+        projection.
+    compactness : bool
+        True to also compute compactness of each object
+    Returns
+    -------
+    None.
 
-roughness_stats = {'mean': 'rough_mean',
-                   'max': 'rough_max',
-                   'min': 'rough_min'}
+    """
+    # Load data
+    logger.info('Reading in segments...')
+    seg = gpd.read_file(seg_path)
+    logger.info('Segments found: {:,}'.format(len(seg)))
+    
+    # Determine rasters input type
+    if len(rasters) == 1:
+        if os.path.exists(rasters[0]):
+            ext = os.path.splitext(rasters[0])[1]
+            if ext == '.txt.':
+                # Assume text file of raster paths, read into list
+                with open(rasters[0], 'r') as src:
+                    content = src.readlines()
+                    rasters = [c.strip() for c in content]
+                
+        
+    # Iterate rasters and compute stats for each
+    for r, n in zip(rasters, names):
+        logger.info('Computing zonal statistics for {}'.format(os.path.basename(r)))
+        stats_dict = {s: '{}_{}'.format(n, s) for s in stats}
+        seg = compute_stats(gdf=seg, raster=r, stats_dict=stats_dict)
+    
+    # Area recording
+    if area:
+        seg['area_zs'] = seg.geometry.area
+    
+    # Compactness: Polsby-Popper Score -- 1 = circle
+    if compactness:
+        seg['compact'] = (np.pi * 4 * seg.geometry.area) / (seg.geometry.boundary.length)**2
 
-slope_stats = {'mean': 'slope_mean', 
-               'max': 'slope_max',
-               'std': 'slope_std'}
-
-diff_stats = {'mean': 'diff_mean',
-              'max': 'diff_max',
-              'min': 'diff_min'}
-
-diff_ndvi_stats = {'mean': 'diffndvi_mean',
-                   'min': 'diffndvi_min',
-                   'max': 'diffndvi_max'}
-
-ndvi_stats = {'mean': 'ndvi_mean',
-              'min': 'ndvi_min',
-              'max': 'ndvi_max'}
-
-stats_on = [(roughness_path, roughness_stats),
-            (tpi31_path, tpi31_stats), 
-            (tpi41_path, tpi41_stats),
-            (tpi81_path, tpi81_stats),
-            (slope_path, slope_stats),
-            (diff_path, diff_stats),
-            (diff_ndvi_path, diff_ndvi_stats),
-            (ndvi_path, ndvi_stats)]
-
-
-for raster, stats in stats_on:
-    seg = compute_stats(seg, raster, stats)
-logger.info('Zonal statistics computed.')
-
-#### Compute geometric statistics
-# Area
-seg['area_m'] = seg.geometry.area
-# Compactness: Polsby-Popper Score -- 1 = circle
-seg['compact'] = (np.pi * 4 * seg.geometry.area) / (seg.geometry.boundary.length)**2
-
-
-# Write segments with stats to new shapefile
-logger.info('Writing segments with statistics to: {}'.format(outpath))
-seg.to_file(outpath)
-logger.info('Done.')
-
-
-# for testing
-# seg = gpd.read_file(outpath)
-
-## Find segments in predrawn thermokarst boundaries
-# tks = gpd.read_file(tks_bounds_p)
-# tks = tks[tks['obs_year']==2015]
-
-# if tks.crs != seg.crs:
-#     tks = tks.to_crs(seg.crs)
-
-## Select only those features within segmentation bounds
-# xmin, ymin, xmax, ymax = seg.total_bounds
-# tks = tks.cx[xmin:xmax, ymin:ymax]
-
-# seg_cols = list(seg)
-# seg_cols.append('tks_seg')
-# seg['poly_geom'] = seg.geometry
-# seg.geometry = seg.geometry.centroid
-# # Locate segments whose centroids are within the tks boundary
-# seg['tks_seg'] = seg.geometry.apply(lambda x: any([tk.contains(x) for tk in tks.geometry]))
-# seg.geometry = seg['poly_geom']
+    # Write segments with stats to new shapefile
+    if not out_path:
+        out_path = os.path.join(os.path.dirname(seg_path),
+                       '{}_stats.shp'.format(os.path.basename(seg_path).split('.')[0]))
+    logger.info('Writing segments with statistics to: {}'.format(out_path))
+    seg.to_file(out_path)
+    
+    logger.info('Done.')
 
 
-# plt.style.use('ggplot')
-# fig, ax = plt.subplots(1,1)
-# seg.plot(column='tks_seg', alpha=0.75, ax=ax, cmap='bwr')
-# seg.plot(facecolor='none', linewidth=0.5, ax=ax, edgecolor='white')
-# tks.plot(facecolor='none', edgecolor='r', linewidth=1, ax=ax)
-# plt.tight_layout()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('-i', '--input_shp',
+                        type=os.path.abspath,
+                        help='Vector file to compute zonal statistics for the features in.')
+    parser.add_argument('-o', '--out_path',
+                        type=os.path.abspath,
+                        help="""Path to write vector file with computed stats. Default is to
+                                add '_stats' suffix before file extension.""")
+    parser.add_argument('-r', '--rasters',
+                        nargs='+',
+                        type=os.path.abspath,
+                        help="""List of rasters to compute zonal statistics for.
+                                Or path to .txt file of raster paths (one per line).""")
+    parser.add_argument('-n', '--names',
+                        type=str,
+                        nargs='+',
+                        help="""List of names to use as prefixes for created stats fields.
+                                Length must match number of rasters supplied. Order is
+                                the order of the rasters to apply prefix names for. E.g.:
+                                'ndvi' -> 'ndvi_mean', 'ndvi_min', etc.""")
+    parser.add_argument('-s', '--stats',
+                        type=str,
+                        nargs='+',
+                        default=['min', 'max', 'mean', 'count', 'median'],
+                        help='List of statistics to compute.')
+    parser.add_argument('-a', '--area',
+                        action='store_true',
+                        help='Use to compute an area field.')
+    parser.add_argument('-c', '--compactness',
+                        action='store_true',
+                        help='Use to compute a compactness field.')
+    
+    args = parser.parse_args
+    
+    zonal_stats(shp=args.input_shp,
+                rasters=args.rasters,
+                names=args.names,
+                stats=args.stats,
+                area=args.compactness,
+                compactness=args.compactness,
+                out_path=args.out_path)
 
-# hfig, hax = plt.subplots(2,3, figsize=(14, 7))
-# plot_cols = ['tpi31_mean', 'tpi41_mean',
-#               'tpi81_mean', 'slope_mean',
-#               'diff_mean', 'diffndvi_mean']
+# # Load data
+# logger.info('Reading in segments...')
+# seg = gpd.read_file(seg_path)
+# logger.info('Segments found: {:,}'.format(len(seg)))
 
-# hax = hax.flatten()
-# for i, pc in enumerate(plot_cols):
-#     ax = hax[i]
-#     seg.hist(column=pc, ax=ax, edgecolor='w', bins=30)
-#     ax.set_title(pc)
-#     ax.axvline(seg[seg['tks_seg']==True][pc].mean(), color='black')
-#     ax.set_yscale('log')
-# plt.tight_layout()
+# # Compute zonal statistics from rasters
+# logger.info('Computing statistics...')
+# tpi_stats = ['min', 'max', 'mean', 'std']
+# tpi31_stats = {k: 'tpi31_{}'.format(k) for k in tpi_stats}
+# tpi41_stats = {k: 'tpi41_{}'.format(k) for k in tpi_stats}
+# tpi81_stats = {k: 'tpi81_{}'.format(k) for k in tpi_stats}
+
+# roughness_stats = {'mean': 'rough_mean',
+#                    'max': 'rough_max',
+#                    'min': 'rough_min'}
+
+# slope_stats = {'mean': 'slope_mean', 
+#                'max': 'slope_max',
+#                'std': 'slope_std'}
+
+# diff_stats = {'mean': 'diff_mean',
+#               'max': 'diff_max',
+#               'min': 'diff_min'}
+
+# diff_ndvi_stats = {'mean': 'diffndvi_mean',
+#                    'min': 'diffndvi_min',
+#                    'max': 'diffndvi_max'}
+
+# ndvi_stats = {'mean': 'ndvi_mean',
+#               'min': 'ndvi_min',
+#               'max': 'ndvi_max'}
+
+# stats_on = [(roughness_path, roughness_stats),
+#             (tpi31_path, tpi31_stats), 
+#             (tpi41_path, tpi41_stats),
+#             (tpi81_path, tpi81_stats),
+#             (slope_path, slope_stats),
+#             (diff_path, diff_stats),
+#             (diff_ndvi_path, diff_ndvi_stats),
+#             (ndvi_path, ndvi_stats)]
+
+
+# for raster, stats in stats_on:
+#     seg = compute_stats(seg, raster, stats)
+# logger.info('Zonal statistics computed.')
+
+# #### Compute geometric statistics
+# # Area
+# seg['area_m'] = seg.geometry.area
+# # Compactness: Polsby-Popper Score -- 1 = circle
+# seg['compact'] = (np.pi * 4 * seg.geometry.area) / (seg.geometry.boundary.length)**2
+
+
+# # Write segments with stats to new shapefile
+# logger.info('Writing segments with statistics to: {}'.format(outpath))
+# seg.to_file(outpath)
+# logger.info('Done.')
