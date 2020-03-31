@@ -17,6 +17,7 @@ import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger #LOGGING_CONFIG
 from misc_utils.RasterWrapper import Raster
+from obia_utils.calc_zonal_stats import calc_zonal_stats
 
 
 gdal.UseExceptions()
@@ -37,8 +38,8 @@ def get_value(df, lookup_field, lookup_value, value_field):
 
 def get_neighbors(gdf, subset=None, unique_id=None, neighbor_field='neighbors'):
     """
-    Gets the neighbors for a geodataframe with polygon geometry
-    geodataframe, optionally only a subset.
+    Adds column with the IDs of neighbors for a geodataframe with polygon geometry
+    geodataframe, optionally only a subset of that geodataframe.
 
     Parameters
     ----------
@@ -96,7 +97,7 @@ def get_neighbors(gdf, subset=None, unique_id=None, neighbor_field='neighbors'):
 
 def neighbor_features(unique_id, gdf, subset=None, neighbor_ids_col=None):
     """
-    Create a geodataframe of neighbors for all features in subset. Finds neighbors if
+    Create a new geodataframe of neighbors for all features in subset. Finds neighbors if
     neighbor_ids_col does not exist already.
 
     Parameters
@@ -177,7 +178,7 @@ def neighbor_values(df, unique_id, neighbors, value_field):
     """
     # For each neighbor id in the list of neighbor ids, create an entry in 
     # a dictionary that is the id and its value.
-    values = {n:df[df[unique_id]==n][value_field].values[0] for n in neighbors}
+    values = {n: df[df[unique_id] == n][value_field].values[0] for n in neighbors}
     
     return values
     
@@ -223,6 +224,7 @@ def neighbor_adjacent(gdf, subset, unique_id,
     if neighbor_field not in gdf.columns:
         gdf = get_neighbors(gdf, subset=subset, unique_id=unique_id,
                             neighbor_field=neighbor_field)
+
     # Use all of the IDs in subset to pull out unique_ids and their neighbor lists
     subset_ids = subset[unique_id]
     neighbors = gdf[gdf[unique_id].isin(subset_ids)][[unique_id, neighbor_field]]
@@ -231,8 +233,6 @@ def neighbor_adjacent(gdf, subset, unique_id,
     logger.info('Finding adjacent features that meet threshold...')
     have_adj = []
     for index, row in tqdm(neighbors.iterrows(), total=len(neighbors)):
-        if row['label'] == 163516:
-            print('******************match********************')
         values = neighbor_values(gdf, unique_id, row[neighbor_field], value_field)
         if value_compare == '<':
             ## Assuming value compare operator is less than for testing
@@ -322,3 +322,132 @@ def mask_class(gdf, column, raster, out_path, mask_value=1):
     img.WriteArray(new, out_path)
         
     return out_path
+
+
+def merge(gdf, unique_id, neighbor_field, 
+          subset_col, subset_thresh, subset_compare,
+          merge_col, merge_thresh,):
+    """
+    Merge features in gdf that meet subset criteria. Removes the original features
+    and replaces them with the merged features.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame of features to merge.
+    subset_col : str
+        Name of column to use to create subset to merge in.
+    subset_thresh : int / float / str
+        Value subset column must meet to be included.
+    subset_compare : str
+        Comparison operator for subset_col vs subset_thresh.
+
+    Returns
+    -------
+    gpd.GeoDataFrame : gdf but with merged features.
+
+    """
+    # Create subset
+    if subset_compare == '<':
+        subset = gdf[gdf[subset_col] < subset_thresh]
+    elif subset_compare == '>':
+        subset = gdf[gdf[subset_col] > subset_thresh]
+    elif subset_compare == '==':
+        subset = gdf[gdf[subset_col] == subset_thresh]
+    elif subset_compare == '!=':
+        subset = gdf[gdf[subset_col] != subset_thresh]
+    else:
+        logger.info('Unrecognized comparison operator: {}'.format(subset_compare))
+    
+    
+    if neighbor_field not in subset.columns:
+        subset = get_neighbors(gdf, subset=subset, unique_id=unique_id,
+                                neighbor_field=neighbor_field)
+    
+    merged = gpd.GeoDataFrame()
+    merged_ids = []
+    # Iterate over subset
+    for i, r in subset.iterrows():
+        # Get current feature unique id
+        feat_id = r[unique_id]
+        # Get current feature merge column value
+        feat_val = r[merge_col]
+        
+        # Get neighbor features merge column values, values = {id: value, id2:val2}
+        values = neighbor_values(subset, unique_id, r[neighbor_field], merge_col)
+        # Find closest neigbhor within threshold
+        # All within thresh
+        merge_candidates = {fid: val for fid, val in values.items()
+                            if feat_val-merge_thresh <= val <= feat_val+merge_thresh}
+        # Closest (will merge multiple if tied for closest)
+        absolute_difference_function = lambda list_value : abs(list_value - feat_val)
+        closest_val = min(merge_candidates.values(), key=absolute_difference_function)
+        merge_id = [fid for fid, val in merge_candidates.items()
+                        if val == closest_val]
+
+        # Get geodataframe of just ids to merge
+        merge_ids = merge_id.append(feat_id)
+        to_merge = subset[subset[unique_id].isin(merge_ids)]
+        
+        # Merge
+        # dummy field to merge on
+        to_merge['merge_temp'] = 1
+        to_merge = to_merge.dissolve(by='merge_temp')
+        
+        
+        # Add merged to master merged gdf
+        merged = pd.concat([merged, to_merge])
+        # Save ids of merged features
+        merged_ids.extend(merge_ids)
+
+    # Remove all original merged features
+    subset = subset[~subset[unique_id].isin(merged_ids)]
+    
+    # Add merged features back in
+    merged[unique_id] = [max(subset[unique_id]) + i for i in range(len(merged_ids))]
+    subset = pd.concat([subset, merged])
+        
+    return subset
+
+
+# Merge similar
+# Load data
+seg = gpd.read_file(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_clip_ms_lsms_sr5rr200ss150_stats.shp')
+# subset = gdf[gdf[1==1]]
+
+# Created fields
+unique_id = 'label'
+neighbor_fld = 'neighb'
+
+sort_col = 'area_m' # column to sort by before starting merge process
+
+subset_col = 'area_m'
+subset_thresh = 45
+subset_compare = '<'
+
+merge_col = 'slope_mean' # column to use to find nieghbor to merge with
+merge_thresh = 1.5 # threshold merge_col must be within to merge
+
+merge_stop_col = sort_col # or something else
+merge_stop_val = 60 # minimum size for example
+merge_stop_compare = '<'
+# if you need to recalc stats while merging (e.g. to calc new 'slope_mean'), not need for area calc for example
+# if using built in geopandas area attribute
+recalc_int = False 
+
+# Sort gdf by sort criteria
+seg.sort_values(by=sort_col, inplace=True)
+
+# check if any features in gdf don't meet merge stop criteria, (while) - merge()
+merging = any(seg[merge_stop_col] < merge_stop_val)
+
+if merging:
+    merge(seg, unique_id, neighbor_fld, 
+          subset_col=subset_col, subset_thresh=subset_thresh, subset_compare=subset_compare,
+          merge_col=merge_col, merge_thresh=merge_thresh)
+
+# import matplotlib.pyplot as plt
+
+# plt.style.use('ggplot')
+# fig, ax = plt.subplots(1,1)
+# seg[seg['area_m']<50].hist(column='area_m', ax=ax, bins=20, log=True)

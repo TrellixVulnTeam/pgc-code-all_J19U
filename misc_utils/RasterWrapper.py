@@ -140,13 +140,20 @@ class Raster():
         return band_arr
 
 
-    def NDVI(self, red_num, nir_num):
+    def ndvi_array(self, red_num, nir_num):
         """Calculate NDVI from multispectral bands"""
         red = self.GetBandAsArray(red_num)
         nir = self.GetBandAsArray(nir_num)
         ndvi = (nir - red) / (nir + red)
 
         return ndvi
+
+    def mndwi_array(self, green_num, swir_num):
+        green = self.GetBandAsArray(green_num)
+        swir = self.GetBandAsArray(swir_num)
+        mndwi = (green - swir) / (green + swir)
+
+        return mndwi
 
 
     def ArrayWindow(self, projWin):
@@ -277,6 +284,16 @@ class Raster():
 
         dst_ds = None
 
+
+    def NDVI(self, out_path, red_num, nir_num):
+        ndvi_arr = self.ndvi_array(red_num, nir_num)
+        self.WriteArray(ndvi_arr, out_path, stacked=False)
+
+
+    def mNDWI(self, out_path, green_num, swir_num):
+            mndwi_arr = self.mndwi_array(green_num, swir_num)
+            self.WriteArray(mndwi_arr, out_path, stacked=False)
+# 
 
     def SamplePoint(self, point):
         '''

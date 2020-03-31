@@ -74,8 +74,7 @@ def compute_stats(gdf, raster, stats_dict):
     return gdf
 
 
-def zonal_stats(shp,
-                rasters, names, 
+def calc_zonal_stats(shp, rasters, names, 
                 stats=['min', 'max', 'mean', 'count', 'median' ],
                 area=True,
                 compactness=True,
@@ -118,16 +117,18 @@ def zonal_stats(shp,
     if len(rasters) == 1:
         if os.path.exists(rasters[0]):
             ext = os.path.splitext(rasters[0])[1]
-            if ext == '.txt.':
+            if ext == '.txt':
                 # Assume text file of raster paths, read into list
+                logger.info('Reading rasters from file: {}'.format(rasters[0]))
                 with open(rasters[0], 'r') as src:
                     content = src.readlines()
                     rasters = [c.strip() for c in content]
+                    logger.info('Located rasters:\n{}\n'.format('\n'.join(rasters)))
                 
-        
+    
     # Iterate rasters and compute stats for each
     for r, n in zip(rasters, names):
-        logger.info('Computing zonal statistics for {}'.format(os.path.basename(r)))
+        # logger.info('Computing zonal statistics for {}'.format(os.path.basename(r)))
         stats_dict = {s: '{}_{}'.format(n, s) for s in stats}
         seg = compute_stats(gdf=seg, raster=r, stats_dict=stats_dict)
     
@@ -183,15 +184,15 @@ if __name__ == '__main__':
                         action='store_true',
                         help='Use to compute a compactness field.')
     
-    args = parser.parse_args
+    args = parser.parse_args()
     
-    zonal_stats(shp=args.input_shp,
-                rasters=args.rasters,
-                names=args.names,
-                stats=args.stats,
-                area=args.compactness,
-                compactness=args.compactness,
-                out_path=args.out_path)
+    calc_zonal_stats(shp=args.input_shp,
+                     rasters=args.rasters,
+                     names=args.names,
+                     stats=args.stats,
+                     area=args.compactness,
+                     compactness=args.compactness,
+                     out_path=args.out_path)
 
 # # Load data
 # logger.info('Reading in segments...')
