@@ -23,23 +23,23 @@ logging.config.dictConfig(LOGGING_CONFIG('INFO'))
 logger = logging.getLogger(__name__)
 
 
-#### Inputs
-# Segmentation vector
-seg_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\seg\WV02_20150906_pcatdmx_slope_a6g_sr5_rr1_0_ms400_tx500_ty500.shp'
-# Path to write segmentation vector with added statistics columns
-outpath = os.path.join(os.path.dirname(seg_path),
-                       '{}_stats.shp'.format(os.path.basename(seg_path).split('.')[0]))
-# Paths to rasters to use to compute statistics
-roughness_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\roughness\dem_WV02_20150906_roughness.tif'
-tpi31_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi31.tif'
-tpi41_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi41.tif'
-tpi81_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi81.tif'
-slope_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\slope\WV02_20150906_pcatdmx_slope.tif'
-diff_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\diffs\WV02_20150906_WV02_20130711_diff.tif'
-ndvi_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\imagery\ndvi_ps\WV02_20150906203203_1030010048B0FA00_15SEP06203203-M1BS-500447187090_01_P008_u16mr3413_pansh_ndvi.tif'
-diff_ndvi_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\imagery\diff_ndvi_ps\diff_ndvi_ps_WV02_20150906_WV02_20130711.tif'
-# Path to digitized thaw slumps for examining statistics
-tks_bounds_p = r'E:\disbr007\umn\ms\shapefile\tk_loc\digitized_thaw_slumps.shp'
+# #### Inputs
+# # Segmentation vector
+# seg_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\seg\WV02_20150906_pcatdmx_slope_a6g_sr5_rr1_0_ms400_tx500_ty500.shp'
+# # Path to write segmentation vector with added statistics columns
+# outpath = os.path.join(os.path.dirname(seg_path),
+#                        '{}_stats.shp'.format(os.path.basename(seg_path).split('.')[0]))
+# # Paths to rasters to use to compute statistics
+# roughness_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\roughness\dem_WV02_20150906_roughness.tif'
+# tpi31_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi31.tif'
+# tpi41_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi41.tif'
+# tpi81_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\tpi\WV02_20150906_tpi81.tif'
+# slope_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\slope\WV02_20150906_pcatdmx_slope.tif'
+# diff_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\dems\diffs\WV02_20150906_WV02_20130711_diff.tif'
+# ndvi_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\imagery\ndvi_ps\WV02_20150906203203_1030010048B0FA00_15SEP06203203-M1BS-500447187090_01_P008_u16mr3413_pansh_ndvi.tif'
+# diff_ndvi_path = r'V:\pgc\data\scratch\jeff\ms\2020feb01\aoi6\imagery\diff_ndvi_ps\diff_ndvi_ps_WV02_20150906_WV02_20130711.tif'
+# # Path to digitized thaw slumps for examining statistics
+# tks_bounds_p = r'E:\disbr007\umn\ms\shapefile\tk_loc\digitized_thaw_slumps.shp'
 
 
 def compute_stats(gdf, raster, stats_dict):
@@ -110,7 +110,7 @@ def calc_zonal_stats(shp, rasters, names,
     """
     # Load data
     logger.info('Reading in segments...')
-    seg = gpd.read_file(seg_path)
+    seg = gpd.read_file(shp)
     logger.info('Segments found: {:,}'.format(len(seg)))
     
     # Determine rasters input type
@@ -123,6 +123,7 @@ def calc_zonal_stats(shp, rasters, names,
                 with open(rasters[0], 'r') as src:
                     content = src.readlines()
                     rasters = [c.strip() for c in content]
+                    rasters, names = zip(*(r.split("~") for r in rasters))
                     logger.info('Located rasters:\n{}\n'.format('\n'.join(rasters)))
                 
     
@@ -142,8 +143,8 @@ def calc_zonal_stats(shp, rasters, names,
 
     # Write segments with stats to new shapefile
     if not out_path:
-        out_path = os.path.join(os.path.dirname(seg_path),
-                       '{}_stats.shp'.format(os.path.basename(seg_path).split('.')[0]))
+        out_path = os.path.join(os.path.dirname(shp),
+                       '{}_stats.shp'.format(os.path.basename(shp).split('.')[0]))
     logger.info('Writing segments with statistics to: {}'.format(out_path))
     seg.to_file(out_path)
     

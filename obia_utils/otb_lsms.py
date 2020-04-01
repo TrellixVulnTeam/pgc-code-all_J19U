@@ -13,7 +13,7 @@ from subprocess import PIPE
 import sys
 
 from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
-from misc_utils.RasterWrapper import Raster
+# from misc_utils.RasterWrapper import Raster
 
 
 #### Set up logger
@@ -83,25 +83,37 @@ def otb_lsms(img, mode='vector',
 
     """
     # Log input image information
-    src = Raster(img)
-    x_sz = src.x_sz
-    y_sz = src.y_sz
-    depth = src.depth
-    src = None
+    # TODO: This is not working due to OTB using it's own GDAL.
+    # src = Raster(img)
+    # x_sz = src.x_sz
+    # y_sz = src.y_sz
+    # depth = src.depth
+    # src = None
+
+    # logger.info("""Running OTB Large-Scale-Mean-Shift...
+                # Input image: {}
+                # # Image X Size: {}
+                # # Image Y Size: {}
+                # # Image # Bands: {}
+                # Spatial radius: {}
+                # Range radius: {}
+                # Min. segment size: {}
+                # Tilesizex: {}
+                # Tilesizey: {}
+                # Output mode: {}
+                # Output segmentation: {}""".format(img, x_sz, y_sz, depth,
+                #                                   spatialr, ranger, minsize,
+                #                                   tilesize_x, tilesize_y, mode, out))
 
     logger.info("""Running OTB Large-Scale-Mean-Shift...
                 Input image: {}
-                Image X Size: {}
-                Image Y Size: {}
-                Image # Bands: {}
                 Spatial radius: {}
                 Range radius: {}
                 Min. segment size: {}
                 Tilesizex: {}
                 Tilesizey: {}
                 Output mode: {}
-                Output segmentation: {}""".format(img, x_sz, y_sz, depth,
-                                                  spatialr, ranger, minsize,
+                Output segmentation: {}""".format(img, spatialr, ranger, minsize,
                                                   tilesize_x, tilesize_y, mode, out))
 
     # Build command
@@ -123,7 +135,7 @@ def otb_lsms(img, mode='vector',
     run_subprocess(cmd)
     run_time_finish = datetime.datetime.now()
     run_time = run_time_finish - run_time_start
-    too_fast = datetime.timedelta(seconds=10)
+    too_fast = datetime.timedelta(seconds=5)
     if run_time < too_fast:
         logger.warning("""Execution completed quickly, likely due to an error. Did you activate
                           OTB env first?
