@@ -124,9 +124,11 @@ def calc_zonal_stats(shp, rasters, names,
                     content = src.readlines()
                     rasters = [c.strip() for c in content]
                     rasters, names = zip(*(r.split("~") for r in rasters))
-                    logger.info('Located rasters:\n{}\n'.format('\n'.join(rasters)))
-                
-    
+                    logger.info('Located rasters:'.format('\n'.join(rasters)))
+                    for r, n in zip(rasters, names):
+                        logger.info('{}: {}'.format(n, r))
+
+
     # Iterate rasters and compute stats for each
     for r, n in zip(rasters, names):
         # logger.info('Computing zonal statistics for {}'.format(os.path.basename(r)))

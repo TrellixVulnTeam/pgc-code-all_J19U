@@ -4,9 +4,9 @@ Created on Sat Mar 14 12:27:22 2020
 
 @author: disbr007
 """
-
-# import os
+import traceback, sys, pdb
 # import logging.config
+import copy
 from random import randint
 from tqdm import tqdm
 
@@ -17,7 +17,8 @@ import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger #LOGGING_CONFIG
 from misc_utils.RasterWrapper import Raster
-from obia_utils.calc_zonal_stats import calc_zonal_stats
+# from obia_utils.calc_zonal_stats import calc_zonal_stats
+from calc_zonal_stats import calc_zonal_stats
 
 
 gdal.UseExceptions()
@@ -176,9 +177,23 @@ def neighbor_values(df, unique_id, neighbors, value_field):
     dict : unique_id of neighbor : value_field value
     
     """
-    # For each neighbor id in the list of neighbor ids, create an entry in 
-    # a dictionary that is the id and its value.
-    values = {n: df[df[unique_id] == n][value_field].values[0] for n in neighbors}
+    try:
+        # For each neighbor id in the list of neighbor ids, create an entry in 
+        # a dictionary that is the id and its value.
+        values = {}
+        for n in neighbors:
+            match = df[df[unique_id] == n][value_field].values
+            if len(match) == 1:
+                values[n] = match
+            else:
+                values[n] = np.NaN
+        # values = {n: df[df[unique_id] == n][value_field].values[0] for n in neighbors}
+    except Exception as e:
+        print(neighbors)
+        print(e)
+        extype, value, tb = sys.exc_info()
+        traceback.print_exc()
+        pdb.post_mortem(tb)
     
     return values
     
@@ -324,8 +339,7 @@ def mask_class(gdf, column, raster, out_path, mask_value=1):
     return out_path
 
 
-def merge(gdf, unique_id, neighbor_field, 
-          subset_col, subset_thresh, subset_compare,
+def merge(gdf, unique_id, neighbor_field, feat,
           merge_col, merge_thresh,):
     """
     Merge features in gdf that meet subset criteria. Removes the original features
@@ -347,6 +361,48 @@ def merge(gdf, unique_id, neighbor_field,
     gpd.GeoDataFrame : gdf but with merged features.
 
     """
+    
+    # if neighbor_field not in subset.columns:
+    #     subset = get_neighbors(gdf, subset=subset, unique_id=unique_id,
+    #                             neighbor_field=neighbor_field)
+    
+    feat_id = feat[unique_id].values[0]
+    feat_val = feat[merge_col].values[0]
+    values = neighbor_values(feat, unique_id, feat[neighbor_field], merge_col)
+    merge_candidates = {fid: val for fid, val in values.items()
+                        if feat_val-merge_thresh <= val <= feat_val+merge_thresh}
+    if len(merge_candidates) == 0:
+        logger.warning('No merge candidate found. Returning original feature')
+        return gdf
+
+    # Find best matching neighbor, closest merge_col value
+    absolute_difference_function = lambda list_value : abs(list_value - feat_val)
+    closest_val = min(merge_candidates.values(), key=absolute_difference_function)
+    merge_id = [fid for fid, val in merge_candidates.items()
+                if val == closest_val]
+    
+    # Create geodataframe of just feature and neighbor to merge with
+    # Get geodataframe of just ids to merge
+    merge_id.append(feat_id)
+    to_merge = copy.deepcopy(gdf[gdf[unique_id].isin(merge_id)])
+    
+    # Merge
+    # Dummy field to merge on
+    to_merge.loc[:,'merge_temp'] = 1
+    merged = to_merge.dissolve(by='merge_temp')
+    # Create new unique id
+    merged[unique_id] = gdf[unique_id].max()+1
+    
+    # Remove original feat and neighbor merged with from master
+    gdf = gdf[~gdf[unique_id].isin(merge_id)]
+    
+    # Add merged to master
+    gdf = pd.concat([gdf, merged])
+    
+    return gdf
+
+
+def create_subset(gdf, subset_col, subset_thresh, subset_compare):
     # Create subset
     if subset_compare == '<':
         subset = gdf[gdf[subset_col] < subset_thresh]
@@ -359,95 +415,120 @@ def merge(gdf, unique_id, neighbor_field,
     else:
         logger.info('Unrecognized comparison operator: {}'.format(subset_compare))
     
-    
-    if neighbor_field not in subset.columns:
-        subset = get_neighbors(gdf, subset=subset, unique_id=unique_id,
-                                neighbor_field=neighbor_field)
-    
-    merged = gpd.GeoDataFrame()
-    merged_ids = []
-    # Iterate over subset
-    for i, r in subset.iterrows():
-        # Get current feature unique id
-        feat_id = r[unique_id]
-        # Get current feature merge column value
-        feat_val = r[merge_col]
-        
-        # Get neighbor features merge column values, values = {id: value, id2:val2}
-        values = neighbor_values(subset, unique_id, r[neighbor_field], merge_col)
-        # Find closest neigbhor within threshold
-        # All within thresh
-        merge_candidates = {fid: val for fid, val in values.items()
-                            if feat_val-merge_thresh <= val <= feat_val+merge_thresh}
-        # Closest (will merge multiple if tied for closest)
-        absolute_difference_function = lambda list_value : abs(list_value - feat_val)
-        closest_val = min(merge_candidates.values(), key=absolute_difference_function)
-        merge_id = [fid for fid, val in merge_candidates.items()
-                        if val == closest_val]
-
-        # Get geodataframe of just ids to merge
-        merge_ids = merge_id.append(feat_id)
-        to_merge = subset[subset[unique_id].isin(merge_ids)]
-        
-        # Merge
-        # dummy field to merge on
-        to_merge['merge_temp'] = 1
-        to_merge = to_merge.dissolve(by='merge_temp')
-        
-        
-        # Add merged to master merged gdf
-        merged = pd.concat([merged, to_merge])
-        # Save ids of merged features
-        merged_ids.extend(merge_ids)
-
-    # Remove all original merged features
-    subset = subset[~subset[unique_id].isin(merged_ids)]
-    
-    # Add merged features back in
-    merged[unique_id] = [max(subset[unique_id]) + i for i in range(len(merged_ids))]
-    subset = pd.concat([subset, merged])
-        
     return subset
-
 
 # Merge similar
 # Load data
-seg = gpd.read_file(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_clip_ms_lsms_sr5rr200ss150_stats.shp')
+seg = gpd.read_file(r'C:\temp\merge_test.shp')
+# seg = pd.read_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
+
 # subset = gdf[gdf[1==1]]
 
 # Created fields
 unique_id = 'label'
 neighbor_fld = 'neighb'
+skip_merge = 'skip_merge'
 
-sort_col = 'area_m' # column to sort by before starting merge process
+seg = get_neighbors(seg, unique_id=unique_id, neighbor_field=neighbor_fld)
+# seg.to_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
 
-subset_col = 'area_m'
-subset_thresh = 45
+subset_col = 'area_zs'
+subset_thresh = 500
 subset_compare = '<'
 
-merge_col = 'slope_mean' # column to use to find nieghbor to merge with
+merge_col = 'slope_mean' # column to use to find neighbor to merge with
 merge_thresh = 1.5 # threshold merge_col must be within to merge
 
-merge_stop_col = sort_col # or something else
-merge_stop_val = 60 # minimum size for example
+merge_stop_col = 'area_zs' # or something else
+merge_stop_val = 500 # minimum size for example
 merge_stop_compare = '<'
-# if you need to recalc stats while merging (e.g. to calc new 'slope_mean'), not need for area calc for example
+# if you need to recalc stats while merging (e.g. to calc new 'slope_mean'), 
+# not need for area calc for example
 # if using built in geopandas area attribute
-recalc_int = False 
+recalc_int = False
 
 # Sort gdf by sort criteria
+sort_col = 'area_zs' # column to sort by before starting merge process
 seg.sort_values(by=sort_col, inplace=True)
 
-# check if any features in gdf don't meet merge stop criteria, (while) - merge()
-merging = any(seg[merge_stop_col] < merge_stop_val)
 
-if merging:
-    merge(seg, unique_id, neighbor_fld, 
-          subset_col=subset_col, subset_thresh=subset_thresh, subset_compare=subset_compare,
-          merge_col=merge_col, merge_thresh=merge_thresh)
+# testing -- save orignal features to be merged
+should_merge = create_subset(gdf=seg, subset_col=subset_col, 
+                             subset_thresh=subset_thresh, 
+                             subset_compare=subset_compare)
+
+# Check if any features in the master need to be merged
+# merging = any(seg[merge_stop_col] < merge_stop_val)
+merging = any(seg.geometry.area < merge_stop_val) # make function to check if merging needed
+
+# Column to skip merging if no candidates found
+seg[skip_merge] = False
+
+# Change to while
+# check if any features in gdf don't meet merge stop criteria, (while) - merge()
+# iteration=0
+# while merging:
+    
+#     # Create df of all features to be merged
+#     subset = create_subset(gdf=seg, subset_col=subset_col, 
+#                            subset_thresh=subset_thresh, 
+#                            subset_compare=subset_compare)
+#     # Remove any features marked to skip (no neighbors within merge threshold)
+#     subset = subset.merge(seg[[unique_id, skip_merge]], on=unique_id, how='left')
+#     subset = subset[subset[skip_merge]==False]
+    
+#     # Get neighbors for all features to be merged
+#     seg = get_neighbors(seg, subset=subset,
+#                         unique_id=unique_id,
+#                         neighbor_field=neighbor_fld)
+
+#     # Get first row, feature to be merged
+#     feat = subset.iloc[0:1,:]
+#     feat_idx = feat.index.values[0]
+    
+#     # Get neighbors for feat
+#     feat_id = feat[unique_id].values[0]
+#     feat[neighbor_fld] = seg.iloc[feat_idx,:][neighbor_fld]
+    
+#     # Check if feature has neighbor within merge threshold
+#     # Value of merge column for feature
+#     feat_val = feat[merge_col].values[0]
+#     values = neighbor_values(feat, unique_id, feat[neighbor_fld], merge_col)
+#     merge_candidates = {fid: val for fid, val in values.items()
+#                         if feat_val-merge_thresh <= val <= feat_val+merge_thresh}
+#     # If not matches, set skip column to true, skip merging
+#     if len(merge_candidates) == 0:
+#         seg.at[feat_idx, skip_merge] = True
+#         continue
+    
+#     seg = merge(seg, unique_id, neighbor_fld, feat=feat,
+#                 merge_col=merge_col, merge_thresh=merge_thresh)
+#     # Remove these from original df
+#     # Check if condition is met
+#     merging = any(seg.geometry.area < merge_stop_val)
+#     iteration+=1
+#     print('iter: {}'.format(iteration))
+#     print('id merged: '.format(feat_id))
+    
 
 # import matplotlib.pyplot as plt
 
 # plt.style.use('ggplot')
 # fig, ax = plt.subplots(1,1)
-# seg[seg['area_m']<50].hist(column='area_m', ax=ax, bins=20, log=True)
+# should_merge.plot(ax=ax, facecolor='none', edgecolor='b', linewidth=2.5)
+# seg.plot(ax=ax, facecolor='none', edgecolor='r', linewidth=0.5)
+
+
+
+# m = True
+# x = 0
+# s = 0
+# while m:
+#     s+=x
+#     x+=1
+#     if x == 2:
+#         continue
+#     print(x)
+#     if s > 3:
+#         m = False
+    
