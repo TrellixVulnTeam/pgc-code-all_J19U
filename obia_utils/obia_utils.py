@@ -17,8 +17,8 @@ import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger #LOGGING_CONFIG
 from misc_utils.RasterWrapper import Raster
-# from obia_utils.calc_zonal_stats import calc_zonal_stats
-from calc_zonal_stats import calc_zonal_stats
+from obia_utils.calc_zonal_stats import calc_zonal_stats
+# from calc_zonal_stats import calc_zonal_stats
 
 
 gdal.UseExceptions()
@@ -60,7 +60,7 @@ def get_neighbors(gdf, subset=None, unique_id=None, neighbor_field='neighbors'):
         GeoDataFrame with added column containing list of unique IDs of neighbors.
 
     """
-    
+    # TODO: Turn this into an apply function that takes the row and returns the neighbors
     # If no subset is provided, use the whole dataframe
     if subset is None:
         subset = gdf
@@ -87,10 +87,20 @@ def get_neighbors(gdf, subset=None, unique_id=None, neighbor_field='neighbors'):
     nebs = pd.DataFrame({unique_id:labels, neighbor_field:ns})
     # Combine the neighbors dataframe back into the main dataframe, joining on unique_id
     # essentially just adding the neighbors column
+    gdf[unique_id] = gdf[unique_id].astype(str)
+    nebs[unique_id] = nebs[unique_id].astype(str)
+    
+    # gdf_cols = list(gdf.columns)
+    # if neighbor_field not in gdf.columns:
+    #     gdf[neighbor_field] = [[] for i in range(len(gdf))]
+    #     gdf_cols.append(neighbor_field)
+    
     result = pd.merge(gdf,
                       nebs,
                       how='left',
+                      suffixes=('','_y'),
                       on=unique_id)
+    # result = result[gdf_cols]
     logger.info('Neighbor computation complete.')
     
     return result
@@ -187,13 +197,17 @@ def neighbor_values(df, unique_id, neighbors, value_field):
                 values[n] = match
             else:
                 values[n] = np.NaN
+        print(neighbors)
+        logger.info(neighbors)
         # values = {n: df[df[unique_id] == n][value_field].values[0] for n in neighbors}
     except Exception as e:
         print(neighbors)
         print(e)
-        extype, value, tb = sys.exc_info()
-        traceback.print_exc()
-        pdb.post_mortem(tb)
+        # extype, value, tb = sys.exc_info()
+        # traceback.print_exc()
+        # pdb.post_mortem(tb)
+        raise Exception
+        
     
     return values
     
@@ -417,65 +431,67 @@ def create_subset(gdf, subset_col, subset_thresh, subset_compare):
     
     return subset
 
+
 # Merge similar
 # Load data
 seg = gpd.read_file(r'C:\temp\merge_test.shp')
-# seg = pd.read_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
+# # seg = pd.read_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
 
-# subset = gdf[gdf[1==1]]
+subset = copy.deepcopy(seg)
 
 # Created fields
 unique_id = 'label'
 neighbor_fld = 'neighb'
 skip_merge = 'skip_merge'
 
-seg = get_neighbors(seg, unique_id=unique_id, neighbor_field=neighbor_fld)
-# seg.to_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
+seg = get_neighbors(seg, subset=subset, unique_id=unique_id, neighbor_field=neighbor_fld)
+# # seg.to_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
 
-subset_col = 'area_zs'
-subset_thresh = 500
-subset_compare = '<'
+# subset_col = 'area_zs'
+# subset_thresh = 500
+# subset_compare = '<'
 
-merge_col = 'slope_mean' # column to use to find neighbor to merge with
-merge_thresh = 1.5 # threshold merge_col must be within to merge
+# merge_col = 'slope_mean' # column to use to find neighbor to merge with
+# merge_thresh = 1.5 # threshold merge_col must be within to merge
 
-merge_stop_col = 'area_zs' # or something else
-merge_stop_val = 500 # minimum size for example
-merge_stop_compare = '<'
-# if you need to recalc stats while merging (e.g. to calc new 'slope_mean'), 
-# not need for area calc for example
-# if using built in geopandas area attribute
-recalc_int = False
+# merge_stop_col = 'area_zs' # or something else
+# merge_stop_val = 500 # minimum size for example
+# merge_stop_compare = '<'
+# # if you need to recalc stats while merging (e.g. to calc new 'slope_mean'), 
+# # not need for area calc for example
+# # if using built in geopandas area attribute
+# recalc_int = False
 
-# Sort gdf by sort criteria
-sort_col = 'area_zs' # column to sort by before starting merge process
-seg.sort_values(by=sort_col, inplace=True)
+# # Sort gdf by sort criteria
+# sort_col = 'area_zs' # column to sort by before starting merge process
+# seg.sort_values(by=sort_col, inplace=True)
 
 
-# testing -- save orignal features to be merged
-should_merge = create_subset(gdf=seg, subset_col=subset_col, 
-                             subset_thresh=subset_thresh, 
-                             subset_compare=subset_compare)
+# # testing -- save orignal features to be merged
+# should_merge = create_subset(gdf=seg, subset_col=subset_col, 
+#                              subset_thresh=subset_thresh, 
+#                              subset_compare=subset_compare)
 
-# Check if any features in the master need to be merged
-# merging = any(seg[merge_stop_col] < merge_stop_val)
-merging = any(seg.geometry.area < merge_stop_val) # make function to check if merging needed
+# # Check if any features in the master need to be merged
+# # merging = any(seg[merge_stop_col] < merge_stop_val)
+# merging = any(seg.geometry.area < merge_stop_val) # make function to check if merging needed
 
-# Column to skip merging if no candidates found
-seg[skip_merge] = False
+# # Column to skip merging if no candidates found
+# seg[skip_merge] = False
 
-# Change to while
-# check if any features in gdf don't meet merge stop criteria, (while) - merge()
+# # Change to while
+# # check if any features in gdf don't meet merge stop criteria, (while) - merge()
 # iteration=0
 # while merging:
     
 #     # Create df of all features to be merged
 #     subset = create_subset(gdf=seg, subset_col=subset_col, 
-#                            subset_thresh=subset_thresh, 
-#                            subset_compare=subset_compare)
+#                             subset_thresh=subset_thresh, 
+#                             subset_compare=subset_compare)
 #     # Remove any features marked to skip (no neighbors within merge threshold)
-#     subset = subset.merge(seg[[unique_id, skip_merge]], on=unique_id, how='left')
-#     subset = subset[subset[skip_merge]==False]
+#     # subset = subset.merge(seg[[unique_id, skip_merge]], on=unique_id, how='left')
+#     # subset[skip_merge] = subset[skip_merge].map(seg.set_index(uni))
+#     # subset = subset[subset[skip_merge]==False]
     
 #     # Get neighbors for all features to be merged
 #     seg = get_neighbors(seg, subset=subset,
@@ -488,7 +504,7 @@ seg[skip_merge] = False
     
 #     # Get neighbors for feat
 #     feat_id = feat[unique_id].values[0]
-#     feat[neighbor_fld] = seg.iloc[feat_idx,:][neighbor_fld]
+#     # feat[neighbor_fld] = seg.iloc[feat_idx,:][neighbor_fld]
     
 #     # Check if feature has neighbor within merge threshold
 #     # Value of merge column for feature
@@ -518,7 +534,7 @@ seg[skip_merge] = False
 # should_merge.plot(ax=ax, facecolor='none', edgecolor='b', linewidth=2.5)
 # seg.plot(ax=ax, facecolor='none', edgecolor='r', linewidth=0.5)
 
-
+# x[unique_id] = x.index
 
 # m = True
 # x = 0

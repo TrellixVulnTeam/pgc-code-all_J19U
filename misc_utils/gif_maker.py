@@ -25,8 +25,9 @@ def make_gif(prj_path, out_name, ext, duration=1.5, loops=None):
     images = [imageio.imread(f) for f in image_paths]
     # images.append(imageio.imread(file_path))
     print('Ordered file paths: ')
-    print(image_paths)
-    imageio.mimsave(os.path.join(prj_path, '{}.gif'.format(out_name)), images, 
+    print('\n'.join(image_paths))
+    # TODO: add support for infinite loops. If None passed an error is raised
+    imageio.mimsave(os.path.join(prj_path, '{}.gif'.format(out_name)), images,
                     duration=duration, loop=loops)
 
 
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     parser.add_argument("out_name", type=str, help='The name of the gif to be created')
     parser.add_argument("image_type", type=str, help="The format of the images to combine. E.g: 'png', 'jpg'.")
     parser.add_argument("--duration", "-d", dest='duration', type=float, required=False, help="Duration to show each scene, in seconds (default=1.5)")
-    parser.add_argument("--loops", '-l', dest='loops', type=int, required=False, help="Number of loops, default infinite.")
+    parser.add_argument("--loops", '-l', dest='loops', type=int, required=True, help="Number of loops.")
     args = parser.parse_args()
     print('Making gif...')
     make_gif(args.project_path, args.out_name, args.image_type, args.duration, args.loops)
