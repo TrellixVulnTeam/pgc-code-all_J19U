@@ -60,7 +60,8 @@ def get_neighbors(gdf, subset=None, unique_id=None, neighbor_field='neighbors'):
         GeoDataFrame with added column containing list of unique IDs of neighbors.
 
     """
-    # TODO: Turn this into an apply function that takes the row and returns the neighbors
+    # TODO: Turn this into an apply function that takes the row and 
+    #       returns the neighbors
     # If no subset is provided, use the whole dataframe
     if subset is None:
         subset = gdf
@@ -437,14 +438,14 @@ def create_subset(gdf, subset_col, subset_thresh, subset_compare):
 seg = gpd.read_file(r'C:\temp\merge_test.shp')
 # # seg = pd.read_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
 
-subset = copy.deepcopy(seg)
+# subset = copy.deepcopy(seg)
 
 # Created fields
-unique_id = 'label'
-neighbor_fld = 'neighb'
-skip_merge = 'skip_merge'
+# unique_id = 'label'
+# neighbor_fld = 'neighb'
+# skip_merge = 'skip_merge'
 
-seg = get_neighbors(seg, subset=subset, unique_id=unique_id, neighbor_field=neighbor_fld)
+# seg = get_neighbors(seg, subset=subset, unique_id=unique_id, neighbor_field=neighbor_fld)
 # # seg.to_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
 
 # subset_col = 'area_zs'
