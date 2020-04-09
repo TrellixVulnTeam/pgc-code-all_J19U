@@ -4,12 +4,13 @@ Created on Fri Apr  3 18:10:03 2020
 
 @author: disbr007
 """
-import IPython
+# import IPython
 # IPython.start_ipython() 
 
 import operator
 
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger
@@ -44,6 +45,44 @@ def get_truth(inp, relate, cut):
            '==': operator.eq}
      
     return ops[relate](inp, cut)
+
+
+def subset_df(gdf, params):
+           # col=None, nrows=None, order='ascending'):
+    """
+    Return a subset of the given dataframe, which is nrows long after sorting by col in order
+    provided.
+
+    Parameters
+    ----------
+    gdf : pd.DataFrame
+        DataFrame to create subset from.
+    params : list
+        list of tuples of (column name, compare operator, threshold). E.g. ('slope_mean', '<', 10)
+
+    Returns
+    -------
+    pd.DataFrame or gpd.GeoDataFrame.
+
+    """
+    param_str ='\n'.join([str(p).replace("'", "").replace(",", "").replace("(", "").replace(")","") for p in params])
+    logger.debug('Subsetting:\n{}'.format(param_str))
+    
+    # Check if "area" is any of the columns to use
+    # If it is, and is not already a column, create it
+    if "area" in [p[0] for p in params] and "area" not in gdf.columns:
+        gdf["area"] = gdf.geometry.area
+        
+    # Do initial subset with first params
+    subset = gdf[get_truth(gdf[params[0][0]], params[0][1], params[0][2])]
+    if len(params) > 1:
+        for p in params[1:]:
+            subset = subset[get_truth(subset[p[0]], p[1], p[2])]
+
+    if len(subset) == 0:
+        logger.debug('Empty subset returned:\n{}'.format(param_str))
+
+    return subset
 
 
 def find_neighbors(row, gdf):
@@ -199,7 +238,7 @@ def merge(gdf, to_merge, col_of_int):
     gdf : gpd.GeoDataFrame
         Master geodataframe containing all IDs in to_merge.
     to_merge : dict
-        dict of ID:dissolve_ct to look up in gdf, dissolve and recombine.
+        dict of ID:dissolve_ct to look up in gdf, dissolve, and recombine.
     col_of_int : str
         Column to aggregate
         
@@ -212,22 +251,33 @@ def merge(gdf, to_merge, col_of_int):
     dis_feats = gdf[gdf.index.isin(to_merge.keys())]
     
     # Get the dissolve identifiers
-    index_name = dis_feats.index.name
+    
+    index_name = gdf.index.name
     if not index_name:
         index_name = 'temp_index'
     dis_feats.index.name = index_name
     dis_feats.reset_index(inplace=True)
+    
     dis_feats['dis'] = dis_feats[index_name].apply(lambda x: to_merge[x])
-    dis_feats.set_index(index_name, inplace=True)
+    
+    # dis_feats.set_index(index_name, inplace=True)
     
     ## Dissolve subset (agg funct area weighted)
     # Create value*area column for creating area weighted column (at: area total)
     dis_feats['at_{}'.format(col_of_int)] = dis_feats[col_of_int] * dis_feats.geometry.area
     # Dissolve
-    dis_feats = dis_feats.dissolve(by='dis', aggfunc = 'sum')
+    cols = dis_feats.columns.tolist()
+    cols = [c for c in cols if is_numeric_dtype(dis_feats[c])]
+    # cols.remove('geometry')
+    # cols.remove('')
+    agg = {col:'sum' for col in cols}
+    agg[index_name] = 'first'
+    dis_feats = dis_feats.dissolve(by='dis', aggfunc = agg)
+    dis_feats.set_index(index_name, inplace=True)
+
     # Divide area total columns by area to get area weighted values
     dis_feats['aw_{}'.format(col_of_int)] = dis_feats['at_{}'.format(col_of_int)] / dis_feats.geometry.area
-    
+    dis_feats.index.name = index_name
     # Just keep area weighted column (and geometry)
     dis_feats = dis_feats[['aw_{}'.format(col_of_int), 'geometry']]
      
@@ -235,9 +285,9 @@ def merge(gdf, to_merge, col_of_int):
     rename = {'aw_{}'.format(col_of_int): col_of_int}
     dis_feats.rename(columns=rename, inplace=True)
     # Create new index values to ensure no duplicates
-    max_unique_id = gdf.index.max()
-    new_idx = [max_unique_id+1+ i for i in range(len(dis_feats))]
-    dis_feats.set_index([new_idx], inplace=True)
+    # max_unique_id = gdf.index.max()
+    # new_idx = [max_unique_id+1+ i for i in range(len(dis_feats))]
+    # dis_feats.set_index([new_idx], inplace=True)
     
     # Remove ids that are in to_merge from gdf
     gdf = gdf[~gdf.index.isin(to_merge.keys())]
@@ -285,85 +335,70 @@ iter_btw_merge = 15
 
 # Flag for when there are no remaining features to merge
 fts_to_merge = True
+
 # IDs with no matches
 skip_ids = []
-unique_idx = gdf.index.is_unique
-while unique_idx:
-    while fts_to_merge:
-        # Dict to store ID: dissolve_value
-        to_merge = {}
-        # Dissolve value counter, increased everytime a match is found
-        dissolve_ctr = 0
+
+while fts_to_merge:
+    # Dict to store ID: dissolve_value
+    to_merge = {}
+    # Dissolve value counter, increased everytime a match is found
+    dissolve_ctr = 0
+    
+    # Create subset (min_size > s)
+    subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))] # fix to be a function
+    if len(subset) <= 0:
+        fts_to_merge = False
+        break
+    
+    # Check if any nans in nvc in subset (newly merged) -> recomp neighbor values for those 
+    if any(pd.isnull(subset[nvc])):
+        # gdf[gdf.index.isin(subset.index)][]
+        # gdf[gdf.index.isin(subset.index)][nvc] = gdf[gdf.index.isin(subset.index)].apply(lambda x: neighbor_values(x, gdf, vc), axis=1)
         
-        # Create subset (min_size > s)
+        # get ids of with null nvc column
+        null_ids = subset[pd.isnull(subset[nvc])].index.tolist()
+        # get neighbor values
+        # gdf.loc[gdf.index.isin(null_ids), nvc] = gdf.apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
+        
+        # Get missing neighbor-values
+        missing_neighbors = gdf[gdf.index.isin(null_ids)].apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
+        missing_neighbors.name = nvc
+        missing_neighbors.index.name = unique_id
+        gdf.update(missing_neighbors)
+        
+        # gdf[gdf.index.isin(null_ids)][nvc] = gdf[gdf.index.isin(null_ids)].apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
+        # recreate subset
         subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))] # fix to be a function
-        if len(subset) <= 0:
-            fts_to_merge = False
+        
+    # Iterate rows
+    for i, row in subset.iterrows():
+        # Find closest neighbor
+        # Add row id and closest neighbor to to_merge seperately with same dissolve counter
+        match = closest_neighbor(row, vc, 
+                                  nvc=nvc, 
+                                  vt=vt,
+                                  ignore_ids=to_merge.keys())
+        if match:
+            # Add index of current row and its match with same dissolve value
+            to_merge[row.name] = dissolve_ctr
+            to_merge[match] = dissolve_ctr
+            dissolve_ctr += 1
+        else:
+            # if no match found exclude from further checks
+            skip_ids.append(row.name)
+        
+        # If number of features before merge, merge, exit loop, start loop over with new gdf
+        if len(to_merge) >= iter_btw_merge:
+            logger.debug('Merging {:,} features...'.format(len(to_merge)))
+            gdf = merge(gdf, to_merge, col_of_int=vc)
+            
+            # start geodataframe iteration over with merged geodataframe
             break
         
-        unique_idx = gdf.index.is_unique
-        if not unique_idx:
-            logger.info('1')
-            fts_to_merge = False
-        
-        # Check if any nans in nvc in subset (newly merged) -> recomp neighbor values for those 
-        if any(pd.isnull(subset[nvc])):
-            # gdf[gdf.index.isin(subset.index)][]
-            # gdf[gdf.index.isin(subset.index)][nvc] = gdf[gdf.index.isin(subset.index)].apply(lambda x: neighbor_values(x, gdf, vc), axis=1)
-            
-            # get ids of with null nvc column
-            null_ids = subset[pd.isnull(subset[nvc])].index.tolist()
-            # get neighbor values
-            # gdf.loc[gdf.index.isin(null_ids), nvc] = gdf.apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
-            gdf[gdf.index.isin(null_ids)][nvc] = gdf.apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
-            # recreate subset
-            subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))] # fix to be a function
-            
-            unique_idx = gdf.index.is_unique
-            if not unique_idx:
-                logger.info('2')
-                fts_to_merge = False
-        
-        
-        # Iterate rows
-        for i, row in subset.iterrows():
-            # Find closest neighbor
-            # Add row id and closest neighbor to to_merge seperately with same dissolve counter
-            match = closest_neighbor(row, vc, 
-                                      nvc=nvc, 
-                                      vt=vt,
-                                      ignore_ids=to_merge.keys())
-            if match:
-                # Add index of current row and its match with same dissolve value
-                to_merge[row.name] = dissolve_ctr
-                to_merge[match] = dissolve_ctr
-                dissolve_ctr += 1
-            else:
-                # if no match found exclude from further checks
-                skip_ids.append(row.name)
-            
-            # If number of features before merge, merge, exit loop, start loop over with new gdf
-            if len(to_merge) >= iter_btw_merge:
-                logger.info('*****MERGE******')
-                # import sys
-                # sys.exit()
-                gdf = merge(gdf, to_merge, col_of_int=vc)
-                
-                unique_idx = gdf.index.is_unique
-                if not unique_idx:
-                    logger.info('3.1')
-                    fts_to_merge = False
-                # to_merge = {} # empty dist of to ids to merge
-                
-                # start geodataframe iteration over with merged geodataframe
-                break
-            
-            # End of the loop over subset is reached before the iter_btw_merge threshold
-            gdf = merge(gdf, to_merge, col_of_int=vc)
-            unique_idx = gdf.index.is_unique
-            if not unique_idx:
-                logger.info('3')
-                fts_to_merge = False
+    # End of the loop over subset is reached before the iter_btw_merge threshold
+    logger.debug('End of subset merge.')
+    gdf = merge(gdf, to_merge, col_of_int=vc)
 
 
 # Iterate over sorted gdf
@@ -379,12 +414,9 @@ while unique_idx:
             
 import matplotlib.pyplot as plt
 
-plt.style.use('ggplot')
+plt.style.use('spy4_blank')
 fig, ax = plt.subplots(1,1)
-
-gdf.plot(ax=ax, column='tpi31_mean', edgecolor='white', linewidth=2.5)
-g.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.45, legend=True)
-# # gdf.plot(column='tpi31_mean', ax=ax, edgecolor='white', linewidth=0.25, legend=True)
-# # gdf.plot(column=adj_tpi_col, ax=ax, edgecolor='black', linewidth=0.25, legend=True)
-
 ax.axis('off')
+g.plot(ax=ax, column='tpi31_mean', edgecolor='black', linewidth=0.45, legend=True)
+gdf.plot(ax=ax, facecolor='none', edgecolor='white', linewidth=2.00)
+g.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.45,)
