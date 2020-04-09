@@ -140,8 +140,9 @@ def neighbor_values(row, gdf, vc, nc=None):
         neighbors = find_neighbors(row, gdf)
     else:
         neighbors = row[nc]
-    # Get value for each neighbor
-    values = {n: gdf.loc[n, vc] for n in neighbors}
+    # Get value for each neighbor, skip neighbors with nan value in vc column
+    values = {n: gdf.loc[n, vc] for n in neighbors 
+              if not pd.isnull(gdf.loc[n, vc])}
 
     return values
     
@@ -300,105 +301,229 @@ def merge(gdf, to_merge, col_of_int):
     return gdf
 
 
+def split_nan_features(gdf, vc):
+    # Remove any features with nan in their vc (value column)
+    nan_feats = None
+    if any(pd.isnull(gdf[vc])):
+        logger.warning('Removing features with NaN values in column to merge on: {}'.format(vc))
+        gdf = gdf[~pd.isnull(gdf[vc])]
+        nan_feats = gdf[pd.isnull(gdf[vc])]
+        
+    return gdf, nan_feats
+
+        
+def merge_closest_val(gdf, vc, vt, nvc, iter_btw_merge=100):
+    """
+    Write a good docstring
+    later.
+    """
+    logger.info('Starting number of features: {:,}'.format(len(gdf)))
+    # TODO: Check for unique index and index.name
+    # TODO: Non-consistent results with different iter_btw_merge
+    
+    # Temporarily remove any features with nan in the column of interest
+    gdf, nan_feats = split_nan_features(gdf, vc=vc)
+    
+    # Check if neighbor value column exists
+    if not nvc in gdf.columns:
+        gdf[nvc] = gdf.apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
+    
+    # Flag for when there are no remaining features to merge
+    fts_to_merge = True
+
+    # Store IDs with no matches
+    skip_ids = []
+
+    while fts_to_merge:
+        # Dict to store ID: dissolve_value
+        to_merge = {}
+        # Dissolve value counter, increased everytime a match is found
+        dissolve_ctr = 0
+
+        # Create subset (min_size > s)
+        subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))]  # fix to be a function
+        if len(subset) <= 0:
+            fts_to_merge = False
+            break
+
+        # Check if any nans in nvc in subset (newly merged) -> recomp neighbor values for those
+        if any(pd.isnull(subset[nvc])):
+            # Get ids of with null nvc column
+            null_ids = subset[pd.isnull(subset[nvc])].index.tolist()
+
+            # Get missing neighbor-values
+            idx_name = gdf.index.name
+            missing_neighbors = gdf[gdf.index.isin(null_ids)].apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
+            # Set created series name to match neighbor value column name in gdf
+            missing_neighbors.name = nvc
+            # Set created series index name to match index name in gdf
+            missing_neighbors.index.name = idx_name  
+            # Replace the values in neighbor value column with any newly calculated neighbor values
+            gdf.update(missing_neighbors)
+
+            # Recreate subset
+            subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))]  # Fix to be a function
+
+        # Iterate rows of subset
+        for i, row in subset.iterrows():
+            # Find closest neighbor
+            match = closest_neighbor(row, vc,
+                                     nvc=nvc,
+                                     vt=vt,
+                                     ignore_ids=to_merge.keys())
+            if match:
+                # Add index of current row and its match with same dissolve value
+                to_merge[row.name] = dissolve_ctr
+                to_merge[match] = dissolve_ctr
+                dissolve_ctr += 1
+            else:
+                # If no match found exclude ID from further checks
+                skip_ids.append(row.name)
+
+            # If number of features before merge, merge, exit loop, start loop over with new gdf
+            if len(to_merge) >= iter_btw_merge:
+                logger.debug('Merging features: {:,}...'.format(len(to_merge)))
+                gdf = merge(gdf, to_merge, col_of_int=vc)
+
+                # start geodataframe iteration over with merged geodataframe
+                break
+
+        # End of the loop over subset is reached before the iter_btw_merge threshold
+        logger.debug('End of subset, merging features: {:,}'.format(len(to_merge)))
+        gdf = merge(gdf, to_merge, col_of_int=vc)
+    
+    # Add back in any features that had NaN in the vc.
+    if isinstance(nan_feats, gpd.GeoDataFrame):
+        gdf = pd.concat([gdf, nan_feats])
+        
+    logger.info('Resulting number of features: {:,}'.format(len(gdf)))
+    return gdf
+
+
+from datetime import datetime
+start = datetime.now()
+logger.debug('Reading in segmentation...')
+gdf = gpd.read_file(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats.shp')
+# gdf = gpd.read_file(r'C:\temp\merge_test.shp')
+# Existing columns
 unique_id = 'label'
-gdf = gpd.read_file(r'C:\temp\merge_test.shp')
+tpi31_mean = 'tpi31_mean'
+slope_mean = 'slope_mean'
+# Remove extra columns for testing
+gdf = gdf[[unique_id, tpi31_mean, slope_mean, 'geometry']]
+
+# For plotting original
 import copy
 g = copy.deepcopy(gdf)
-gdf = gdf[[unique_id, 'tpi31_mean', 'slope_mean', 'geometry']]
 
+# Set index
 gdf.set_index(unique_id, inplace=True)
 logger.debug('DataFrame has unique index: {}'.format(str(gdf.index.is_unique)))
 
-tpi31_mean = 'tpi31_mean'
-neighbor_col = 'nebs'
+# Created columns
+# neighbor_col = 'nebs'
+# adj_tpi_col = 'adj_tpi31_neg1x5'
+# adj_tpi31_thesh = -1.5
+
+# Column name to store neighbor values
 nv_tpi31 = 'nv_tpi31'
-adj_tpi_col = 'adj_tpi31_neg1x5'
-adj_tpi31_thesh = -1.5
+logger.info('Finding neighbors...')
+neb_start = datetime.now()
+# gdf[nv_tpi31] = gdf.apply(lambda x: neighbor_values(x, gdf, tpi31_mean, nc=None), axis=1)
+neb_end = datetime.now()
+neb_duration = neb_end-neb_start
 
-gdf[nv_tpi31] = gdf.apply(lambda x: neighbor_values(x, gdf, tpi31_mean, nc=None), axis=1)
-
-# gdf = gdf.head(12)
-# to_merge = {21166:1, 21625:1, 20976:2, 21344:2}
-# x = merge(gdf, to_merge, 'tpi31_mean')
-
-# params
+# Params
 vc = tpi31_mean
 nvc = nv_tpi31        
-vt = 5
-iter_btw_merge = 15
+vt = 1
+iter_btw_merge = 300
+# gdf = gdf[~pd.isnull(gdf[vc])]
+logger.info('Merging nearest features by value...')
+merge_start = datetime.now()
+gdf = merge_closest_val(gdf, vc=vc, vt=vt, nvc=nvc, iter_btw_merge=iter_btw_merge)
+merge_end = datetime.now()
+merge_duration = merge_end-merge_start
+
+end = datetime.now()
+
+duration = end - start
+time_per_feat = duration / (len(g))
+logger.info('Total duration: {}'.format(duration))
+logger.info('Neighbor finding: {}'.format(neb_duration))
+logger.info('Merge: {}'.format(merge_duration))
 
 # import copy
 # g = copy.deepcopy(gdf)
 # sub_ids = g.iloc[0:5, :].index.tolist()
 # g.loc[g.index.isin(sub_ids), nvc] = g.apply(lambda x: neighbor_values(x, g, vc=vc), axis=1)
 
+# # Flag for when there are no remaining features to merge
+# fts_to_merge = True
 
-# Flag for when there are no remaining features to merge
-fts_to_merge = True
+# # IDs with no matches
+# skip_ids = []
 
-# IDs with no matches
-skip_ids = []
-
-while fts_to_merge:
-    # Dict to store ID: dissolve_value
-    to_merge = {}
-    # Dissolve value counter, increased everytime a match is found
-    dissolve_ctr = 0
+# while fts_to_merge:
+#     # Dict to store ID: dissolve_value
+#     to_merge = {}
+#     # Dissolve value counter, increased everytime a match is found
+#     dissolve_ctr = 0
     
-    # Create subset (min_size > s)
-    subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))] # fix to be a function
-    if len(subset) <= 0:
-        fts_to_merge = False
-        break
+#     # Create subset (min_size > s)
+#     subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))] # fix to be a function
+#     if len(subset) <= 0:
+#         fts_to_merge = False
+#         break
     
-    # Check if any nans in nvc in subset (newly merged) -> recomp neighbor values for those 
-    if any(pd.isnull(subset[nvc])):
-        # gdf[gdf.index.isin(subset.index)][]
-        # gdf[gdf.index.isin(subset.index)][nvc] = gdf[gdf.index.isin(subset.index)].apply(lambda x: neighbor_values(x, gdf, vc), axis=1)
+#     # Check if any nans in nvc in subset (newly merged) -> recomp neighbor values for those 
+#     if any(pd.isnull(subset[nvc])):
+#         # gdf[gdf.index.isin(subset.index)][]
+#         # gdf[gdf.index.isin(subset.index)][nvc] = gdf[gdf.index.isin(subset.index)].apply(lambda x: neighbor_values(x, gdf, vc), axis=1)
         
-        # get ids of with null nvc column
-        null_ids = subset[pd.isnull(subset[nvc])].index.tolist()
-        # get neighbor values
-        # gdf.loc[gdf.index.isin(null_ids), nvc] = gdf.apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
+#         # get ids of with null nvc column
+#         null_ids = subset[pd.isnull(subset[nvc])].index.tolist()
+#         # get neighbor values
+#         # gdf.loc[gdf.index.isin(null_ids), nvc] = gdf.apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
         
-        # Get missing neighbor-values
-        missing_neighbors = gdf[gdf.index.isin(null_ids)].apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
-        missing_neighbors.name = nvc
-        missing_neighbors.index.name = unique_id
-        gdf.update(missing_neighbors)
+#         # Get missing neighbor-values
+#         missing_neighbors = gdf[gdf.index.isin(null_ids)].apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
+#         missing_neighbors.name = nvc
+#         missing_neighbors.index.name = unique_id
+#         gdf.update(missing_neighbors)
         
-        # gdf[gdf.index.isin(null_ids)][nvc] = gdf[gdf.index.isin(null_ids)].apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
-        # recreate subset
-        subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))] # fix to be a function
+#         # gdf[gdf.index.isin(null_ids)][nvc] = gdf[gdf.index.isin(null_ids)].apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
+#         # recreate subset
+#         subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))] # fix to be a function
         
-    # Iterate rows
-    for i, row in subset.iterrows():
-        # Find closest neighbor
-        # Add row id and closest neighbor to to_merge seperately with same dissolve counter
-        match = closest_neighbor(row, vc, 
-                                  nvc=nvc, 
-                                  vt=vt,
-                                  ignore_ids=to_merge.keys())
-        if match:
-            # Add index of current row and its match with same dissolve value
-            to_merge[row.name] = dissolve_ctr
-            to_merge[match] = dissolve_ctr
-            dissolve_ctr += 1
-        else:
-            # if no match found exclude from further checks
-            skip_ids.append(row.name)
+#     # Iterate rows
+#     for i, row in subset.iterrows():
+#         # Find closest neighbor
+#         # Add row id and closest neighbor to to_merge seperately with same dissolve counter
+#         match = closest_neighbor(row, vc, 
+#                                   nvc=nvc, 
+#                                   vt=vt,
+#                                   ignore_ids=to_merge.keys())
+#         if match:
+#             # Add index of current row and its match with same dissolve value
+#             to_merge[row.name] = dissolve_ctr
+#             to_merge[match] = dissolve_ctr
+#             dissolve_ctr += 1
+#         else:
+#             # if no match found exclude from further checks
+#             skip_ids.append(row.name)
         
-        # If number of features before merge, merge, exit loop, start loop over with new gdf
-        if len(to_merge) >= iter_btw_merge:
-            logger.debug('Merging {:,} features...'.format(len(to_merge)))
-            gdf = merge(gdf, to_merge, col_of_int=vc)
+#         # If number of features before merge, merge, exit loop, start loop over with new gdf
+#         if len(to_merge) >= iter_btw_merge:
+#             logger.debug('Merging {:,} features...'.format(len(to_merge)))
+#             gdf = merge(gdf, to_merge, col_of_int=vc)
             
-            # start geodataframe iteration over with merged geodataframe
-            break
+#             # start geodataframe iteration over with merged geodataframe
+#             break
         
-    # End of the loop over subset is reached before the iter_btw_merge threshold
-    logger.debug('End of subset merge.')
-    gdf = merge(gdf, to_merge, col_of_int=vc)
+#     # End of the loop over subset is reached before the iter_btw_merge threshold
+#     logger.debug('End of subset merge.')
+#     gdf = merge(gdf, to_merge, col_of_int=vc)
 
 
 # Iterate over sorted gdf
@@ -417,6 +542,6 @@ import matplotlib.pyplot as plt
 plt.style.use('spy4_blank')
 fig, ax = plt.subplots(1,1)
 ax.axis('off')
-g.plot(ax=ax, column='tpi31_mean', edgecolor='black', linewidth=0.45, legend=True)
-gdf.plot(ax=ax, facecolor='none', edgecolor='white', linewidth=2.00)
-g.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.45,)
+g.plot(ax=ax, column='tpi31_mean', edgecolor='none', legend=True)
+gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.75)
+g.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5, linestyle=':')
