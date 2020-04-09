@@ -47,7 +47,7 @@ def get_truth(inp, relate, cut):
     return ops[relate](inp, cut)
 
 
-def subset_df(gdf, params):
+def subset_df(gdf, params, skip_ids=None):
            # col=None, nrows=None, order='ascending'):
     """
     Return a subset of the given dataframe, which is nrows long after sorting by col in order
@@ -59,12 +59,17 @@ def subset_df(gdf, params):
         DataFrame to create subset from.
     params : list
         list of tuples of (column name, compare operator, threshold). E.g. ('slope_mean', '<', 10)
-
+    skip_ids : list
+        List of index values in gdf to exclude in even if they meet params
     Returns
     -------
     pd.DataFrame or gpd.GeoDataFrame.
 
     """
+    # TODO: Add checking to enure params is formated properly:
+    #       [(column_name, compare, thresh), (col2, comp2, thresh2), ...]
+    #       [('slope_mean', '<', 10)]
+    
     param_str ='\n'.join([str(p).replace("'", "").replace(",", "").replace("(", "").replace(")","") for p in params])
     logger.debug('Subsetting:\n{}'.format(param_str))
     
@@ -81,6 +86,9 @@ def subset_df(gdf, params):
 
     if len(subset) == 0:
         logger.debug('Empty subset returned:\n{}'.format(param_str))
+        
+    if skip_ids:
+        subset = subset[~subset.index.isin(skip_ids)]
 
     return subset
 
@@ -312,7 +320,7 @@ def split_nan_features(gdf, vc):
     return gdf, nan_feats
 
         
-def merge_closest_val(gdf, vc, vt, nvc, iter_btw_merge=100):
+def merge_closest_val(gdf, vc, vt, nvc, subset_params, iter_btw_merge=100):
     """
     Write a good docstring
     later.
@@ -340,8 +348,9 @@ def merge_closest_val(gdf, vc, vt, nvc, iter_btw_merge=100):
         # Dissolve value counter, increased everytime a match is found
         dissolve_ctr = 0
 
-        # Create subset (min_size > s)
-        subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))]  # fix to be a function
+        # Create subset of features that meet subset parameters [(column, compare, thresh),...]
+        subset = subset_df(gdf, params=subset_params, skip_ids=skip_ids)
+        # subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))]  # fix to be a function
         if len(subset) <= 0:
             fts_to_merge = False
             break
@@ -362,7 +371,8 @@ def merge_closest_val(gdf, vc, vt, nvc, iter_btw_merge=100):
             gdf.update(missing_neighbors)
 
             # Recreate subset
-            subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))]  # Fix to be a function
+            subset = subset_df(gdf, params=subset_params, skip_ids=skip_ids)
+            # subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))]  # Fix to be a function
 
         # Iterate rows of subset
         for i, row in subset.iterrows():
@@ -420,28 +430,17 @@ g = copy.deepcopy(gdf)
 gdf.set_index(unique_id, inplace=True)
 logger.debug('DataFrame has unique index: {}'.format(str(gdf.index.is_unique)))
 
-# Created columns
-# neighbor_col = 'nebs'
-# adj_tpi_col = 'adj_tpi31_neg1x5'
-# adj_tpi31_thesh = -1.5
-
-# Column name to store neighbor values
-nv_tpi31 = 'nv_tpi31'
-logger.info('Finding neighbors...')
-neb_start = datetime.now()
-# gdf[nv_tpi31] = gdf.apply(lambda x: neighbor_values(x, gdf, tpi31_mean, nc=None), axis=1)
-neb_end = datetime.now()
-neb_duration = neb_end-neb_start
-
 # Params
 vc = tpi31_mean
-nvc = nv_tpi31        
+nvc = 'nv_tpi31'
 vt = 1
 iter_btw_merge = 300
-# gdf = gdf[~pd.isnull(gdf[vc])]
 logger.info('Merging nearest features by value...')
 merge_start = datetime.now()
-gdf = merge_closest_val(gdf, vc=vc, vt=vt, nvc=nvc, iter_btw_merge=iter_btw_merge)
+
+subset_params = [('area', '<', 500)]
+gdf = merge_closest_val(gdf, vc=vc, vt=vt, nvc=nvc, subset_params=subset_params, iter_btw_merge=iter_btw_merge)
+
 merge_end = datetime.now()
 merge_duration = merge_end-merge_start
 
@@ -450,7 +449,6 @@ end = datetime.now()
 duration = end - start
 time_per_feat = duration / (len(g))
 logger.info('Total duration: {}'.format(duration))
-logger.info('Neighbor finding: {}'.format(neb_duration))
 logger.info('Merge: {}'.format(merge_duration))
 
 # import copy
@@ -543,5 +541,5 @@ plt.style.use('spy4_blank')
 fig, ax = plt.subplots(1,1)
 ax.axis('off')
 g.plot(ax=ax, column='tpi31_mean', edgecolor='none', legend=True)
-gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.75)
-g.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5, linestyle=':')
+gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5)
+g.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.3, linestyle=':')
