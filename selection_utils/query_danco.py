@@ -104,7 +104,8 @@ def list_danco_db(db):
             
             
             
-def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[creds[0], creds[1]], table=False, where=None, columns=None):
+def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[creds[0], creds[1]], 
+                    table=False, where=None, columns=None):
     '''
     queries the danco footprint database, for the specified layer and optional where clause
     returns a dataframe of match
@@ -142,7 +143,17 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
             
             # Add where clause if necessary
             if where:
-                sql_where = " where {}".format(where)
+                sql_where = " WHERE {}".format(where)
+                # if coordinates:
+                #     xmin, ymin, xmax, ymax = coordinates
+                #     srid = 4326
+                #     coords_str = " AND encode(ST_AsBinary(shape), 'hex') && sde.ST_MakeEnvelope({}, {}, {}, {}, {})".format( 
+                #                                                                                xmin,
+                #                                                                                 ymin,
+                #                                                                                 xmax,
+                #                                                                                 ymax,
+                #                                                                                 srid)
+                    # sql_where += coords_str
                 sql = sql + sql_where
                 
             # Create pandas df for tables, geopandas df for feature classes
@@ -150,7 +161,8 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
                 df = pd.read_sql_query(sql, con=engine)
             else:
             	# TODO: Fix hard coded epsg
-                df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs={'init' :'epsg:4326'})
+                df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs='epsg:4326')
+            
             return df
 
     except (Exception, psycopg2.Error) as error :

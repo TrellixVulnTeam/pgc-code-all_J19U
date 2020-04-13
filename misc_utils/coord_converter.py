@@ -87,7 +87,7 @@ def ddm_to_dd(in_coord, direct):
 def conv_direction(in_coord):
     in_coord = in_coord.strip()
     in_coord.replace('\xa0', ' ')
-    # print(in_coord.split(' '))
+    print(in_coord.split(' '))
     deg, minutes, seconds, direct = in_coord.split(' ')
     return direct
 
@@ -124,7 +124,10 @@ if __name__ == '__main__':
     out_excel = args.out_excel_path
     out_shp = args.out_shapefile
     # sites = pd.read_csv(args.csv, encoding="ISO-8859-1")
-    sites = pd.read_excel(csv)
+    if csv[-3:] == 'csv':
+        sites = pd.read_csv(csv)
+    else:
+        sites = pd.read_excel(csv)
 
     sites = remove_symbols(sites)
 

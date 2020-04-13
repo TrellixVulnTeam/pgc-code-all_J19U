@@ -32,6 +32,22 @@ def determine_stereopair_col(df):
     return sp_col
     
 
+
+def det_cc_cat(x):
+    if x <= 20:
+        cc_cat = 'cc20'
+    elif x <= 30:
+        cc_cat = 'cc21-30'
+    elif x <= 40:
+        cc_cat = 'cc31-40'
+    elif x <= 50:
+        cc_cat = 'cc41-50'
+    else:
+        cc_cat = 'over_50'
+    
+    return cc_cat
+
+
 def fill_dates(df, freq, date_col=None, date_index=False):
     '''takes a dataframe and it's date column and fills in any missing dates at defined
     frequency with null values'''

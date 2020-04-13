@@ -109,10 +109,10 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
                 ids = read_ids(selector_path, field=id_field)
             except KeyError:
                 ids = read_ids(selector_path, field=''.join(id_field.split('_')).lower())
-            logger.info('{} IDs found.'.format(len(ids)))
+            logger.info('IDs found: {}'.format(len(ids)))
             if len(ids) != len(set(ids)):
                 logger.info('Unique IDs found: {}'.format(len(set(ids))))
-            logger.debug('IDs: {}'.format(ids))
+            logger.debug('IDs: {}'.format('\n'.join(ids)))
             ids_str = str(ids)[1:-1]
             where = """{} IN ({})""".format(id_field, ids_str)
             logger.debug('Where clause for ID selection: {}'.format(where))
@@ -123,7 +123,7 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
         # Initial selection by id
         logger.info('Reading in IDs...')
         ids = read_ids(selector_path)
-        logger.info('{} IDs found.'.format(len(ids)))
+        logger.info('IDs found: {}'.format(len(ids)))
         logger.debug('IDs: {}'.format(ids))
         ids_str = str(ids)[1:-1]
         where = """{} IN ({})""".format(id_field, ids_str)
@@ -140,6 +140,7 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
     if id_field:
         with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
             num_selection_ids = len(sorted({row[0] for row in cursor}))
+        # TODO: This is not reporting the correct number of unique IDs
         logger.info('Unique IDs found in selection: {}'.format(num_selection_ids))
 
     return selection
@@ -191,10 +192,12 @@ if __name__ == '__main__':
                         e.g.: CATALOG_ID, SCENE_ID, etc.''')
     parser.add_argument('--secondary_selector', type=os.path.abspath,
                         help='Path to an AOI layer to combine with an initial ID selection.')
-    parser.add_argument('--prod_code', type=str, default=argdef_prod_code,
+    parser.add_argument('--prod_code', type=str, nargs='+', default=argdef_prod_code,
                         help='Prod code to select. E.g. P1BS, M1BS')
     parser.add_argument('--sensors', nargs='+', default=argdef_sensors,
                         help='Sensors to include.')
+    parser.add_argument('--spec_type', nargs='+',
+                        help='spec_type to include. eg. SWIR Multispectral')
     parser.add_argument('--min_year', type=str, default=argdef_min_year,
                         help='Earliest year to include.')
     parser.add_argument('--max_year', type=str, default=argdef_max_year,
@@ -220,7 +223,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
     if args.verbose:
         handler_level = 'DEBUG'
     else:
@@ -235,6 +237,7 @@ if __name__ == '__main__':
     secondary_selector = args.secondary_selector
     prod_code = args.prod_code
     sensors = args.sensors
+    spec_type = args.spec_type
     min_year = args.min_year
     max_year = args.max_year
     months = args.months
@@ -256,7 +259,7 @@ if __name__ == '__main__':
         place_name_AOI(place_name, selector_path)
 
     # Inital selection by location or ID
-    logger.info('Making selection...')
+    # logger.info('Making selection...')
     selection = select_footprints(selector_path=selector_path,
                                   input_type=determine_input_type(selector_path),
                                   imagery_index=imagery_index,
@@ -280,9 +283,10 @@ if __name__ == '__main__':
         where += """(cloudcover <= {})""".format(max_cc)
     # PROD_CODE if sepcified
     if prod_code:
-        where = check_where(where)
-        prod_code_str = str(prod_code)[1:-1]
-        where += """(prod_code IN ({}))""".format(prod_code_str)
+        if prod_code != ['any']:
+            where = check_where(where)
+            prod_code_str = str(prod_code)[1:-1]
+            where += """(prod_code IN ({}))""".format(prod_code_str)
     # Selection by sensor if specified
     if sensors:
         where = check_where(where)
@@ -299,6 +303,11 @@ if __name__ == '__main__':
         where = check_where(where)
         off_nadir_sql = """(off_nadir < {})""".format(max_off_nadir)
         where += off_nadir_sql
+    if spec_type:
+        where = check_where(where)
+        spec_type_str = str(spec_type)[1:-1]
+        spec_type_sql = """(spec_type IN ({}))""".format(spec_type_str)
+        where += spec_type_sql
     logger.debug('Where clause for feature selection: {}'.format(where))
 
     selection = arcpy.MakeFeatureLayer_management(selection, where_clause=where)

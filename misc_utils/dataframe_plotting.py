@@ -9,7 +9,7 @@ import copy
 import geopandas as gpd
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, AutoLocator
 import matplotlib.ticker as plticker
 import matplotlib.dates as mdates
 import numpy as np
@@ -76,39 +76,54 @@ def plot_timeseries_agg(df, date_col, id_col, freq, ax=None):
     return dfc_agg
     
 
-def plot_timeseries_stacked(df, date_col, id_col, category_col, freq, ax=None, percentage=False):
+def plot_timeseries_stacked(df, date_col, id_col, category_col, freq, ax=None, area=False, percentage=False):
     '''
     Plots an aggregrated stacked area chart the percentrage of id_col in each category_col
     '''
     dfc = copy.deepcopy(df)
-    
-    #### Aggregate by freq
+
+    # Aggregate by freq
     dfc[date_col] = pd.to_datetime(dfc[date_col])
     dfc.set_index(date_col, inplace=True)
     agg = {id_col: 'count'}
     dfc_agg = dfc.groupby([pd.Grouper(freq=freq), category_col]).agg(agg)
-    
+
     dfc_agg = dfc_agg.unstack(category_col)
     dfc_agg.columns = dfc_agg.columns.droplevel()
-    ## Remove NaNs
+    # Remove NaNs
     dfc_agg.fillna(value=0, inplace=True)
-    
+
     if ax is None:
         fig, ax = plt.subplots(nrows=1, ncols=1)
-    if percentage == True:
+
+    if percentage:
         percent = dfc_agg.apply(lambda x: x / x.sum(), axis=1) * 100
-        percent.plot.area(ax=ax)
+        if area:
+            percent.plot.area(ax=ax, stacked=True)
+        else:
+            percent.plot(kind='bar', stacked=True, ax=ax)
     else:
-        dfc_agg.plot.area(ax=ax)
+        if area:
+            dfc_agg.plot.area(ax=ax)
+        else:
+            dfc_agg.plot(kind='bar', stacked=True, ax=ax)
         percent = None
-    ax.xaxis.set_ticks(pd.date_range(dfc_agg.index.min(), dfc_agg.index.max(), freq='M'))
+
+    # datemin = np.datetime64(dfc_agg.index.min())
+    # datemax = np.datetime64(dfc_agg.index.max())
+    # print(datemin, datemax)
+    # ax.xaxis_date()
+    # ax.set_xlim(datemin, datemax)
+
+    ax.xaxis.set_ticks(pd.date_range(dfc_agg.index.min()-dfc_agg.index.min().freq*30, dfc_agg.index.max()+dfc_agg.index.max().freq*30, freq='D'))
     plt.setp(ax.xaxis.get_majorticklabels(), 'rotation', 90)
     plt.setp(ax.xaxis.get_minorticklabels(), 'rotation', 90)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-    ax.xaxis.set_major_locator(mdates.MonthLocator(3))
-    
+    ax.xaxis.set_major_locator(mdates.MonthLocator(1))
+    # ax.xaxis.set_major_locator(AutoLocator())
+
     return dfc_agg, percent
-    
+
 
 def plot_cloudcover(df, cloudcover_col, ax=None):
     """
