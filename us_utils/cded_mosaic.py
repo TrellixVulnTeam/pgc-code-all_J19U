@@ -41,6 +41,12 @@ def main(args):
     out_mosaic = args.out_mosaic
     local_tiles_path = args.local_tiles_path
 
+    if args.verbose:
+        handler_level = 'DEBUG'
+    else:
+        handler_level = 'INFO'
+    logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+    logger = logging.getLogger(__name__)
     # Determine operating system
     system = platform.system()
     if system == 'Windows':
@@ -145,8 +151,9 @@ if __name__ == '__main__':
                                 will write more quickly, but .tif is also acceptable""")
     parser.add_argument('--local_tiles_path', type=os.path.abspath,
                         help='Path to unzip cded tiles to.')
-    
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Set logging to debug.')
     args = parser.parse_args()
-    
+
     main(args)
-                        
+ 

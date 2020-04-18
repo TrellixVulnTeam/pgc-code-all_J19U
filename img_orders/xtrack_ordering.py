@@ -18,19 +18,19 @@ from misc_utils.id_parse_utils import write_ids, get_platform_code, mfp_ids
 
 
 # INPUTS
-out_path = r''
-num_ids = 40_000 # Desired number of IDs
-sensors = ['WV01', 'WV02', 'WV03']
+# out_path = r''
+# num_ids = 40_000 # Desired number of IDs
+# sensors = ['WV01', 'WV02', 'WV03']
 
-min_date = '2019-04-23'
-max_date = None
+# min_date = '2019-04-23'
+# max_date = None
 
-max_area = None # Max overlap area to include
-min_area = 1000 # Min overlap area to include
+# max_area = None # Max overlap area to include
+# min_area = 1000 # Min overlap area to include
 
 
 def xtrack_ordering(out_path, num_ids, min_date, max_date,
-                    min_area, max_area, sensors):
+                    min_area, max_area, sensors, noh, project):
     """
     Select IDs from the danco xtrack footprint, given the 
     arguments above, sorted by maximum area first.
@@ -94,9 +94,12 @@ def xtrack_ordering(out_path, num_ids, min_date, max_date,
         if where:
             where += " AND "
         where += '({})'.format(sensor_where)
+    if project:
+        where = check_where(where)
+        where += """project IN ({})""".format(str(project)[1:-1])
     
     # Count the number of records returned by the where sql query
-    
+    logger.info('Where clause for selection: {}'.format(where))
     xt_size = count_table(xtrack_name, columns=[cols[0]], where=where)
     logger.info('Size of full selection would be: {:,}'.format(xt_size))
         
@@ -123,6 +126,12 @@ def xtrack_ordering(out_path, num_ids, min_date, max_date,
         logger.debug('max objectid: {}'.format(xt_chunk.objectid.max()))
         
         if loaded_records != 0:
+            if noh:
+                # Remove onhand
+                logger.info('Removing on hand ids...')
+                oh_ids = set(mfp_ids())
+                xt_chunk = xt_chunk[(~xt_chunk['catalogid1'].isin(oh_ids)) & (~xt_chunk['catalogid2'].isin(oh_ids))]
+                logger.info('Remaining records: {}'.format(len(xt_chunk)))
             # Calculate UTM area
             # TODO: Rewrite this to be an apply function
             logger.info('Calculating utm area on chunk...')
@@ -141,34 +150,29 @@ def xtrack_ordering(out_path, num_ids, min_date, max_date,
         
         
     xt_area = pd.concat(xt_chunks)
+    logger.info('Records before removing onhand: {}'.format(len(xt_area)))
     
-    # Sort by area, max first, then get first n records
-    xt_area.sort_values(by=area_col, ascending=False, inplace=True)
+    if noh:
+        # Remove onhand
+        logger.info('Removing on hand ids...')
+        oh_ids = set(mfp_ids())
+        xt_area = xt_area[(~xt_area['catalogid1'].isin(oh_ids)) & (~xt_area['catalogid2'].isin(oh_ids))]
     
     logger.info('Summary of all matching footprints:\n{}'.format(xt_area.describe()))
+    # Stack catalogid1 and catalogid2 with area col
+    all_ids = pd.concat([xt_area[['catalogid1', area_col]], xt_area[['catalogid2', area_col]]])
     
-    # Iterate over footprints, max first, adding to list if not already in and not in mfp
-    # until number ids is reached or footprints are exhausted.
-    logger.info('Collecting catalogids, starting with largest area...')
-    unique_ids = set()
-    oh_ids = set(mfp_ids())
-    pbar = tqdm(xt_area.iterrows(), total=len(xt_area))
-    # for i, row in tqdm(xt_area.iterrows()):
-    for i, row in pbar:
-        id1 = row['catalogid1']
-        id2 = row['catalogid2']
-        if id1 not in oh_ids:
-            unique_ids.add(id1)
-        if id2 not in oh_ids:
-            unique_ids.add(id2)
-
-        unique_count = len(set(unique_ids))
-        pbar.set_description_str('Unique IDs found: {:,}'.format(unique_count))
-        if unique_count >= num_ids:
-            break
-    
-    
-    selected_ids = set(unique_ids)
+    if min_area or max_area:
+        # Sort by area, max first, then get first n records
+        all_ids.sort_values(by=area_col, ascending=False, inplace=True)
+    else:
+        # Sort by percent overlap
+        all_ids.sort_values(by='perc_ovlp', ascending=False)
+        
+    logger.info('Selecting first {} IDs...'.format(num_ids))
+    selected_records = xt_area.iloc[0:num_ids]
+    # Remove any duplicates
+    selected_ids = set(list(selected_records['catalogid1']) + list(selected_records['catalogid2']))
     
     logger.info('Writing {:,} selected IDs to {}...'.format(len(selected_ids), out_path))
     write_ids(selected_ids, out_path)
@@ -194,6 +198,10 @@ if __name__ == '__main__':
                         help='Maximum footprint area to consider.')
     parser.add_argument('--sensors', nargs='+', default=['WV01', 'WV02', 'WV03'],
                         help='Sensors to consider.')
+    parser.add_argument('-noh', '--not_on_hand', action='store_true',
+                        help='Use this flag to only return records not on hand.')
+    parser.add_argument('--project', nargs='+',
+                        help='Projects to include (i.e. regions): EarthDEM ArcticDEM REMA')
     
     args = parser.parse_args()
     
@@ -204,6 +212,8 @@ if __name__ == '__main__':
     min_area = args.min_area
     max_area = args.max_area
     sensors = args.sensors
+    noh = args.not_on_hand
+    project = args.project
     
     xtrack_ordering(out_path=out_path,
                     num_ids=num_ids,
@@ -211,5 +221,7 @@ if __name__ == '__main__':
                     max_date=max_date,
                     min_area=min_area,
                     max_area=max_area,
-                    sensors=sensors)
+                    sensors=sensors,
+                    noh=noh,
+                    project=project)
     

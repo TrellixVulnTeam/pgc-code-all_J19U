@@ -23,7 +23,7 @@ from selection_utils.query_danco import query_footprint
 from misc_utils.logging_utils import create_logger
 
 ## Set up logger
-logger = create_logger(__file__, 'sh')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def run_subprocess(command):
@@ -100,7 +100,8 @@ def get_count(geocells, fps, date_col=None):
     overlaps a grid cell, there will be two of that grid cell in the resulting
     dataframe. These repeated cells are then counted and saved to the returned 
     dataframe
-    geocells: dataframe of features to count within
+    
+    geocells: geodataframe of features to count within
     fps: geodataframe of polygons
     '''
     ## Confirm crs is the same

@@ -39,10 +39,18 @@ xmin, ymin, xmax, ymax = list(conus.total_bounds)
 # Adjust xmax as it overlaps the IDL
 xmax = -55
 
+# Params
+cc_max = 50
+acqdate_min = "2019-03-31"
+acqdate_max = "2020-04-01"
+
 # DG Archive
+# SQL
 coords_where = """(x1 < {} AND x1 > {} AND y1 < {} AND y1 > {})""".format(xmax+0.5, xmin-0.5, ymax-0.5, ymin+0.5)
-cc_where = "(cloudcover <= 50)"
-where = "{} AND {}".format(cc_where, coords_where)
+cc_where = "(cloudcover <= {})".format(cc_max)
+acqdate_where = "(acqdate > '{}' AND acqdate < '{}')".format(acqdate_min, acqdate_max)
+where = "{} AND {} AND {}".format(cc_where, coords_where, acqdate_where)
+# Load
 dg = query_footprint(dg_fp, where=where)
 logger.debug('Loaded footprint: {}'.format(len(dg)))
 
@@ -69,43 +77,81 @@ fig, ax = plt.subplots(1,1)
 conus.plot(ax = ax, facecolor='grey', edgecolor='white', linewidth=0.5)
 dg_conus.plot(ax = ax)
 
-#%%
+#%% Aggregate
 # dg_agg, _ = plot_timeseries_stacked(dg_conus.reset_index(), 'acqdate', 'catalogid', 'cc_cat', 
                                     # freq='m', area=True)
 dg_gb = dg_conus.groupby([pd.Grouper(freq='M'), 'cc_cat']).agg({'catalogid':'nunique'})
 
+# Field names
 date_col = 'acqdate'
 
+# Drop days from index
 dg_gb = dg_gb.reset_index(level=0)
 dg_gb[date_col] = dg_gb[date_col].apply(lambda x: x.strftime('%Y-%m-01'))
 dg_gb[date_col] = pd.to_datetime(dg_gb[date_col])
 dg_gb.set_index(date_col, append=True, inplace=True)
 dg_gb = dg_gb.reorder_levels([date_col, 'cc_cat']).sort_index()
 
+# 
 dg_gb = dg_gb.unstack('cc_cat')
 dg_gb.columns = dg_gb.columns.droplevel()
 
 # Remove NaNs
 dg_gb.fillna(value=0, inplace=True)
 
-fig, ax = plt.subplots(1,1)
-ax.xaxis_date()
+# Create culmulative columns in reverse order working back from the latest date
+for col in ['cc20', 'cc21-30', 'cc31-40', 'cc41-50']:
+    dg_gb['{}_culm'.format(col)] = dg_gb.loc[::-1, col].cumsum()[::-1]
 
-# Manual plotting...
-# labels = list(dg_gb.columns)
+# dg_gb['cc20_culm'] = dg_gb['cc20'].cumsum()
+
+#%% Plot
+fig, ax1 = plt.subplots(1,1)
+# ax1, ax2 = axes.flatten()
+
+# Manual plotting
 width = 20
 # last_l = None
 
-ax.bar(dg_gb.index, dg_gb['cc20'],    width=width, label='cc20')
-ax.bar(dg_gb.index, dg_gb['cc21-30'], width=width, label='cc21-30', 
+# Plot bars
+ax1.bar(dg_gb.index, dg_gb['cc20'],    width=width, label='cc20', 
+       edgecolor='white')
+ax1.bar(dg_gb.index, dg_gb['cc21-30'], width=width, label='cc21-30', 
+        edgecolor='white', 
         bottom=dg_gb['cc20'])
-ax.bar(dg_gb.index, dg_gb['cc31-40'], width=width, label='cc31-40', 
+ax1.bar(dg_gb.index, dg_gb['cc31-40'], width=width, label='cc31-40',
+        edgecolor='white',
         bottom=dg_gb['cc20']+dg_gb['cc21-30'])
-ax.bar(dg_gb.index, dg_gb['cc41-50'], width=width, label='cc41-50',
+ax1.bar(dg_gb.index, dg_gb['cc41-50'], width=width, label='cc41-50',
+        edgecolor='white',
         bottom=dg_gb['cc20']+dg_gb['cc21-30']+dg_gb['cc31-40'])
 
-plt.setp(ax.xaxis.get_majorticklabels(), 'rotation', 90)
-plt.setp(ax.xaxis.get_minorticklabels(), 'rotation', 90)
-ax.xaxis.set_major_locator(mdates.MonthLocator())
-ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-ax.legend()
+# Plot culmulative
+fig, ax2 = plt.subplots(1,1)
+ax2.bar(dg_gb.index, dg_gb['cc20_culm'],    width=width, label='cc20', 
+       edgecolor='white')
+
+ax2.bar(dg_gb.index, dg_gb['cc21-30_culm'], width=width, label='cc21-30', 
+        edgecolor='white', 
+        bottom=dg_gb['cc20_culm'])
+
+ax2.bar(dg_gb.index, dg_gb['cc31-40_culm'], width=width, label='cc31-40',
+        edgecolor='white',
+        bottom=dg_gb['cc20_culm']+dg_gb['cc21-30_culm'])
+
+ax2.bar(dg_gb.index, dg_gb['cc41-50_culm'], width=width, label='cc41-50',
+        edgecolor='white',
+        bottom=dg_gb['cc20_culm']+dg_gb['cc21-30_culm']+dg_gb['cc31-40_culm'])
+
+
+for ax in [ax1, ax2]:
+    ax.xaxis_date()
+    plt.setp(ax.xaxis.get_majorticklabels(), 'rotation', 90)
+    plt.setp(ax.xaxis.get_minorticklabels(), 'rotation', 90)
+    ax.xaxis.set_major_locator(mdates.MonthLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    ax.legend().get_frame().set_edgecolor('white')
+    
+    ax.get_yaxis().set_major_formatter(FuncFormatter(lambda x, p: format(int(x), ',')))
+
+

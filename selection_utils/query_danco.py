@@ -22,7 +22,7 @@ from sqlalchemy import create_engine, pool
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(os.path.basename(__file__), 'sh')
+logger = create_logger(os.path.basename(__file__), 'sh', 'INFO')
 
 
 ## Credentials for logging into danco
@@ -40,7 +40,7 @@ def list_danco_footprint():
     '''
     global logger
     logger.warning('list_danco_footprint depreciated, use list_danco_db() instead.')
-    logger.info('Listing danco.footprint databse tables...')
+    logger.debug('Listing danco.footprint databse tables...')
     try:
         danco = "danco.pgc.umn.edu"
         print(creds[0])
@@ -73,7 +73,7 @@ def list_danco_db(db):
     queries the danco footprint database, returns all layer names in list
     '''
     global logger
-    logger.info('Listing danco.{} tables...'.format(db))
+    logger.debug('Listing danco.{} tables...'.format(db))
     connection = None
     try:
         danco = "danco.pgc.umn.edu"
@@ -105,7 +105,10 @@ def list_danco_db(db):
             
             
 def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[creds[0], creds[1]], 
-                    table=False, where=None, columns=None):
+                    table=False, sql=False,
+                    where=None, columns=None, orderby=None, orderby_asc=False, 
+                    limit=None, offset=None,
+                    dryrun=False):
     '''
     queries the danco footprint database, for the specified layer and optional where clause
     returns a dataframe of match
@@ -129,41 +132,51 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
         connection = engine.connect()
 
         if connection:
-            # If specific columns are requested, created comma sep string of those columns to pass in sql
-            if columns:
-                cols_str = ', '.join(columns)
-            else:
-                cols_str = '*' # select all columns
-            
-            # If table, do not select geometry
-            if table == True:
-                sql = "SELECT {} FROM {}".format(cols_str, layer)
-            else:
-                sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)
-            
-            # Add where clause if necessary
-            if where:
-                sql_where = " WHERE {}".format(where)
-                # if coordinates:
-                #     xmin, ymin, xmax, ymax = coordinates
-                #     srid = 4326
-                #     coords_str = " AND encode(ST_AsBinary(shape), 'hex') && sde.ST_MakeEnvelope({}, {}, {}, {}, {})".format( 
-                #                                                                                xmin,
-                #                                                                                 ymin,
-                #                                                                                 xmax,
-                #                                                                                 ymax,
-                #                                                                                 srid)
-                    # sql_where += coords_str
-                sql = sql + sql_where
+            if not sql:
+                # COLUMNS
+                if columns:
+                    cols_str = ', '.join(columns)
+                else:
+                    cols_str = '*' # select all columns
                 
-            # Create pandas df for tables, geopandas df for feature classes
-            if table == True:
-                df = pd.read_sql_query(sql, con=engine)
+                # If table, do not select geometry
+                if table == True:
+                    sql = "SELECT {} FROM {}".format(cols_str, layer)
+                else:
+                    sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)
+                
+                # CUSTOM WHERE CLAUSE
+                if where:
+                    sql_where = " WHERE {}".format(where)
+                    sql = sql + sql_where
+                # ORDERBY
+                if orderby:
+                    if orderby_asc:
+                        asc = 'ASC'
+                    else:
+                        asc = 'DESC'
+                    sql_orderby = " ORDER BY {} {}".format(orderby, asc)
+                    sql += sql_orderby
+                # LIMIT number of rows
+                if limit:
+                    sql_limit = " LIMIT {}".format(limit)
+                    sql += sql_limit
+                if offset:
+                    sql_offset = " OFFSET {}".format(offset)
+                    sql += sql_offset
+                
+            if not dryrun:
+                # Create pandas df for tables, geopandas df for feature classes
+                logger.debug('SQL statement: {}'.format(sql))
+                if table == True:
+                    df = pd.read_sql_query(sql, con=engine)
+                else:
+                	# TODO: Fix hard coded epsg
+                    df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs='epsg:4326')
+                
+                return df
             else:
-            	# TODO: Fix hard coded epsg
-                df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs='epsg:4326')
-            
-            return df
+                logger.info('SQL: {}'.format(sql))
 
     except (Exception, psycopg2.Error) as error :
         logger.debug("Error while connecting to PostgreSQL", error)
@@ -215,6 +228,8 @@ def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.e
                 sql = "SELECT COUNT(DISTINCT {}) FROM {}".format(cols_str, layer)
             else:
                 sql = "SELECT COUNT({}) FROM {}".format(cols_str, layer)
+            if where:
+                sql += " WHERE {}".format(where)
             cursor.execute(sql)
             result = cursor.fetchall()
             count = [x[0] for x in result][0]

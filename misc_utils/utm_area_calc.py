@@ -12,6 +12,11 @@ import tqdm
 import copy
 from fiona.crs import from_epsg, from_string
 
+from misc_utils.logging_utils import create_logger
+
+
+logger = create_logger(__name__, 'sh', 'INFO')
+
 
 def area_calc(geodataframe, area_col='area_sqkm'):
     '''
@@ -61,12 +66,11 @@ def area_calc(geodataframe, area_col='area_sqkm'):
     for utm_zone, df in gdf.groupby('Zone_Hemi'):
         zone = utm_zone.split(',')[0].replace(' ', '')
         hemi = utm_zone.split(',')[1].replace(' ', '')
-        
         if hemi == 's':
             proj4 = r'+proj=utm +zone={} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs'.format(zone)
         elif hemi == 'n':
             proj4 = r'+proj=utm +zone={} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs'.format(zone)
-        
+        logger.debug('Projecting to: {}'.format(proj4))
         df.geometry = df.geometry.to_crs(proj4)
         df.crs = from_string(proj4)
         df[utm_area_col] = df.geometry.area / 10**6
