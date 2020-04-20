@@ -15,14 +15,15 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-fp_p = r'V:\pgc\data\scratch\jeff\deliverables\akhan_temp\arc\arctic_footprints_32633.shp'
-img_dir = r'V:\pgc\data\scratch\jeff\deliverables\akhan_temp\arc\raw'
-dst_dir = r'V:\pgc\data\scratch\jeff\deliverables\akhan_temp\arc\raw_32608'
-id_fld = 'SCENE_ID'
-dryrun = False
+# fp_p = r'V:\pgc\data\scratch\jeff\deliverables\4084_bjones_2020apr18\mfp_selection.shp'
+# img_dir = r'V:\pgc\data\scratch\jeff\deliverables\4084_bjones_2020apr18\raw'
+# dst_dir = r'V:\pgc\data\scratch\jeff\deliverables\4084_bjones_2020apr18\raw_selection'
 
-def move_imagery_files(fp_p, src_dir, dst, dryrun):
+# dryrun = False
+
+def move_imagery_files(fp_p, src_dir, dst_dir, tm=None, dryrun=False):
     fp = gpd.read_file(fp_p)
+    id_fld = 'SCENE_ID'
     fp_sids = list(fp[id_fld])
     logger.info('IDs found in footprint: {}'.format(len(fp_sids)))
     
@@ -33,12 +34,22 @@ def move_imagery_files(fp_p, src_dir, dst, dryrun):
             if f_sid in fp_sids:
                 move_files.append(os.path.join(root, f))
     
-    logger.info('Found {} files to move.'.format(len(move_files)))
+    logger.info('Total files to move: {}'.format(len(move_files)))
+    logger.info(' -tif files to move: {}'.format(len([x for x in move_files if x.endswith('tif')])))
+    logger.info(' -ntf files to move: {}'.format(len([x for x in move_files if x.endswith('ntf')])))
     
     if not dryrun:
+        if not os.path.exists(dst_dir):
+            logger.info('Creating destination directory: {}'.format(dst_dir))
+            os.makedirs(dst_dir)
         logger.info('Moving files...')
+
         for src in tqdm(move_files):
-            shutil.copyfile(src, os.path.join(dst_dir, os.path.basename(src)))
+            dst = os.path.join(dst_dir, os.path.basename(src))
+            if tm in ('l', 'link'):
+                os.symlink(src, dst)
+            else:
+                shutil.copyfile(src, dst)
         
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -50,6 +61,8 @@ if __name__ == '__main__':
                         help="""Path to the directory containing imagery to move.""")
     parser.add_argument('-o', '--output_directory', type=os.path.abspath,
                         help="""Path to the directory to move imagery files to.""")
+    parser.add_argument('-tm', '--transfer_method', type='str', choices=['link', 'l'],
+                        help='Method of transfer. Specify "l" or "link" to create symlink.')
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='Locate files to move but do not move.')
     
@@ -58,4 +71,5 @@ if __name__ == '__main__':
     move_imagery_files(args.footprint,
                        args.imagery_directory,
                        args.output_directory,
+                       args.transfer_method,
                        args.dryrun)
