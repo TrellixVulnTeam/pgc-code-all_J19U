@@ -50,7 +50,8 @@ def main(args):
     # Determine operating system
     system = platform.system()
     if system == 'Windows':
-        params = {'def_local_tiles_path': r'E:\disbr007\general\elevation\cded\50k_mosaics\CDED_tiles',
+        params = {#'def_local_tiles_path': r'E:\disbr007\general\elevation\cded\50k_mosaics\CDED_tiles',)
+                  'def_local_tiles_path': r'V:\pgc\data\scratch\jeff\elev\cded\tiles',
                   'cded_50_idx': r'V:\pgc\data\elev\dem\cded\index\decoupage_snrc50k_2.shp',
                   'cded_250_idx': r'V:\pgc\data\elev\dem\cded\index\decoupage_snrc250k_2.shp',
                   'cded_50_tiles': r'V:\pgc\data\elev\dem\cded\50k_dem',
@@ -70,14 +71,13 @@ def main(args):
     if not os.path.exists(local_tiles_path):
         os.makedirs(local_tiles_path)
 
-
-    ## Choose 50k or 250k
+    # Choose 50k or 250k
     logger.debug('Using selected resolution: {}'.format(resolution))
     # cded_50k_index_path = params['cded_50_idx']
     # cded_250k_index_path = params['cded_250_idx']
     # cded_50k_index_path = r'V:\pgc\data\elev\dem\cded\index\decoupage_snrc50k_2.shp'
     # cded_250k_index_path = r'V:\pgc\data\elev\dem\cded\index\decoupage_snrc250k_2.shp'
-    
+
     if resolution == 50:
         # index_path = cded_50k_index_path
         # tiles_path = r'V:\pgc\data\elev\dem\cded\50k_dem'
@@ -92,50 +92,57 @@ def main(args):
     else:
         logger.warning('Index footprint not found')
     logger.debug('Using tiles located at: {}'.format(tiles_path))
-    
-    # Load relevant tikes index
+
+    # Load relevant tiles index
     index = gpd.read_file(index_path)
-    
-    
-    ## Select AOI relevant tiles from index footprint
+
+    # Select AOI relevant tiles from index footprint
     aoi = gpd.read_file(aoi_path)
     logger.info('AOI:\n{}'.format(aoi.head()))
     if aoi.crs != index.crs:
         aoi = aoi.to_crs(index.crs)
     # selected_tiles = gpd.sjoin(aoi, index, how='left', op='intersects')
     selected_tiles = gpd.overlay(aoi, index)
-    
-    # For some reason the overlay is selecting each tile multiple times -- 
+
+    # For some reason the overlay is selecting each tile multiple times
     # this gets a list of unique tile names for extracting
     selected_tile_names = selected_tiles.IDENTIF.unique()
-    selected_tile_names = [x.lower() for x in selected_tile_names] # file paths to tiles are lowercase
+    selected_tile_names = [x.lower() for x in selected_tile_names]  # file paths to tiles are lowercase
 
-
-    ## Unzip relevant tiles to local location
+    # Unzip relevant tiles to local location
     # Loop each tile name, extract tile locally
     logger.info('Extracting tiles locally...')
     for tile_name in tqdm.tqdm(selected_tile_names):
         parent_dir = tile_name[:3]
         tile_path = os.path.join(tiles_path, parent_dir, '{}.zip'.format(tile_name))
         if os.path.exists(tile_path):
-            zip_ref = zipfile.ZipFile(tile_path, 'r')
-            tile_dir_extract = zip_ref.extractall(local_tiles_path)
-            zip_ref.close()
+            if not os.path.exists(local_tiles_path):
+                logger.debug('Unzipping from: {}'.format(tile_path))
+                zip_ref = zipfile.ZipFile(tile_path, 'r')
+                tile_dir_extract = zip_ref.extractall(local_tiles_path)
+                zip_ref.close()
+                logger.debug('Unzipped to: {}'.format(local_tiles_path))
+            else:
+                logger.debug('Tile {} already in local tiles directory'.format(tile_name))
         else:
             logger.warning('File not found: {}\nSkipping...'.format(tile_name))
-        
-        
-    ## Mosaic relevant tiles
+
+    # Mosaic relevant tiles
     # Get DEMs
     # Select only tile paths from initial selection above
     dems_paths = [os.path.join(local_tiles_path, x) for x in os.listdir(local_tiles_path) if x.endswith('dem')]
     dems_paths = [x for x in dems_paths if os.path.basename(x).startswith(tuple(selected_tile_names))]
-    dems_paths = ' '.join(dems_paths)
-    
-    command = 'gdalbuildvrt {} {}'.format(out_mosaic, dems_paths)
-    
+    # Check all dem tiles exist
+    dems_not_exist = any([os.path.exists(x) for x in dems_paths])
+    if not dems_not_exist:
+        logger.warning('Missing tiles: {}'.format([x for x in dems_paths if not os.path.exists(x)]))
+    # dems_paths = ' '.join(dems_paths)
+
+    # command = 'gdalbuildvrt {} {}'.format(out_mosaic, dems_paths)
+    # logger.debug(command)
     logger.info('Mosaicking tiles...')
-    run_subprocess(command)
+    # run_subprocess(command)
+    gdal.BuildVRT(out_mosaic, dems_paths)
     logger.info('Mosaic created at: {}'.format(out_mosaic))
 
 
@@ -156,4 +163,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(args)
- 

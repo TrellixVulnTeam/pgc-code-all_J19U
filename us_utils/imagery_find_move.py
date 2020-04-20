@@ -15,8 +15,8 @@ import os
 import shutil
 import tqdm
 
-from id_parse_utils import parse_filename, read_ids, write_ids
-from logging_utils import create_logger
+from misc_utils.id_parse_utils import parse_filename, read_ids, write_ids
+from misc_utils.logging_utils import create_logger
 
 
 logger = create_logger(os.path.basename(__file__), 'sh',
@@ -34,7 +34,7 @@ def match_and_move(ids, src_dir, dst_dir, match_field='catalog_id', dryrun=False
         for f in files:
             if 'BROWSE' not in f:
                 catid = parse_filename(f, match_field)
-                # logger.debug('{}: {}'.format(match_field, catid))
+                logger.debug('{}: {}'.format(match_field, catid))
                 if catid in ids:
                     matches.append(os.path.join(root, f))
                     if catid not in catids_found:
