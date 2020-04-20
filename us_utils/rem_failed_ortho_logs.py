@@ -14,7 +14,7 @@ from misc_utils.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'INFO')
 
 
-def remove_failed_logs(log_dir, dryrun=False):
+def remove_failed_logs(log_dir, dryrun=False, verbose=False):
     failed_logs = []
     for f in os.listdir(log_dir):
         with open(os.path.join(log_dir, f), 'r') as lf:
@@ -23,7 +23,8 @@ def remove_failed_logs(log_dir, dryrun=False):
                 failed_logs.append(os.path.join(log_dir, f))
     
     logger.info('Log files to be deleted: {}'.format(len(failed_logs)))
-    
+    if verbose:
+        logger.info('\n'.join(failed_logs))
     if not dryrun:
         for f in tqdm(failed_logs):
             os.remove(f)
@@ -35,9 +36,8 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--input_directory', type=os.path.abspath,
                         help='Directory to parse for log files from failed jobs.')
     parser.add_argument('-d', '--dryrun', action='store_true')
+    parser.add_argument('-v', '--verbose', action='store_true')
     
     args = parser.parse_args()
     
-    remove_failed_logs(args.input_directory, args.dryrun)
-    
-    
+    remove_failed_logs(args.input_directory, args.dryrun, args.verbose)
