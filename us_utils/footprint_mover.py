@@ -61,7 +61,7 @@ if __name__ == '__main__':
                         help="""Path to the directory containing imagery to move.""")
     parser.add_argument('-o', '--output_directory', type=os.path.abspath,
                         help="""Path to the directory to move imagery files to.""")
-    parser.add_argument('-tm', '--transfer_method', type='str', choices=['link', 'l'],
+    parser.add_argument('-tm', '--transfer_method', type=str,
                         help='Method of transfer. Specify "l" or "link" to create symlink.')
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='Locate files to move but do not move.')
@@ -71,5 +71,5 @@ if __name__ == '__main__':
     move_imagery_files(args.footprint,
                        args.imagery_directory,
                        args.output_directory,
-                       args.transfer_method,
-                       args.dryrun)
+                        args.transfer_method,
+                       dryrun=args.dryrun)
