@@ -141,8 +141,16 @@ def main(args):
     # command = 'gdalbuildvrt {} {}'.format(out_mosaic, dems_paths)
     # logger.debug(command)
     logger.info('Mosaicking tiles...')
+    if out_mosaic.endswith('tif'):
+        logger.debug('Extension is "tif", creating in-memory VRT first...')
+        vrt = r'/vsimem/cded_mosaic_temp.vrt'
+        gdal.BuildVRT(vrt, dems_paths)
+        logger.debug('Copying VRT to GeoTiff...')
+        # translate_options = gdal.TranslateOptions(format='GTiff')
+        gdal.Translate(out_mosaic, vrt, options=gdal.TranslateOptions(format='GTiff'))
     # run_subprocess(command)
-    gdal.BuildVRT(out_mosaic, dems_paths)
+    else:
+        gdal.BuildVRT(out_mosaic, dems_paths)
     logger.info('Mosaic created at: {}'.format(out_mosaic))
 
 

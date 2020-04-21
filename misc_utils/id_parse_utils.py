@@ -9,7 +9,7 @@ import re
 import os
 import sys
 
-import tqdm
+# import tqdm
 import geopandas as gpd
 import pandas as pd
 #import numpy as np

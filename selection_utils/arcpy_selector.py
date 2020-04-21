@@ -10,9 +10,6 @@ import argparse
 import logging.config
 import os
 
-import geopandas as gpd
-from shapely.geometry import Point
-
 import arcpy
 
 from misc_utils.id_parse_utils import read_ids, pgc_index_path
@@ -83,6 +80,10 @@ def place_name_AOI(place_name, selector_path):
 
 def create_points(coords, shp_path):
     """Create a point shapefile from long, lat pairs."""
+    # TODO: Use arcpy to create points, remove gpd as dependency
+    import geopandas as gpd
+    from shapely.geometry import Point
+
     logger.info('Creating point shapefile from long, lat pairs(s)...')
     points = [Point(float(pair.split(',')[0]), float(pair.split(',')[1])) for pair in coords]
     gdf = gpd.GeoDataFrame(geometry=points, crs={'init': 'epsg:4326'})
