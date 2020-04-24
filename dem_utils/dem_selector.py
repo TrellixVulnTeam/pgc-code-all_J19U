@@ -50,8 +50,10 @@ def dem_selector(AOI_PATH=None,
                  DEM_FP=None,
                  MONTHS=None, 
                  MIN_DATE=None, MAX_DATE=None,
+                 DATE_COL=None,
                  MULTISPEC=False, 
                  DENSITY_THRESH=None,
+                 LOCATE_DEMS=True,
                  VALID_THRESH=None,
                  OUT_DEM_FP=None,
                  OUT_ID_LIST=None):
@@ -93,12 +95,13 @@ def dem_selector(AOI_PATH=None,
     WINDOWS_LOC = 'win_path' # field name of windows path in footprint
     LINUX_LOC = 'filepath' # linux path field
     DEM_FNAME = 'dem_name' # field name with filenames (with ext)
+    PAIRNAME = 'pairname'
     DEMS_FP = 'pgc_dem_setsm_strips' # Danco DEM footprint tablename
     CATALOGID = 'catalogid1' # field name in danco DEM footprint for catalogids
-    DATE_COL = 'acqdate1' # name of date field in dems footprint
+    if not DATE_COL:
+        DATE_COL = 'acqdate1' # name of date field in dems footprint
     DENSITY_COL = 'density' # name of density field in dems footprint
     SENSOR_COL = 'sensor1' # name of sensor field in dems footprint
-    
     FULLPATH = 'fullpath' # created field name in footprint with path to files
     VALID_PERC = 'valid_perc' # created field name in footprint to store valid %
     MONTH_COL = 'month' # name of field to create in dems footprint if months are requested 
@@ -195,6 +198,8 @@ def dem_selector(AOI_PATH=None,
     dems = dems[dem_cols]
     
     # Remove duplicates resulting from intersection (not sure why DUPs)
+    if DEM_FNAME not in list(dems):
+        DEM_FNAME = PAIRNAME
     dems = dems.drop_duplicates(subset=(DEM_FNAME))
     logger.info('DEMs found over AOI: {}'.format(len(dems)))
     if len(dems) == 0:
@@ -203,15 +208,16 @@ def dem_selector(AOI_PATH=None,
     
     # Create full path to server location, used or checking validity
     # Determine operating system for locating DEMs
-    OS = platform.system()
-    if OS == WINDOWS_OS:
-        server_loc = WINDOWS_LOC
-    elif OS == LINUX_OS:
-        server_loc = LINUX_LOC
-    dems[FULLPATH] = dems.apply(lambda x: os.path.join(x[server_loc], x[DEM_FNAME]), axis=1)
-    # Subset to only those DEMs that actually can be found
-    logger.info('Checking for existence on file-system...')
-    dems = dems[dems[FULLPATH].apply(lambda x: os.path.exists(x))==True]
+    if LOCATE_DEMS:
+        OS = platform.system()
+        if OS == WINDOWS_OS:
+            server_loc = WINDOWS_LOC
+        elif OS == LINUX_OS:
+            server_loc = LINUX_LOC
+        dems[FULLPATH] = dems.apply(lambda x: os.path.join(x[server_loc], x[DEM_FNAME]), axis=1)
+        # Subset to only those DEMs that actually can be found
+        logger.info('Checking for existence on file-system...')
+        dems = dems[dems[FULLPATH].apply(lambda x: os.path.exists(x))==True]
     
     
     #### GET VALID DATA PERCENT ####
@@ -245,9 +251,10 @@ def dem_selector(AOI_PATH=None,
     count = len(dems)
     min_date = dems[DATE_COL].min()
     max_date = dems[DATE_COL].max()
-    min_density = dems[DENSITY_COL].min()
-    max_density = dems[DENSITY_COL].max()
-    avg_density = dems[DENSITY_COL].mean()
+    if DENSITY_COL in list(dems):
+        min_density = dems[DENSITY_COL].min()
+        max_density = dems[DENSITY_COL].max()
+        avg_density = dems[DENSITY_COL].mean()
     if VALID_THRESH:
         min_valid = dems[VALID_PERC].min()
         max_valid = dems[VALID_PERC].max()
@@ -258,9 +265,10 @@ def dem_selector(AOI_PATH=None,
     logger.info("Number of DEMs: {}".format(count))
     logger.info("Earliest date: {}".format(min_date))
     logger.info("Latest date: {}".format(max_date))
-    logger.info("Minimum density: {:.2}".format(min_density))
-    logger.info("Maximum density: {:.2}".format(max_density))
-    logger.info("Average density: {:.2}".format(avg_density))
+    if DENSITY_COL in list(dems):
+        logger.info("Minimum density: {:.2}".format(min_density))
+        logger.info("Maximum density: {:.2}".format(max_density))
+        logger.info("Average density: {:.2}".format(avg_density))
     if VALID_THRESH:
         logger.info('Minimum valid percentage over AOI: {}'.format(min_valid))
         logger.info('Maximum valid percentage over AOI: {}'.format(max_valid))

@@ -24,17 +24,19 @@ multispec = True
 density_thresh = 0.5
 
 dems = dem_selector(aoi_p,
-                    # DEM_FP=dem_fp,
+                    DEM_FP=dem_fp,
                     MONTHS=months,
+                    DATE_COL='acquisit_1',
                     MULTISPEC=multispec,
-                    DENSITY_THRESH=density_thresh)
+                    LOCATE_DEMS=False)
+                    # DENSITY_THRESH=density_thresh)
 
 aoi = gpd.read_file(aoi_p)
 if aoi.crs != dems.crs:
     dems = dems.to_crs(aoi.crs)
     # aoi = aoi.to_crs(dems.crs)
 
-#%% Calculate overlap area
+#%% Fxn
 def dem_pair(name1, name2):
     # Creat name for pair of DEMs
     names = sorted([name1, name2])
@@ -84,6 +86,8 @@ def dems2dems_ovlp(dems, name='pairname', ovlp_area_name='ovlp_area', ovlp_perc_
     new_geom_col = 'new_geom_col'
     lsuffix = 'd1'
     rsuffix = 'd2'
+    name_left = '{}_{}'.format(name, lsuffix)
+    name_right = '{}_{}'.format(name, rsuffix)
     geom_left = '{}_{}'.format(new_geom_col, lsuffix)
     geom_right = '{}_{}'.format(new_geom_col, rsuffix)
     intersect_geom = 'inters_geom'
@@ -100,7 +104,7 @@ def dems2dems_ovlp(dems, name='pairname', ovlp_area_name='ovlp_area', ovlp_perc_
     sj = sj[sj['{}_{}'.format(name, lsuffix)]!=sj['{}_{}'.format(name, rsuffix)]]
     
     # Create ID column for each pair
-    sj['pair'] = sj.apply(lambda x: dem_pair(x['objectid_{}'.format(lsuffix)], x['objectid_{}'.format(rsuffix)]), axis=1)
+    sj['pair'] = sj.apply(lambda x: dem_pair(x[name_left], x[name_right]), axis=1)
     # Drop duplicates where dem1 -> dem2 == dem2 -> dem1 (reciprocal matches)
     sj = sj.drop_duplicates(subset='pair', keep='first')
     
@@ -118,27 +122,67 @@ def dems2dems_ovlp(dems, name='pairname', ovlp_area_name='ovlp_area', ovlp_perc_
     return sj
 
 
-def dems2aoi_ovlp(dems, ovlp):
-    aoi_ovlp = gpd.overlay(intersect, aoi, how='intersection')
+def dems2aoi_ovlp(dems, aoi):
+    aoi_ovlp = gpd.overlay(dems, aoi, how='intersection')
     aoi_ovlp['aoi_ovlp_area'] = aoi_ovlp.geometry.area
     aoi_ovlp['aoi_ovlp_perc'] = aoi_ovlp.geometry.area / aoi.geometry.area.values[0]
 
-    return aoi_ovlp
+    dems['aoi_ovlp_area'] = aoi_ovlp.geometry.area
+    dems['aoi_ovlp_perc'] = aoi_ovlp.geometry.area / aoi.geometry.area.values[0]
+    
+    return dems
+
+#%% Get overlap percentages with each other and AOI
+dem_ovlp = dems2dems_ovlp(dems)
+
+# Sort
+dem_ovlp = dem_ovlp.sort_values(by='ovlp_area')
+
+df = dem_ovlp
+# Select dems
+orig_id_col = 'pairname'
+id_col = 'pair'
+filepath_col_base = 'fileurl'
+lsuffix = 'd1'
+rsuffix = 'd2'
+#%% Plotting
+# Select row
+row = 0
+sel = df.iloc[row:row+1]
+
+# Get filepath (or url)
+filepath_left = '{}_{}'.format(filepath_col_base, lsuffix)
+filepath_right = '{}_{}'.format(filepath_col_base, rsuffix)
+filepath1 = sel[filepath_left].iloc[0]
+filepath2 = sel[filepath_right].iloc[0]
+
+# Write intersection as file
+# ToDO: write function to remove all non used geometry columns before writing
+sel.drop(columns='geometry').to_file(r'E:\disbr007\umn\ms\selection\footprints\ovlp\aoi1_test_int.shp')
+# Write both footprints as file
+orig_id_left = '{}_{}'.format(orig_id_col, lsuffix)
+orig_id_right = '{}_{}'.format(orig_id_col, rsuffix)
+pns = [sel[orig_id_left].iloc[0], sel[orig_id_right].iloc[0]]
+orig_fps = dems[dems['pairname'].isin(pns)]
+orig_fps.drop(columns='new_geom_col').to_file(r'E:\disbr007\umn\ms\selection\footprints\ovlp\aoi1_test_orig_fps.shp')
+
+# dem_ovlp = dems2aoi_ovlp(dem_ovlp, aoi)
+
+# row = 4
+# d1 = dem_ovlp['pairname_d1'].iloc[row]
+# d2 = dem_ovlp['pairname_d2'].iloc[row]
+# dem_sel = dems[dems['pairname'].isin([d1,d2])]
+# intersection = dem_ovlp[dem_ovlp['pair']=='{}_{}'.format(d1, d2)]
+
+fig, ax = plt.subplots(1,1)
+# intersect[i:i+1].plot(column='ovlp_area', edgecolor='red', ax=ax, alpha=0.5)
+sel.plot(color='blue', edgecolor='gray', ax=ax, linewidth=1)
+orig_fps.plot(color='none', edgecolor='red', linewidth=1, alpha=0.4, ax=ax)
+# .plot(color='red', alpha=0.5, ax=ax)
+# dem_ovlp.plot(color='none', edgecolor='blue', linestyle='--', linewidth=0.3, ax=ax)
+# aoi.plot(color='none', edgecolor='white', ax=ax)
 
 #%% Clip matchtags 
 # in memory and calculate density in AOI
 # report average
 # report average with NoData as 0
-
-#%% Plotting
-# fig, ax = plt.subplots(1,1)
-
-# dems.plot(column='num_gcps', edgecolor='white', alpha=0.5, legend=True, ax=ax)
-# x.set_geometry('clipped').plot(color='blue', ax=ax)
-# aoi.plot(color='none', edgecolor='red', linewidth=0.5, ax=ax)
-for i in range(0, len(intersect)+1):
-    fig, ax = plt.subplots(1,1)
-    intersect[i:i+1].plot(column='ovlp_area', edgecolor='red', ax=ax, alpha=0.5)
-    aoi.plot(color='none', edgecolor='white', ax=ax)
-# aoi_ovlp.plot(color='blue', ax=ax)
-
