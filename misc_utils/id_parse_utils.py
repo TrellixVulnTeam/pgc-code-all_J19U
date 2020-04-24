@@ -20,8 +20,14 @@ from misc_utils.dataframe_utils import determine_id_col, determine_stereopair_co
 from misc_utils.logging_utils import create_logger
 
 
-## Set up logging
-logger = create_logger('id_parse_utils', 'sh')
+# Set up logging
+logger = create_logger('id_parse_utils', 'sh', 'DEBUG')
+
+# Globals
+# Path to write list of ordered IDs to
+ordered_path = r'C:\code\pgc-code-all\config\ordered_ids.txt'
+# Directory holding order sheets
+ordered_directory = r'E:\disbr007\imagery_orders'
 
 
 def type_parser(filepath):
@@ -378,8 +384,8 @@ def locate_ids(df, cat_id_field):
     df: dataframe containing catalogids
     cat_id_field: field name with catalogids
     '''
-    logger.error("""locate_ids function in id_parse_utils not functional, 
-                    circular dependency with get_ordered_ids function in 
+    logger.error("""locate_ids function in id_parse_utils not functional,
+                    circular dependency with get_ordered_ids function in
                     ids_order_source.py""")
     # def locate_id(each_id, pgc_ids, nasa_ids, ordered_ids):
     #     '''
@@ -398,7 +404,7 @@ def locate_ids(df, cat_id_field):
     # pgc_ids = set(read_ids(r'C:\pgc_index\catalog_ids.txt')) # mfp
     # nasa_ids = set(read_ids(r'C:\pgc_index\nga_inventory_canon20190505\nga_inventory_canon20190505_CATALOG_ID.txt')) # nasa
     # ordered_ids = set(get_ordered_ids()) #order sheets
-    
+
     # df['location'] = df[cat_id_field].apply(lambda x: locate_id(x, pgc_ids, nasa_ids, ordered_ids))
 
 
@@ -411,6 +417,31 @@ def mfp_ids():
     return ids
 
 
+def ordered_ids(update=False):
+    """
+    Returns all catalogids that are in order sheets.
+    """
+    global ordered_path
+    if update:
+        # Read all IDs in order sheets and rewrite txt file
+        update_ordered()
+    ordered = set(read_ids(ordered_path))
+    
+    return ordered
+
+
+def onhand_ids(update=False):
+    """
+    Returns all ids in MFP or order sheets.
+    """
+    mfp = mfp_ids()
+    ordered = ordered_ids(update)
+    
+    onhand = set(list(mfp) + list(ordered))
+    
+    return onhand
+
+    
 def remove_mfp(src):
     """
     Takes an input src of ids and removes all 
@@ -439,8 +470,7 @@ def remove_ordered(src):
     logger.debug('Removing IDs in order sheets...')
     logger.debug('Removing ordered...')
     src_ids = set(src)
-    ordered_p = r'E:\disbr007\imagery_orders\ordered\all_ordered.txt'
-    ordered = set(read_ids(ordered_p))
+    ordered = ordered_ids()
     
     not_ordered = list(src_ids - ordered)
     logger.debug('IDs removed: {}'.format((len(src_ids)-len(not_ordered))))
@@ -612,3 +642,45 @@ def create_s_filepath(scene_id, strip_id, acqdate, prod_code):
     s_filepath = '/'.join([base, sensor, pd, year, month, strip_id, '{}.ntf'.format(scene_id)])
     
     return s_filepath
+
+
+#%% Update ordered
+def update_ordered(ordered_dir=None, ordered_loc=None):
+    """Update the text file of ordered IDs by reading for order sheets"""
+    from tqdm import tqdm
+    
+    if not ordered_loc:
+        global ordered_p
+        ordered_loc = ordered_path
+    if not ordered_dir:
+        global ordered_directory
+        ordered_dir = ordered_directory
+
+    # Progress bar set up
+    total_len = sum([len(files) for r, d, files in os.walk(ordered_dir)])
+    pbar = tqdm(total=total_len, desc='Iterating imagery order sheets...')
+
+    # List for all IDs
+    logger.debug('Reading sheets from: {}'.format(ordered_dir))
+    ordered_ids = []
+    for root, dirs, files in os.walk(ordered_dir):
+        last_dir = None
+        for f in files:
+            cur_dir = os.path.basename(os.path.dirname(os.path.join(root, f)))
+            if cur_dir != last_dir:
+                pbar.write('Reading from: {}'.format(cur_dir))
+            ext = os.path.splitext(f)[1]
+            if ext in ['.txt', '.csv', '.xls', '.xlsx']:
+                try:
+                    # logger.info('Reading; {}'.format(f))
+                    sheet_ids = read_ids(os.path.join(root, f))
+                    ordered_ids.extend(sheet_ids)
+                except Exception as e:
+                    print('failed to read: {}'.format(f))
+                    logger.error(e)
+            
+            pbar.update(1)
+            last_dir = cur_dir
+    
+    logger.debug('Writing ordered IDs to: {}'.format(ordered_loc))        
+    write_ids(ordered_ids, ordered_loc)

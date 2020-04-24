@@ -45,7 +45,7 @@ from misc_utils.logging_utils import LOGGING_CONFIG
 # OUT_ID_LIST = None
 
 
-def dem_selector(AOI_PATH, 
+def dem_selector(AOI_PATH=None, 
                  COORDS=None,
                  DEM_FP=None,
                  MONTHS=None, 
@@ -63,6 +63,8 @@ def dem_selector(AOI_PATH,
     ----------
     AOI_PATH : os.path.abspath
         Path to AOI shapefile.
+    COORDS : tuple
+        Lon, Lat to use instead of aoi.
     DEM_FP : os.path.abspath, optional
         Path to a footprint of DEMs. The default is None.
     MONTHS : LIST, optional
@@ -141,12 +143,14 @@ def dem_selector(AOI_PATH,
         if DENSITY_THRESH:
             dems = dems[dems[DENSITY_COL] > DENSITY_THRESH]
     else:
-        # Get bounds of aoi to reduce query size, with padding
-        minx, miny, maxx, maxy = aoi.total_bounds
-        pad = 10
         # Get DEM footprint crs - this loads no records, but it
         # will allow getting the crs of the footprints
         dems = query_footprint(DEMS_FP, where="1=2")
+        # Get bounds of aoi to reduce query size, with padding
+        if aoi.crs != dems.crs:
+            aoi = aoi.to_crs(dems.crs)
+        minx, miny, maxx, maxy = aoi.total_bounds
+        pad = 10
         # Load DEMs
         # Build SQL clause to select DEMs in the area of the AOI, helps with load times
         dems_where = """cent_lon > {} AND cent_lon < {} AND 
@@ -186,8 +190,10 @@ def dem_selector(AOI_PATH,
     #### SELECT DEMS OVER ALL AOIS ####
     logger.info('Selecting DEMs over AOI...')
     # Select by location
-    # dems = gpd.overlay(dems, aoi, how='intersection')
-    dems = gpd.sjoin(dems, aoi, how='inner')
+    dem_cols = list(dems)
+    dems = gpd.sjoin(dems, aoi)
+    dems = dems[dem_cols]
+    
     # Remove duplicates resulting from intersection (not sure why DUPs)
     dems = dems.drop_duplicates(subset=(DEM_FNAME))
     logger.info('DEMs found over AOI: {}'.format(len(dems)))

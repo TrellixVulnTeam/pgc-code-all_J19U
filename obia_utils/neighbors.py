@@ -42,13 +42,13 @@ def get_truth(inp, relate, cut):
            '<': operator.lt,
            '>=': operator.ge,
            '<=': operator.le,
-           '==': operator.eq}
-     
+           '==': operator.eq,
+           '!=': operator.ne}
+
     return ops[relate](inp, cut)
 
 
 def subset_df(gdf, params, skip_ids=None):
-           # col=None, nrows=None, order='ascending'):
     """
     Return a subset of the given dataframe, which is nrows long after sorting by col in order
     provided.
@@ -69,15 +69,19 @@ def subset_df(gdf, params, skip_ids=None):
     # TODO: Add checking to enure params is formated properly:
     #       [(column_name, compare, thresh), (col2, comp2, thresh2), ...]
     #       [('slope_mean', '<', 10)]
-    
-    param_str ='\n'.join([str(p).replace("'", "").replace(",", "").replace("(", "").replace(")","") for p in params])
+    # Check operators are correct
+    invalid_params = [p for p in params if p[1] not in ['<', '>', '<=', '>=', '==', '!=']]
+    if any(invalid_params):
+        logger.error('Invalid operator(s) supplied in params: {}'.format(invalid_params))
+
+    param_str = '\n'.join([str(p).replace("'", "").replace(",", "").replace("(", "").replace(")", "") for p in params])
     logger.debug('Subsetting where:\n{}'.format(param_str))
-    
+
     # Check if "area" is any of the columns to use
     # If it is, and is not already a column, create it
     if "area" in [p[0] for p in params] and "area" not in gdf.columns:
         gdf["area"] = gdf.geometry.area
-        
+
     # Do initial subset with first params
     subset = gdf[get_truth(gdf[params[0][0]], params[0][1], params[0][2])]
     if len(params) > 1:
@@ -86,7 +90,7 @@ def subset_df(gdf, params, skip_ids=None):
 
     if len(subset) == 0:
         logger.debug('Empty subset returned:\n{}'.format(param_str))
-        
+
     if skip_ids:
         subset = subset[~subset.index.isin(skip_ids)]
     logger.debug('Subset size: {}'.format(len(subset)))
@@ -118,15 +122,15 @@ def find_neighbors(row, gdf):
     # Check if current feature was included as one of it's own neighbors
     # if row.name in neighbors:
         # neighbors = neighbors.remove(row.index)
-    
+
     return neighbors
 
 
 def neighbor_values(row, gdf, vc, nc=None):
     """
-    Gets values in the given column of neighbors (which can either) be
+    Get values in the given column of neighbors (which can either) be
     computed already or not.
-    
+
     Parameters
     ----------
     row : gpd.GeoSeries (?)
@@ -137,7 +141,7 @@ def neighbor_values(row, gdf, vc, nc=None):
         Name of column to look up value in. (vc: "Value column")
     nc : str
         Name of column containing list of neighbor indicies. Default = None.
-    
+
     Returns
     ---------
     list of tuple : [(neighbor index, value), (n_2, v_2), ... (n_i, v_i)]
@@ -149,12 +153,12 @@ def neighbor_values(row, gdf, vc, nc=None):
     else:
         neighbors = row[nc]
     # Get value for each neighbor, skip neighbors with nan value in vc column
-    values = {n: gdf.loc[n, vc] for n in neighbors 
+    values = {n: gdf.loc[n, vc] for n in neighbors
               if not pd.isnull(gdf.loc[n, vc])}
 
     return values
-    
-    
+
+
 def adj_neighbor(row, vt, nvc, tc):
     """
     Determine if the row is adjacent to a feature based on the comparison
@@ -178,9 +182,9 @@ def adj_neighbor(row, vt, nvc, tc):
 
     """
     values = row[nvc]
-    
+
     match = any([get_truth(v, tc, vt) for v in values.values()])
-    
+
     return match
 
 
@@ -189,7 +193,7 @@ def closest_neighbor(row, vc, nvc, vt, ignore_ids):
     Find closest neighbor value given dict of neighbor ids:values
     and value to compare to. Also check that value isn't in list
     ids to ignore.
-    
+
     Parameters
     ----------
     row : gpd.GeoSeries (?)
@@ -203,15 +207,15 @@ def closest_neighbor(row, vc, nvc, vt, ignore_ids):
         Column containing dictionary of neighbor_id: value.
     ignore_ids : list
         List of IDs to exclude from choosing.
-        
+
     Returns
     ---------
     str : ID of closest neighbor
     """
-    
+
     # Get the value of the feature
     feat_val = row[vc]
-    
+
     # Remove any ignore_ids from the dictionary
     neighbor_vals = row[nvc]
     # Check if neighbor values nan ******
@@ -219,24 +223,24 @@ def closest_neighbor(row, vc, nvc, vt, ignore_ids):
         # logger.debug(row)
     # logger.info('\n')
     # logger.info('\n{}'.format(row))
-    
+
     for key in list(neighbor_vals.keys()):
         if key in ignore_ids:
             neighbor_vals.pop(key, None)
-    
+
     # Remove any ids if their values further than threshold
     neighbor_vals = {k: v for k, v in neighbor_vals.items() if abs(v-feat_val) <= vt}
-    
+
     # Check to ensure values remain in dictionary
     if neighbor_vals:
         # Get the id of the closest value in the dictionary
         id_closest = min(row[nvc].items(), key=lambda kv : abs(kv[1] - feat_val))[0]
     else:
         id_closest = None
-        
+
     return id_closest
 
-    
+
 def merge(gdf, to_merge, col_of_int):
     """
     Create geodataframe from list of IDs in list of tuples (id, dissolve_ct). Dissolve that geodataframe
@@ -250,7 +254,7 @@ def merge(gdf, to_merge, col_of_int):
         dict of ID:dissolve_ct to look up in gdf, dissolve, and recombine.
     col_of_int : str
         Column to aggregate
-        
+
     Returns
     -------
     gpd.GeoDataFrame : Merged geodataframe.
@@ -258,19 +262,19 @@ def merge(gdf, to_merge, col_of_int):
     """
     # Create df of subset
     dis_feats = gdf[gdf.index.isin(to_merge.keys())]
-    
+
     # Get the dissolve identifiers
-    
+
     index_name = gdf.index.name
     if not index_name:
         index_name = 'temp_index'
     dis_feats.index.name = index_name
     dis_feats.reset_index(inplace=True)
-    
+
     dis_feats['dis'] = dis_feats[index_name].apply(lambda x: to_merge[x])
-    
+
     # dis_feats.set_index(index_name, inplace=True)
-    
+
     ## Dissolve subset (agg funct area weighted)
     # Create value*area column for creating area weighted column (at: area total)
     dis_feats['at_{}'.format(col_of_int)] = dis_feats[col_of_int] * dis_feats.geometry.area
@@ -289,7 +293,7 @@ def merge(gdf, to_merge, col_of_int):
     dis_feats.index.name = index_name
     # Just keep area weighted column (and geometry)
     dis_feats = dis_feats[['aw_{}'.format(col_of_int), 'geometry']]
-     
+
     # Rename the column back to original name
     rename = {'aw_{}'.format(col_of_int): col_of_int}
     dis_feats.rename(columns=rename, inplace=True)
@@ -297,29 +301,30 @@ def merge(gdf, to_merge, col_of_int):
     # max_unique_id = gdf.index.max()
     # new_idx = [max_unique_id+1+ i for i in range(len(dis_feats))]
     # dis_feats.set_index([new_idx], inplace=True)
-    
+
     # Remove ids that are in to_merge from gdf
     gdf = gdf[~gdf.index.isin(to_merge.keys())]
-    
+
     # Add back to gdf
     gdf = pd.concat([gdf, dis_feats])
-    
+
     # logger.info('Merge success')
-    
+
     return gdf
 
 
 def split_nan_features(gdf, vc):
+    #
     # Remove any features with nan in their vc (value column)
     nan_feats = None
     if any(pd.isnull(gdf[vc])):
         logger.warning('Removing features with NaN values in column to merge on: {}'.format(vc))
-        gdf = gdf[~pd.isnull(gdf[vc])]
         nan_feats = gdf[pd.isnull(gdf[vc])]
-        
+        gdf = gdf[~pd.isnull(gdf[vc])]
+
     return gdf, nan_feats
 
-        
+
 def merge_closest_val(gdf, vc, vt, nvc, subset_params, iter_btw_merge=100):
     """
     Write a good docstring
@@ -329,10 +334,10 @@ def merge_closest_val(gdf, vc, vt, nvc, subset_params, iter_btw_merge=100):
     # TODO: Check for unique index and index.name
     # TODO: Non-consistent results with different iter_btw_merge
     # TODO: Warn if nvc not computed
-    
+
     # Temporarily remove any features with nan in the column of interest
     gdf, nan_feats = split_nan_features(gdf, vc=vc)
-    
+
     # Check if neighbor value column exists
     if not nvc in gdf.columns:
         gdf[nvc] = None
@@ -341,7 +346,7 @@ def merge_closest_val(gdf, vc, vt, nvc, subset_params, iter_btw_merge=100):
         # subset = subset_df(gdf, params=subset_params)
         # # Get neighbors for those features that meet subset parameters
         # gdf[nvc] = gdf[gdf.index.isin(subset.index)].apply(lambda x: neighbor_values(x, gdf, vc=vc), axis=1)
-    
+
     # Flag for when there are no remaining features to merge
     fts_to_merge = True
 
@@ -407,11 +412,11 @@ def merge_closest_val(gdf, vc, vt, nvc, subset_params, iter_btw_merge=100):
         # End of the loop over subset is reached before the iter_btw_merge threshold
         logger.debug('End of subset, merging features: {:,}'.format(len(to_merge)))
         gdf = merge(gdf, to_merge, col_of_int=vc)
-    
+
     # Add back in any features that had NaN in the vc.
     if isinstance(nan_feats, gpd.GeoDataFrame):
         gdf = pd.concat([gdf, nan_feats])
-        
+
     logger.info('Resulting number of features: {:,}'.format(len(gdf)))
     return gdf
 

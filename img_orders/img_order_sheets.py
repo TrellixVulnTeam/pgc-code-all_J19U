@@ -78,7 +78,7 @@ def read_data(filepath):
     else:
         df = None
         print('Error reading data into dataframe: {}'.format(filepath))
-    print('Total source IDs found: {}'.format(len(df.index)))
+    print('Total source IDs found: {:,}'.format(len(df.index)))
     
     return df
 
@@ -113,7 +113,7 @@ def clean_dataframe(dataframe, keep_swir, out_path=None):
     dataframe = dataframe.drop_duplicates(subset=['catalogid', 'platform'], keep=False) # Can this line or the one above it be removed? Same thing right?
     len_after = len(dataframe)
     if len_b4 != len_after:
-        print('Duplicates removed: {}'.format(len_b4-len_after))
+        print('Duplicates removed: {:,}'.format(len_b4-len_after))
     dataframe['platform'] = dataframe.apply(locate_swir, axis=1)
     return dataframe
 
@@ -197,7 +197,7 @@ def write_master(dataframe, outpath, outnamebase, output_suffix, order_date, kee
         dataframe = dataframe[dataframe['platform'] != 'WV03-SWIR']
         len_after = len(dataframe)
         if len_b4 != len_after:
-            print('\nRemoved SWIR: {}\n'.format(len_b4-len_after))
+            print('\nRemoved SWIR: {:,}\n'.format(len_b4-len_after))
     dataframe.sort_index(inplace=True)
     dataframe.sort_values(by='catalogid', inplace=True)
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
@@ -246,7 +246,7 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
         df = dataframe[dataframe['platform'] == pf] # create dataframe for each platform (select from master) 
         all_platforms_dict[pf]['df'] = df # store dataframe for each platform in its dict
         all_platforms_dict[pf]['g_sheet'] = list_chopper(df, project_path, project_base, output_suffix, order_date) # split dataframe into excel sheets
-        print('{} IDs found: {}'.format(pf, len(df.index)))
+        print('{} IDs found: {:,}'.format(pf, len(df.index)))
         ids_written += len(df.index)
         
     # Write sheet to copy to GSheet
@@ -279,7 +279,7 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
     gsheet_df.to_excel(gsheet_writer, index=True, sheet_name='Sheet1')
     gsheet_writer.save()
     write_master(dataframe, project_path, project_base, output_suffix, order_date, keep_swir)
-    print('IDs written to sheets: {}'.format(ids_written))
+    print('IDs written to sheets: {:,}'.format(ids_written))
     return all_platforms_dict
 
 

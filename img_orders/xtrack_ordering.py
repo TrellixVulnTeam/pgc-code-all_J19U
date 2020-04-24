@@ -1,227 +1,149 @@
+#%% Modules
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Apr 16 15:28:11 2020
+
+@author: disbr007
+"""
+
 # -*- coding: utf-8 -*-
 """
 Created on Mon Jan 27 13:08:08 2020
 
 @author: disbr007
 """
+# Suppress geopandas crs FutureWarning
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import argparse
+import collections
 import os
 
 import pandas as pd
-from tqdm import tqdm
+import geopandas as gpd
+# from tqdm import tqdm
 
-from selection_utils.query_danco import query_footprint, count_table
-from misc_utils.logging_utils import create_logger
 from misc_utils.utm_area_calc import area_calc
-from misc_utils.id_parse_utils import write_ids, get_platform_code, mfp_ids
 
+from misc_utils.logging_utils import create_logger
+from misc_utils.id_parse_utils import write_ids, get_platform_code, ordered_ids
+from selection_utils.query_danco import query_footprint, count_table
 
-# INPUTS
-# out_path = r''
-# num_ids = 40_000 # Desired number of IDs
-# sensors = ['WV01', 'WV02', 'WV03']
+# Turn off pandas warning
+pd.options.mode.chained_assignment = None 
 
-# min_date = '2019-04-23'
-# max_date = None
+#%% Set up
+# Inputs
+num_ids = 20_000 # Desired number of IDs
+sensors = ['WV01', 'WV02', 'WV03']
+orderby = 'perc_ovlp'
+where = "(project = 'EarthDEM') AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
+aoi_path = r'E:\disbr007\general\US_States\us_no_AK.shp'
+out_path = r'E:\disbr007\imagery_orders\PGC_order_2020apr22_xtrack_cc20_conus\xtrack_20k_ids.txt.'
 
-# max_area = None # Max overlap area to include
-# min_area = 1000 # Min overlap area to include
+logger = create_logger(__name__, 'sh', 'INFO')
 
+if sensors:
+    sensor_where = ''
+    for sensor in sensors:
+        if sensor_where:
+            sensor_where += ' OR '
+        sensor_where += """(catalogid1 LIKE '{0}%%' OR catalogid2 LIKE '{0}%%')""".format(get_platform_code(sensor))
+    if where:
+        where += " AND "
+    where += '({})'.format(sensor_where)
+    
+if aoi_path:
+    aoi = gpd.read_file(aoi_path)
+    
 
-def xtrack_ordering(out_path, num_ids, min_date, max_date,
-                    min_area, max_area, sensors, noh, project):
-    """
-    Select IDs from the danco xtrack footprint, given the 
-    arguments above, sorted by maximum area first.
+# Params
+xtrack_tbl = 'dg_imagery_index_xtrack_cc20'
+chunk_size = 50_000
+area_col = 'area_sqkm'
+columns = ['catalogid1', 'catalogid2', 'region_name', 'pairname']
 
-    Parameters
-    ----------
-    out_path : os.path.abspath
-        Path to write ID selection .txt to.
-    num_ids : INT
-        Number of IDs desired.
-    min_date : STR
-        Minimum year to consider.
-    max_date : STR
-        Maximum year to consider.
-    min_area : FLOAT
-        Minimum area to consider.
-    max_area : FLOAT
-        Maximum area to consider.
-    sensors : LIST
-        Sensors to consider: e.g. ["WV01", "WV02"]
+table_total = count_table(xtrack_tbl, where=where)
+logger.info('Total table size with query: {:,}'.format(table_total))
+# table_total = 20000
 
-    Returns
-    ---------
-    set : selected catalog ids
-    
-    """
-    
-    def check_where(where):
-        if where:
-            where += ' AND '
-        return where
-    
-    # Parameters
-    area_col = 'sqkm_utm'
-    
-    logger = create_logger(os.path.basename(__file__), 'sh',
-                           handler_level='INFO')
-    
-    # Load footprints in chunks to avoid long load time
-    # Xtrack table name
-    xtrack_name = 'dg_imagery_index_xtrack_cc20'
-    # Columns to load
-    cols = ['objectid', 'catalogid1', 'catalogid2', 'acqdate1', 'pairname']
-    
-    # Build where clause
-    where = ""
-    if min_date:
-        where = check_where(where)
-        where += "(acqdate1 > '{}')".format(min_date)
-    if max_date:
-        where = check_where(where)
-        where += "(acqdate1 < '{}')".format(max_date)
-    # Add platforms to where, there are no platform fields in the xtrack table
-    # so using first three digits of catalogid
-    if sensors:
-        sensor_where = ''
-        for sensor in sensors:
-            if sensor_where:
-                sensor_where += ' OR '
-            sensor_where += """(catalogid1 LIKE '{0}%%' OR catalogid2 LIKE '{0}%%')""".format(get_platform_code(sensor))
-        if where:
-            where += " AND "
-        where += '({})'.format(sensor_where)
-    if project:
-        where = check_where(where)
-        where += """project IN ({})""".format(str(project)[1:-1])
-    
-    # Count the number of records returned by the where sql query
-    logger.info('Where clause for selection: {}'.format(where))
-    xt_size = count_table(xtrack_name, columns=[cols[0]], where=where)
-    logger.info('Size of full selection would be: {:,}'.format(xt_size))
-        
-    chunksize = 500_000
-    logger.info('Loading in chunks of {:,}'.format(chunksize))
-    
-    prev_x = 0
-    xt_chunks = [] # list to store dataframe chunks
-    tbl_size = count_table(xtrack_name, columns=[cols[0]])
-    for x in range(0, tbl_size+chunksize, chunksize):
-        if x == 0:
-            continue
-        logger.info('Loading {} chunk: {:,} - {:,}'.format(xtrack_name, prev_x, x))
-        # Add objectid range to sql clause
-        obj_where = """{} AND (objectid >= {} AND objectid < {})""".format(where, prev_x, x)
+# Get all onhand ids
+oh_ids = oh_ids = set(ordered_ids(update=False))
 
-        logger.debug('Where clause to apply to {}:\n{}'.format(xtrack_name, obj_where))
-        xt_chunk = query_footprint(xtrack_name, 
-                                    where=obj_where,
-                                    columns=cols)
-        loaded_records = len(xt_chunk)
-        logger.info('Number of records loaded from chunk: {:,}'.format(loaded_records))
-        logger.debug('min objectid: {}'.format(xt_chunk.objectid.min()))
-        logger.debug('max objectid: {}'.format(xt_chunk.objectid.max()))
-        
-        if loaded_records != 0:
-            if noh:
-                # Remove onhand
-                logger.info('Removing on hand ids...')
-                oh_ids = set(mfp_ids())
-                xt_chunk = xt_chunk[(~xt_chunk['catalogid1'].isin(oh_ids)) & (~xt_chunk['catalogid2'].isin(oh_ids))]
-                logger.info('Remaining records: {}'.format(len(xt_chunk)))
-            # Calculate UTM area
-            # TODO: Rewrite this to be an apply function
-            logger.info('Calculating utm area on chunk...')
-            xt_chunk = area_calc(xt_chunk, area_col=area_col)
-            if min_area and max_area:
-                xt_chunk = xt_chunk[(xt_chunk[area_col] > min_area) & (xt_chunk[area_col] <= max_area)]
-            elif min_area:
-                xt_chunk = xt_chunk[xt_chunk[area_col] > min_area]
-            elif max_area:
-                xt_chunk = xt_chunk[xt_chunk[area_col] <= max_area]
-                
-            logger.info('Number of records meeting area specification (if any): {:,}'.format(len(xt_chunk)))
-            xt_chunks.append(xt_chunk)
-        
-        prev_x = x
-        
-        
-    xt_area = pd.concat(xt_chunks)
-    logger.info('Records before removing onhand: {}'.format(len(xt_area)))
+#%% Iterate
+# Iterate chunks of table, calculating area and adding id1, id2, area to dictionary
+all_ids = []
+limit = chunk_size
+offset = 0
+while offset < table_total:
+    # Load chunk
+    logger.info('Loading chunk: {:,} - {:,}'.format(offset, limit+offset))
+    chunk = query_footprint(xtrack_tbl, columns=columns,
+                            orderby=orderby, orderby_asc=False, 
+                            where=where, limit=limit, offset=offset,
+                            dryrun=False)
     
-    if noh:
-        # Remove onhand
-        logger.info('Removing on hand ids...')
-        oh_ids = set(mfp_ids())
-        xt_area = xt_area[(~xt_area['catalogid1'].isin(oh_ids)) & (~xt_area['catalogid2'].isin(oh_ids))]
+    # Remove records where both IDs are onhand
+    logger.info('Dropping records where both IDs are on onhand...')
+    chunk = chunk[~((chunk['catalogid1'].isin(oh_ids)) & (chunk['catalogid2'].isin(oh_ids)))]
+    logger.info('Remaining records: {:,}'.format(len(chunk)))
     
-    logger.info('Summary of all matching footprints:\n{}'.format(xt_area.describe()))
-    # Stack catalogid1 and catalogid2 with area col
-    all_ids = pd.concat([xt_area[['catalogid1', area_col]], xt_area[['catalogid2', area_col]]])
+    # Find only IDs in AOI if provided
+    if aoi_path:
+        logger.info('Finding IDs in AOI...')
+        if aoi.crs != chunk.crs:
+            aoi = aoi.to_crs(chunk.crs)
+        chunk_cols = list(chunk)
+        chunk = gpd.sjoin(chunk, aoi, how='inner')
+        chunk = chunk[chunk_cols]
+        # TODO: Confirm if this is needed, does an 'inner' sjoin leave duplicates?
+        chunk.drop_duplicates(subset='pairname')
+        logger.info('Remaining records: {:,}'.format(len(chunk)))
     
-    if min_area or max_area:
-        # Sort by area, max first, then get first n records
-        all_ids.sort_values(by=area_col, ascending=False, inplace=True)
-    else:
-        # Sort by percent overlap
-        all_ids.sort_values(by='perc_ovlp', ascending=False)
-        
-    logger.info('Selecting first {} IDs...'.format(num_ids))
-    selected_records = xt_area.iloc[0:num_ids]
-    # Remove any duplicates
-    selected_ids = set(list(selected_records['catalogid1']) + list(selected_records['catalogid2']))
+    # Calculate area for chunk
+    logger.info('Calculating area...')
+    chunk = area_calc(chunk, area_col=area_col)
     
-    logger.info('Writing {:,} selected IDs to {}...'.format(len(selected_ids), out_path))
-    write_ids(selected_ids, out_path)
+    # Add tuple of (catid1_catid2, area) now done above: (if both ids are not already on hand )
+    # If only one is on hand, it is removed later and the noh id is added to the final list
+    chunk_ids = [("{}_{}".format(c1, c2), area) for c1, c2, area in zip(list(chunk['catalogid1']),
+                                                                        list(chunk['catalogid2']),
+                                                                        list(chunk[area_col]))]
+                  # if c1 not in oh_ids and c2 not in oh_ids]
     
+    logger.info('IDs matching criteria from chunk: {:,}\n'.format(len(chunk_ids)))
+    all_ids.extend(chunk_ids)
     
-# xtrack_ordering(out_path, num_ids, min_date, max_date, min_area, max_area, sensors)
+    # Increase offset
+    offset += limit
 
+#%% Combining      
+# Remove any duplicates from different pairs of cid1+cid2, cid1+cid3, etc.
+all_ids = list(set(all_ids))
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    
-    parser.add_argument('out_path', type=os.path.abspath,
-                        help='Path to write list of selected IDs.')
-    parser.add_argument('--num_ids', type=int,
-                        help='Number of IDs to select.')
-    parser.add_argument('--min_date', type=str,
-                        help='Minimum acqdate to consider. E.g.: 2019-04-21')
-    parser.add_argument('--max_date', type=str,
-                        help='Maximum acqdate to consider.')
-    parser.add_argument('--min_area', type=float,
-                        help='Minimum footprint area to consider.')
-    parser.add_argument('--max_area', type=float,
-                        help='Maximum footprint area to consider.')
-    parser.add_argument('--sensors', nargs='+', default=['WV01', 'WV02', 'WV03'],
-                        help='Sensors to consider.')
-    parser.add_argument('-noh', '--not_on_hand', action='store_true',
-                        help='Use this flag to only return records not on hand.')
-    parser.add_argument('--project', nargs='+',
-                        help='Projects to include (i.e. regions): EarthDEM ArcticDEM REMA')
-    
-    args = parser.parse_args()
-    
-    out_path = args.out_path
-    num_ids = args.num_ids
-    min_date = args.min_date
-    max_date = args.max_date
-    min_area = args.min_area
-    max_area = args.max_area
-    sensors = args.sensors
-    noh = args.not_on_hand
-    project = args.project
-    
-    xtrack_ordering(out_path=out_path,
-                    num_ids=num_ids,
-                    min_date=min_date,
-                    max_date=max_date,
-                    min_area=min_area,
-                    max_area=max_area,
-                    sensors=sensors,
-                    noh=noh,
-                    project=project)
-    
+# Sort by area
+all_ids_dict = collections.OrderedDict(all_ids)
+all_ids_dict = sorted(all_ids_dict.items(), key=lambda kv: kv[1], reverse=True)
+
+# Create final list
+final_ids = []
+
+# Check if either ID is on hand, if not add
+# while len(final_ids) < num_ids:
+logger.info('Records meeting criteria where both IDs are not onhand: {}'.format(len(all_ids_dict)))
+logger.info('Removing any onhand ids...')
+for c1_c2, area in all_ids_dict:
+    c1, c2 = c1_c2.split('_')
+    if c1 not in oh_ids and c1 not in final_ids:
+        final_ids.append(c1)
+    if c2 not in oh_ids and c2 not in final_ids:
+        final_ids.append(c2)
+
+logger.info('Total IDs matching criteria: {:,}'.format(len(final_ids)))
+
+selected_final_ids = final_ids[0:num_ids]
+
+#%% Write
+logger.info('Writing {:,} IDs to: {}'.format(len(selected_final_ids), out_path))
+write_ids(selected_final_ids, out_path)

@@ -12,12 +12,47 @@ import os
 
 import arcpy
 
-from misc_utils.id_parse_utils import read_ids, pgc_index_path
+# from misc_utils.id_parse_utils import read_ids, pgc_index_path
 from misc_utils.logging_utils import LOGGING_CONFIG
 
 
-imagery_index = pgc_index_path()
-arcpy.env.overwriteOutput = True
+def pgc_index_path(ids=False):
+    """
+    Return the path to the most recent pgc index from a manually updated
+    text file containing the path.
+    """
+    with open(r'C:\code\pgc-code-all\config\pgc_index_path.txt', 'r') as src:
+        content = src.readlines()
+    if not ids:
+        index_path = content[0].strip('\n')
+    if ids:
+        index_path = content[1].strip('\n')
+    logger.debug('PGC index path loaded: {}'.format(index_path))
+
+    return index_path
+
+
+def read_ids(ids_file, field=None):
+    """
+    Read ids from a variety of file types.
+    Field only required if providing shapefile.
+    """
+    # Determine file type
+    ext = os.path.splitext(ids_file)[1]
+    if ext in ['.txt', '.csv']:
+        with open(ids_file, 'r') as f:
+            content = f.readlines()
+            # Remove any whitespace
+            ids = [l.strip() for l in content]
+    elif ext == '.shp':
+        with arcpy.da.SearchCursor(ids_file, [field]) as cursor:
+            ids = [row[0] for row in cursor]
+    else:
+        logger.warning('Extension {} not supported.'.format(ext))
+    # Remove any duplicate IDs
+    ids = set(ids)
+
+    return ids
 
 
 def check_where(where):
@@ -92,57 +127,64 @@ def create_points(coords, shp_path):
 
 def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field):
     """Select footprints from MFP given criteria"""
-    if input_type == 'shp':
-        if not id_field:
-            logger.info('Loading index: {}'.format(imagery_index))
-            idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
-            logger.info('Loading AOI: {}'.format(selector_path))
-            aoi_lyr = arcpy.MakeFeatureLayer_management(selector_path)
-            logger.info('Making selection...')
-            selection = arcpy.SelectLayerByLocation_management(idx_lyr,
-                                                               overlap_type,
-                                                               aoi_lyr,
-                                                               selection_type="NEW_SELECTION",
-                                                               search_distance=search_distance)
-        else:
-            logger.info('Reading in IDs...')
-            try:
-                ids = read_ids(selector_path, field=id_field)
-            except KeyError:
-                ids = read_ids(selector_path, field=''.join(id_field.split('_')).lower())
-            logger.info('IDs found: {}'.format(len(ids)))
-            if len(ids) != len(set(ids)):
-                logger.info('Unique IDs found: {}'.format(len(set(ids))))
-            logger.debug('IDs: {}'.format('\n'.join(ids)))
-            ids_str = str(ids)[1:-1]
-            where = """{} IN ({})""".format(id_field, ids_str)
-            logger.debug('Where clause for ID selection: {}'.format(where))
-            logger.info('Making selection...')
-            selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
+    if input_type == 'shp' and not id_field:
+        # if not id_field:
+        # Select by location
+        logger.info('Performing selection by location...')
+        logger.info('Loading index: {}'.format(imagery_index))
+        idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
+        logger.info('Loading AOI: {}'.format(selector_path))
+        aoi_lyr = arcpy.MakeFeatureLayer_management(selector_path)
+        logger.info('Making selection...')
+        selection = arcpy.SelectLayerByLocation_management(idx_lyr,
+                                                           overlap_type,
+                                                           aoi_lyr,
+                                                           selection_type="NEW_SELECTION",
+                                                           search_distance=search_distance)
+        # else:
+        #     # Select by the ID field provided
+        #     logger.info('Reading in IDs...')
+        #     try:
+        #         ids = read_ids(selector_path, field=id_field)
+        #     except KeyError:
+        #         # TODO: Not sure what this does
+        #         ids = read_ids(selector_path, field=''.join(id_field.split('_')).lower())
 
-    elif input_type == 'txt':
+        #     logger.info('IDs found: {}'.format(len(ids)))
+        #     if len(ids) != len(set(ids)):
+        #         logger.info('Unique IDs found: {}'.format(len(set(ids))))
+
+        #     logger.debug('IDs: {}'.format('\n'.join(ids)))
+        #     ids_str = str(ids)[1:-1]
+        #     where = """{} IN ({})""".format(id_field, ids_str)
+        #     logger.debug('Where clause for ID selection: {}'.format(where))
+        #     logger.info('Making selection...')
+        #     selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
+    else:
+    # elif input_type == 'txt':
         # Initial selection by id
-        logger.info('Reading in IDs...')
+        logger.info('Reading in IDs from: {}...'.format(os.path.basename(selector_path)))
         ids = read_ids(selector_path)
         logger.info('IDs found: {}'.format(len(ids)))
         logger.debug('IDs: {}'.format(ids))
         ids_str = str(ids)[1:-1]
         where = """{} IN ({})""".format(id_field, ids_str)
         logger.debug('Where clause for ID selection: {}'.format(where))
+
         logger.info('Making selection...')
         selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
-        # if arcpy.GetCount_management(selection).GetOutput(0) == 0:
-            # try removing underscore and making lowercase
-            # logger.debug('No results found, trying alternative format for id_field.')
-            # where = """{} IN ({})""".format(''.join(id_field.split('_')).lower(), ids_str)
-    result = arcpy.GetCount_management(selection)
-    count = int(result.getOutput(0))
-    logger.debug('Selected features: {}'.format(count))
-    if id_field:
-        with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
-            num_selection_ids = len(sorted({row[0] for row in cursor}))
-        # TODO: This is not reporting the correct number of unique IDs
-        logger.info('Unique IDs found in selection: {}'.format(num_selection_ids))
+
+        # count = int(result.getOutput(0))
+        result = arcpy.GetCount_management(selection)
+        count = int(result.getOutput(0))
+        logger.debug('Selected features: {}'.format(count))
+
+        if id_field:
+            with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
+                # num_selection_ids = len(sorted({row[0] for row in cursor}))
+                num_selection_ids = len(({row[0] for row in cursor}))
+            # TODO: This is not reporting the correct number of unique IDs
+            logger.info('Unique IDs found in selection: {}'.format(num_selection_ids))
 
     return selection
 
@@ -248,6 +290,9 @@ if __name__ == '__main__':
     search_distance = args.search_distance
     coordinate_pairs = args.coordinate_pairs
     place_name = args.place_name
+
+    imagery_index = pgc_index_path()
+    arcpy.env.overwriteOutput = True
 
     # If coordinate pairs create shapefile
     if coordinate_pairs:
