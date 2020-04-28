@@ -17,6 +17,7 @@ from misc_utils.logging_utils import create_logger  # LOGGING_CONFIG
 from misc_utils.gdal_tools import clip_minbb
 
 logger = create_logger(__name__, 'sh')
+print(__name__)
 
 # logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
 # logger = logging.getLogger(__name__)
@@ -148,6 +149,7 @@ class Raster():
 
         return ndvi
 
+
     def mndwi_array(self, green_num, swir_num):
         green = self.GetBandAsArray(green_num)
         swir = self.GetBandAsArray(swir_num)
@@ -263,9 +265,7 @@ class Raster():
             depth = 1
 
         # Create output file
-        # fmt = 'GTiff'
         driver = gdal.GetDriverByName(fmt)
-        # dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, 1, self.dtype)
         dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, bands=depth, eType=self.dtype)
         dst_ds.SetGeoTransform(self.geotransform)
         dst_ds.SetProjection(self.prj.ExportToWkt())

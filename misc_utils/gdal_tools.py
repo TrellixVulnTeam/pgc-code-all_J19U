@@ -268,14 +268,15 @@ def remove_shp(shp):
     None
     
     """
-    if os.path.exists(shp):
-        logger.debug('Removing shp: {}'.format(shp))
-        for ext in ['prj', 'dbf', 'shx', 'cpg', 'sbn', 'sbx']:
-            meta_file = shp.replace('shp', ext)
-            if os.path.exists(meta_file):
-                logger.debug('Removing metadata file: {}'.format(meta_file))
-                os.remove(meta_file)
-        os.remove(shp)
+    if shp:
+        if os.path.exists(shp):
+            logger.debug('Removing shp: {}'.format(shp))
+            for ext in ['prj', 'dbf', 'shx', 'cpg', 'sbn', 'sbx']:
+                meta_file = shp.replace('shp', ext)
+                if os.path.exists(meta_file):
+                    logger.debug('Removing metadata file: {}'.format(meta_file))
+                    os.remove(meta_file)
+            os.remove(shp)
 
 
 def raster_bounds(path):

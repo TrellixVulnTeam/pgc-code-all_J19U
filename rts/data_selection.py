@@ -5,15 +5,20 @@ Created on Thu Apr 23 11:35:49 2020
 @author: disbr007
 """
 import matplotlib.pyplot as plt
+import numpy as np
 
+from osgeo import gdal
 import geopandas as gpd
 
 from dem_utils.dem_selector import dem_selector
-from misc_utils.logging_utils import create_logger, create_module_loggers
+from misc_utils.logging_utils import create_logger
+from misc_utils.raster_clip import clip_rasters
+from misc_utils.RasterWrapper import Raster
+
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 plt.style.use("spyder4")
-# logger = create_module_loggers('sh', 'INFO')
+
 
 #%% Select DEM footprints over AOI
 # Inputs
@@ -122,29 +127,96 @@ def dems2dems_ovlp(dems, name='pairname', ovlp_area_name='ovlp_area', ovlp_perc_
     return sj
 
 
-def dems2aoi_ovlp(dems, aoi):
+def dems2aoi_ovlp(dems, aoi, aoi_ovlp_area_col='aoi_ovlp_area', aoi_ovlp_perc_col='aoi_ovlp_perc'):
     aoi_ovlp = gpd.overlay(dems, aoi, how='intersection')
-    aoi_ovlp['aoi_ovlp_area'] = aoi_ovlp.geometry.area
-    aoi_ovlp['aoi_ovlp_perc'] = aoi_ovlp.geometry.area / aoi.geometry.area.values[0]
+    # aoi_ovlp['aoi_ovlp_area'] = aoi_ovlp.geometry.area
+    # aoi_ovlp['aoi_ovlp_perc'] = aoi_ovlp.geometry.area / aoi.geometry.area.values[0]
 
-    dems['aoi_ovlp_area'] = aoi_ovlp.geometry.area
-    dems['aoi_ovlp_perc'] = aoi_ovlp.geometry.area / aoi.geometry.area.values[0]
+    dems[aoi_ovlp_area_col] = aoi_ovlp.geometry.area
+    dems[aoi_ovlp_perc_col] = aoi_ovlp.geometry.area / aoi.geometry.area.values[0]
     
     return dems
 
+
+def remove_unused_geometries(df):
+    remove = [x for x in list(df.select_dtypes(include='geometry')) if x != df.geometry.name]
+    
+    return df.drop(columns=remove)
+
+
+def compute_density(mt_p, aoi_p):
+    logger.info('Computing density...')
+    aoi = gpd.read_file(aoi_p)
+    if len(aoi) == 1:
+        geom_area = aoi.geometry.area
+    else:
+        logger.warning('Multiple features found in AOI provided. Using first for density calculation.')
+        geom_area = aoi.geometry.area[0]
+    
+    ds = gdal.Open(mt_p)
+    b = ds.GetRasterBand(1)
+    gtf = ds.GetGeoTransform()
+    matchtag_res_x = gtf[1]
+    matchtag_res_y = gtf[5]
+    matchtag_ndv = b.GetNoDataValue()
+    data = b.ReadAsArray()
+    err = gdal.GetLastErrorNo()
+    if err != 0:
+        raise RuntimeError("Matchtag dataset read error: {}, {}".format(gdal.GetLastErrorMsg(), mt_p))
+    else:
+        data_pixel_count = np.count_nonzero(data != matchtag_ndv)
+        data_area = abs(data_pixel_count * matchtag_res_x * matchtag_res_y)
+        density = data_area / geom_area
+        data = None
+        ds = None
+    
+    return density
+
+
+def combined_density(mt1, mt2, aoi, clip=False, out_path=None):
+    if clip:
+        mt1, mt2 = clip_rasters(intersection_out, [mt1, mt2], in_mem=True)
+    
+    if not out_path:
+        # compute combined matchtag in memory only
+        out_path = r'/vsimem/temp_comb_mt.tif'
+    # Read matchtag arrays
+    m1 = Raster(mt1)
+    arr1 = m1.Array
+    m2 = Raster(mt2)
+    arr2 = m2.Array
+    if arr1.shape != arr2.shape:
+        logger.warning("""Matchtag arrays do not match. 
+                       Must be clipped before computing combined density.""")
+    
+    # Create new array, 1 if both matchtags were 1, otherwise 0.
+    combo_mt = np.where(arr1 + arr2 == 2, 1, 0)
+    
+    # Write new combined matchtag array
+    m1.WriteArray(combo_mt, out_path)
+    
+    # Compute density
+    combo_dens = compute_density(out_path, aoi)
+
+    return combo_dens.values[0]
+
+
 #%% Get overlap percentages with each other and AOI
 dem_ovlp = dems2dems_ovlp(dems)
+dem_ovlp = dems2aoi_ovlp(dem_ovlp, aoi)
 
 # Sort
-dem_ovlp = dem_ovlp.sort_values(by='ovlp_area')
+dem_ovlp = dem_ovlp.sort_values(by='ovlp_area', ascending=False)
 
 df = dem_ovlp
+
 # Select dems
 orig_id_col = 'pairname'
 id_col = 'pair'
 filepath_col_base = 'fileurl'
 lsuffix = 'd1'
 rsuffix = 'd2'
+
 #%% Plotting
 # Select row
 row = 0
@@ -155,34 +227,30 @@ filepath_left = '{}_{}'.format(filepath_col_base, lsuffix)
 filepath_right = '{}_{}'.format(filepath_col_base, rsuffix)
 filepath1 = sel[filepath_left].iloc[0]
 filepath2 = sel[filepath_right].iloc[0]
+logger.info('DEM1: {}'.format(filepath1))
+logger.info('DEM2: {}'.format(filepath2))
 
-# Write intersection as file
-# ToDO: write function to remove all non used geometry columns before writing
-sel.drop(columns='geometry').to_file(r'E:\disbr007\umn\ms\selection\footprints\ovlp\aoi1_test_int.shp')
+# Write intersection as files
+intersection_out = r'E:\disbr007\umn\ms\selection\footprints\ovlp\aoi1_test_int.shp'
+logger.info('Writing intersection footprint to file: {}'.format(intersection_out))
+remove_unused_geometries(sel).to_file(intersection_out)
+
 # Write both footprints as file
 orig_id_left = '{}_{}'.format(orig_id_col, lsuffix)
 orig_id_right = '{}_{}'.format(orig_id_col, rsuffix)
 pns = [sel[orig_id_left].iloc[0], sel[orig_id_right].iloc[0]]
 orig_fps = dems[dems['pairname'].isin(pns)]
-orig_fps.drop(columns='new_geom_col').to_file(r'E:\disbr007\umn\ms\selection\footprints\ovlp\aoi1_test_orig_fps.shp')
 
-# dem_ovlp = dems2aoi_ovlp(dem_ovlp, aoi)
-
-# row = 4
-# d1 = dem_ovlp['pairname_d1'].iloc[row]
-# d2 = dem_ovlp['pairname_d2'].iloc[row]
-# dem_sel = dems[dems['pairname'].isin([d1,d2])]
-# intersection = dem_ovlp[dem_ovlp['pair']=='{}_{}'.format(d1, d2)]
-
-fig, ax = plt.subplots(1,1)
-# intersect[i:i+1].plot(column='ovlp_area', edgecolor='red', ax=ax, alpha=0.5)
-sel.plot(color='blue', edgecolor='gray', ax=ax, linewidth=1)
-orig_fps.plot(color='none', edgecolor='red', linewidth=1, alpha=0.4, ax=ax)
-# .plot(color='red', alpha=0.5, ax=ax)
-# dem_ovlp.plot(color='none', edgecolor='blue', linestyle='--', linewidth=0.3, ax=ax)
-# aoi.plot(color='none', edgecolor='white', ax=ax)
+selected_footprints_out = r'E:\disbr007\umn\ms\selection\footprints\ovlp\aoi1_test_orig_fps.shp'
+logger.info('Writing original footprints to file: {}'.format(selected_footprints_out))
+remove_unused_geometries(orig_fps).to_file(selected_footprints_out)
 
 #%% Clip matchtags 
 # in memory and calculate density in AOI
-# report average
-# report average with NoData as 0
+dem1_p = r'E:\disbr007\umn\ms\selection\dems\SETSM_WV02_20150811_10300100455CA700_1030010045D2E500_seg4_2m_v3.0\SETSM_WV02_20150811_10300100455CA700_1030010045D2E500_seg4_2m_v3.0_dem.tif'
+dem2_p = r'E:\disbr007\umn\ms\selection\dems\SETSM_WV02_20140818_1030010035755C00_10300100360BC800_seg3_2m_v3.0\SETSM_WV02_20140818_1030010035755C00_10300100360BC800_seg3_2m_v3.0_dem.tif'
+mt1_p = dem1_p.replace('dem.tif', 'matchtag.tif')
+mt2_p = dem2_p.replace('dem.tif', 'matchtag.tif')
+
+#%% Combined density
+combo_dens = combined_density(mt1_p, mt2_p, intersection_out, clip=True)
