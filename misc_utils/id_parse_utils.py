@@ -648,7 +648,7 @@ def create_s_filepath(scene_id, strip_id, acqdate, prod_code):
 def update_ordered(ordered_dir=None, ordered_loc=None):
     """Update the text file of ordered IDs by reading for order sheets"""
     from tqdm import tqdm
-    
+
     if not ordered_loc:
         global ordered_p
         ordered_loc = ordered_path
@@ -678,9 +678,10 @@ def update_ordered(ordered_dir=None, ordered_loc=None):
                 except Exception as e:
                     print('failed to read: {}'.format(f))
                     logger.error(e)
-            
+
             pbar.update(1)
             last_dir = cur_dir
-    
-    logger.debug('Writing ordered IDs to: {}'.format(ordered_loc))        
+
+    logger.debug('Writing ordered IDs to: {}'.format(ordered_loc))
+    ordered_ids = list(set(ordered_ids))
     write_ids(ordered_ids, ordered_loc)
