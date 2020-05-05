@@ -14,7 +14,8 @@ import geopandas as gpd
 from shapely.geometry import Point
 from tqdm import tqdm
 
-from dem_utils.valid_data import valid_percent_clip
+# from dem_utils.valid_data import valid_percent_clip
+from valid_data import valid_percent_clip
 from selection_utils.query_danco import query_footprint
 from misc_utils.id_parse_utils import write_ids
 from misc_utils.logging_utils import LOGGING_CONFIG
@@ -56,7 +57,8 @@ def dem_selector(AOI_PATH=None,
                  LOCATE_DEMS=True,
                  VALID_THRESH=None,
                  OUT_DEM_FP=None,
-                 OUT_ID_LIST=None):
+                 OUT_ID_LIST=None,
+                 OUT_FILEPATH_LIST=None):
     """
     Select DEMs over an AOI, either from a passed DEM_FP, or from
     the danco database.
@@ -184,12 +186,15 @@ def dem_selector(AOI_PATH=None,
         dems = dems[dems[MONTH_COL].isin(MONTHS)]
 
     logger.info('DEMs matching criteria (before AOI selection): {}'.format(len(dems)))
+    if len(dems) == 0:
+        logger.warning('No matching DEMs found (before AOI selection.')
+        sys.exit()
 
     # Check coordinate system match and if not reproject AOI
     if aoi.crs != dems.crs:
         aoi = aoi.to_crs(dems.crs)
-    
-    
+
+
     #### SELECT DEMS OVER ALL AOIS ####
     logger.info('Selecting DEMs over AOI...')
     # Select by location
@@ -224,7 +229,7 @@ def dem_selector(AOI_PATH=None,
     if VALID_THRESH:
         logger.info('Determining percent of non-NoData pixels over AOI for each DEM...')
         # dems[VALID_PERC] = dems.apply(lambda x: valid_percent_clip(AOI_PATH, x[FULLPATH]), axis=1)
-        
+
         dems[VALID_PERC] = -9999
         for row in tqdm(dems[[FULLPATH, VALID_PERC]].itertuples(index=True),
                         total=len(dems)):
@@ -235,18 +240,21 @@ def dem_selector(AOI_PATH=None,
             dems.at[row.Index, VALID_PERC] = vp
     
         dems = dems[dems[VALID_PERC] > VALID_THRESH]
-            
+
     #### WRITE FOOTPRINT AND TXT OF MATCHES ####
     # Write footprint out
     if OUT_DEM_FP:
         logger.info('Writing DEMs footprint to file: {}'.format(OUT_DEM_FP))
         dems.to_file(OUT_DEM_FP)
-    # Write list of IDs ou
+    # Write list of IDs out
     if OUT_ID_LIST:
         logger.info('Writing list of DEM catalogids to file: {}'.format(OUT_ID_LIST))
         write_ids(list(dems[CATALOGID]), OUT_ID_LIST)
-    
-    
+    if OUT_FILEPATH_LIST:
+        logger.info('Writing selected DEM system filepaths to: {}'.format(OUT_FILEPATH_LIST))
+        filepaths = list(dems[FULLPATH])
+        write_ids(filepaths, OUT_FILEPATH_LIST)
+
     #### Summary Statistics ####
     count = len(dems)
     min_date = dems[DATE_COL].min()
@@ -259,8 +267,7 @@ def dem_selector(AOI_PATH=None,
         min_valid = dems[VALID_PERC].min()
         max_valid = dems[VALID_PERC].max()
         avg_valid = dems[VALID_PERC].mean()
-        
-    
+
     logger.info("SUMMARY of DEM SELECTION:")
     logger.info("Number of DEMs: {}".format(count))
     logger.info("Earliest date: {}".format(min_date))
@@ -273,13 +280,13 @@ def dem_selector(AOI_PATH=None,
         logger.info('Minimum valid percentage over AOI: {}'.format(min_valid))
         logger.info('Maximum valid percentage over AOI: {}'.format(max_valid))
         logger.info('Average valid percentage over AOI: {}'.format(avg_valid))
-    
+
     return dems
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    
+
     parser.add_argument('--aoi_path', type=os.path.abspath,
                         help='Path to AOI to select DEMs over.')
     parser.add_argument('--coords', nargs='+',
@@ -288,6 +295,8 @@ if __name__ == '__main__':
                         help="Path to write shapefile of selected DEMs.")
     parser.add_argument('--out_id_list', type=os.path.abspath,
                         help="Path to write text file of selected DEM's catalogids.")
+    parser.add_argument('--out_filepath_list', type=os.path.abspath,
+                        help="Path to write text file of DEM's full paths.")
     parser.add_argument('--dems_footprint', type=os.path.abspath,
                         help='Path to DEM footprints')
     parser.add_argument('--months', nargs='+',
@@ -303,13 +312,14 @@ if __name__ == '__main__':
     parser.add_argument('--valid_aoi_threshold', type=float,
                         help="""Threshold percent of non-Nodata pixels over AOI for each DEM.
                                 Not recommended for large selections.""")
-    
+
     args = parser.parse_args()
-    
+
     AOI_PATH = args.aoi_path
     COORDS = args.coords
     OUT_DEM_FP = args.out_dem_footprint
     OUT_ID_LIST = args.out_id_list
+    OUT_FILEPATH_LIST = args.out_filepath_list
     DEM_FP = args.dems_footprint
     MONTHS = args.months
     MIN_DATE = args.min_date
@@ -317,16 +327,16 @@ if __name__ == '__main__':
     MULTISPEC = args.multispectral
     DENSITY_THRESH = args.density_threshold
     VALID_THRESH = args.valid_aoi_threshold
-    
-    
-    dem_selector(AOI_PATH=AOI_PATH,
-                 COORDS=COORDS,
-                 OUT_DEM_FP=OUT_DEM_FP,
-                 OUT_ID_LIST=OUT_ID_LIST,
-                 DEM_FP=DEM_FP,
-                 MONTHS=MONTHS,
-                 MIN_DATE=MIN_DATE,
-                 MAX_DATE=MAX_DATE,
-                 MULTISPEC=MULTISPEC,
-                 DENSITY_THRESH=DENSITY_THRESH,
-                 VALID_THRESH=VALID_THRESH)
+
+    dems = dem_selector(AOI_PATH=AOI_PATH,
+                        COORDS=COORDS,
+                        OUT_DEM_FP=OUT_DEM_FP,
+                        OUT_ID_LIST=OUT_ID_LIST,
+                        OUT_FILEPATH_LIST=OUT_FILEPATH_LIST,
+                        DEM_FP=DEM_FP,
+                        MONTHS=MONTHS,
+                        MIN_DATE=MIN_DATE,
+                        MAX_DATE=MAX_DATE,
+                        MULTISPEC=MULTISPEC,
+                        DENSITY_THRESH=DENSITY_THRESH,
+                        VALID_THRESH=VALID_THRESH)

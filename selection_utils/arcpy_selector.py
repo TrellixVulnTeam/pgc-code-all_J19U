@@ -116,13 +116,27 @@ def place_name_AOI(place_name, selector_path):
 def create_points(coords, shp_path):
     """Create a point shapefile from long, lat pairs."""
     # TODO: Use arcpy to create points, remove gpd as dependency
-    import geopandas as gpd
-    from shapely.geometry import Point
+    # import geopandas as gpd
+    # from shapely.geometry import Point
 
-    logger.info('Creating point shapefile from long, lat pairs(s)...')
-    points = [Point(float(pair.split(',')[0]), float(pair.split(',')[1])) for pair in coords]
-    gdf = gpd.GeoDataFrame(geometry=points, crs={'init': 'epsg:4326'})
-    gdf.to_file(shp_path)
+    # logger.info('Creating point shapefile from long, lat pairs(s)...')
+    # points = [Point(float(pair.split(',')[0]), float(pair.split(',')[1])) for pair in coords]
+    # gdf = gpd.GeoDataFrame(geometry=points, crs={'init': 'epsg:4326'})
+    # gdf.to_file(shp_path)
+    clean_coords = [[float(x.strip("'")), float(y.strip("'"))] for c in coords for x, y in [c.split(',')]]
+    out_path = os.path.dirname(shp_path)
+    out_name = os.path.basename(shp_path)
+    logger.debug('Creating point layer from coordinates at:\nout_path:{} \nout_name:{}'.format(out_path, out_name))
+    spatial_ref = arcpy.SpatialReference(4326)
+    arcpy.CreateFeatureclass_management(out_path=out_path,
+                                        out_name=out_name,
+                                        geometry_type="POINT",
+                                        spatial_reference=spatial_ref)
+
+    with arcpy.da.InsertCursor(shp_path, ['SHAPE@']) as cursor:
+        for c in clean_coords:
+            cursor.insertRow([arcpy.Point(c[0], c[1])])
+    logger.debug('Point feature class created from coordinates at: {}'.format(shp_path))
 
 
 def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field):
@@ -225,7 +239,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('out_path', type=os.path.abspath, help='Path to write selection shp file.')
-    parser.add_argument('-s', '--selector_path', type=str, 
+    parser.add_argument('-s', '--selector_path', type=os.path.abspath,
                         help='''The path to the selector to use. This can be an AOI .shp file or
                         .txt file of ids. If .txt, --id_field is required. If providing coordinates
                         or placename, the path to write the created AOI shapefile to.''')
@@ -266,6 +280,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    print(args)
+
     if args.verbose:
         handler_level = 'DEBUG'
     else:
@@ -297,7 +313,6 @@ if __name__ == '__main__':
     # If coordinate pairs create shapefile
     if coordinate_pairs:
         logger.info('Using coordinate pairs:\n{}'.format(coordinate_pairs))
-        coordinate_pairs = [c.strip("'") for c in coordinate_pairs]
         create_points(coordinate_pairs, selector_path)
 
     # If place name provided, use as AOI layer
@@ -314,12 +329,16 @@ if __name__ == '__main__':
                                   id_field=id_field)
 #                                      prod_code=prod_code)
     if secondary_selector:
+        logger.info('Selecting within secondary selector...')
         aoi_lyr = arcpy.MakeFeatureLayer_management(secondary_selector)
         selection = arcpy.SelectLayerByLocation_management(selection,
                                                            overlap_type,
                                                            aoi_lyr,
                                                            selection_type="SUBSET_SELECTION",
                                                            search_distance=search_distance)
+        result = arcpy.GetCount_management(selection)
+        count = int(result.getOutput(0))
+        logger.debug('Selected features: {}'.format(count))
 
     # Initialize an empty where clause
     where = ''

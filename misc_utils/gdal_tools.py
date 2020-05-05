@@ -131,10 +131,12 @@ def get_shp_sr(in_shp):
     """
     driver = auto_detect_ogr_driver(in_shp)
     if driver.GetName() == 'Memory':
-        lyr = in_shp.GetLayer()
-    else:
-        ds = driver.Open(in_shp)
-        lyr = ds.GetLayer()
+        # Memory driver doesn't support reading in memory datasets, (weird)
+        # so use ESRI Shapefile which can read an in-memory datasets of
+        # the form /vsimem/temp.shp
+        driver = ogr.GetDriverByName("ESRI Shapefile")
+    ds = driver.Open(in_shp)
+    lyr = ds.GetLayer()
     srs = lyr.GetSpatialRef()
     lyr = None
     ds = None

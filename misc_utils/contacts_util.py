@@ -4,7 +4,7 @@ Created on Wed Jan  9 10:03:43 2019
 
 @author: disbr007
 """
-
+import argparse
 import calendar
 import datetime
 import pandas as pd
@@ -35,6 +35,7 @@ def contacts_update(contacts_xl, new_contacts_xl):
     
     # Read the new contacts csv in
     new_contacts = pd.read_csv(new_contacts_xl, sep=',', encoding = "ISO-8859-1")
+    # new_contacts = pd.read_csv(new_contacts_xl, sep=',', encoding="utf-8")
     # Create a columns to align with contacts formatting
     new_contacts['Region'] = np.NaN
     new_contacts['Old/New'] = 'New'
@@ -65,12 +66,23 @@ def contacts_update(contacts_xl, new_contacts_xl):
     
     return contacts
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--contacts_master', type=os.path.abspath,
+                        help='Path to excel sheet holding contacts.')
+    parser.add_argument('--updated_contacts', type=os.path.abspath,
+                        help='Path to updated spreadsheet of contacts.')
+    args = parser.parse_args()
 
-working_dir = r'E:\disbr007\UserServicesRequests\contacts'
-contacts_path = os.path.join(working_dir, 'contacts.xlsx')
-new_contacts_path = os.path.join(working_dir, 'Contacts_2019may23.csv')
 
-updated_contacts = contacts_update(contacts_path, new_contacts_path)
 
-antartic_emails = emailByRegion(r"E:\disbr007\UserServicesRequests\contacts\contacts_2019may23.xlsx", 'Arctic')
-arctic_emails = emailByRegion(r"E:\disbr007\UserServicesRequests\contacts\contacts_2019may23.xlsx", 'Antarctic')
+# working_dir = r'E:\disbr007\UserServicesRequests\contacts'
+# contacts_path = os.path.join(working_dir, 'contacts.xlsx')
+# new_contacts_path = os.path.join(working_dir, 'Contacts_2019may23.csv')
+
+    
+
+    updated_contacts = contacts_update(args.contacts_master, args.updated_contacts)
+
+    antartic_emails = emailByRegion(r"E:\disbr007\UserServicesRequests\contacts\contacts_2019may23.xlsx", 'Arctic')
+    arctic_emails = emailByRegion(r"E:\disbr007\UserServicesRequests\contacts\contacts_2019may23.xlsx", 'Antarctic')

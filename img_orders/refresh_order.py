@@ -65,7 +65,7 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
         # Use today's date
         refresh_thru = datetime.datetime.now().strftime('%Y-%m-%d')
         
-    where = "(acqdate > '{}' AND acqdate <= '{}') AND (cloudcover >= {} AND cloudcover <= {})".format(last_refresh, 
+    where = "(acqdate >= '{}' AND acqdate <= '{}') AND (cloudcover >= {} AND cloudcover <= {})".format(last_refresh, 
                                                                                                       refresh_thru,
                                                                                                       min_cc, max_cc)
     if sensors:
@@ -133,16 +133,17 @@ def project_dir(out_path, refresh_region):
     
 
 def write_selection(df, out_path):
-    
-    if not os.path.isdir(out_path):
-        os.mkdir(out_path)
 
-    dir_name = os.path.basename(out_path)
-    # Name of shapefile to write
-    write_name = '{}.shp'.format(dir_name)
-    # Location to write shapefile to
-    shp_path = os.path.join(out_path, write_name)
+    # if not os.path.isdir(out_path):
+    #     os.mkdir(out_path)
+
+    # dir_name = os.path.basename(out_path)
+    # # Name of shapefile to write
+    # write_name = '{}.shp'.format(dir_name)
+    # # Location to write shapefile to
+    # shp_path = os.path.join(out_path, write_name)
     # Write the shapefile
+    shp_path = out_path
     logger.info('Writing selection to {}'.format(shp_path))
     df.to_file(shp_path, driver='ESRI Shapefile')
 
@@ -160,7 +161,7 @@ if __name__ == '__main__':
     parser.add_argument("refresh_imagery", type=str, 
                         help="""Type of imagery to refresh, supported types: 
                             'mono_stereo', 'mono', 'stereo'""")
-    parser.add_argument("out_path", type=os.path.abspath, nargs='?', default=os.getcwd(),
+    parser.add_argument("out_path", type=os.path.abspath, default=os.getcwd(),
                         help="Path to write sheets and footprint selection shape to.")
     parser.add_argument("-rt", "--refresh_thru", type=str,
                         help='Last date to include in refresh. Inclusive. yyyy-mm-dd')
@@ -213,11 +214,9 @@ if __name__ == '__main__':
            'cloudcover':['min', 'max'], 
            'y1':['min', 'max'],
            'sqkm_utm':'sum'}
-           
+
     selection_summary = selection.groupby('platform').agg(agg)
     logger.info('Summary:\n{}\n'.format(selection_summary))
 
-    
     if not dryrun:
         write_selection(selection, out_path=out_path)
-        

@@ -250,3 +250,10 @@ def coords2gdf(xs, ys, epsg=4326):
                            crs={'init':'epsg:{}'.format(epsg)})
     
     return gdf
+
+
+def remove_unused_geometries(df):
+    """Remove all geometry columns that aren't being used. Useful for writing to shapefiles"""
+    remove = [x for x in list(df.select_dtypes(include='geometry')) if x != df.geometry.name]
+
+    return df.drop(columns=remove)

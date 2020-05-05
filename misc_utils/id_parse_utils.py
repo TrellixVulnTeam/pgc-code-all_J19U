@@ -21,7 +21,7 @@ from misc_utils.logging_utils import create_logger
 
 
 # Set up logging
-logger = create_logger('id_parse_utils', 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # Globals
 # Path to write list of ordered IDs to
@@ -441,23 +441,22 @@ def onhand_ids(update=False):
     
     return onhand
 
-    
+
 def remove_mfp(src):
     """
-    Takes an input src of ids and removes all 
+    Takes an input src of ids and removes all
     ids that are on hand.
     src: list of ids
     """
-    logger.debug('Removing IDs in master footprint...')
-    logger.debug('Removing mfp ids...')
+    logger.debug('Removing IDs that are in master footprint...')
     src_ids = set(src)
-    logger.debug('src_ids: {}'.format(list(src_ids)[:10]))
+    # logger.debug('src_ids: {}'.format(list(src_ids)[:10]))
     onhand_ids = set(mfp_ids())
-    logger.debug('onhand ids: {}'.format(list(onhand_ids)[:10]))
+    # logger.debug('onhand ids: {}'.format(list(onhand_ids)[:10]))
     not_mfp = list(src_ids - onhand_ids)
-    logger.debug('not mfp ids: {}'.format(list(not_mfp)[:10]))
-    logger.debug('IDs removed: {}'.format((len(src_ids)-len(not_mfp))))
-    
+    # logger.debug('not mfp ids: {}'.format(list(not_mfp)[:10]))
+    logger.debug('IDs removed: {}'.format((len(src_ids) - len(not_mfp))))
+
     return not_mfp
 
 
@@ -593,7 +592,7 @@ def is_stereo(dataframe, catalogid_field, out_field='is_stereo'):
                                  columns=['CATALOG_ID'])
     stereo_ids = list(stereo_ids)
     dataframe[out_field] = dataframe[catalogid_field].apply(lambda x: x in stereo_ids)
-    
+
 
 def dem_exists(dataframe, catalogid_field, out_field='dem_exists'):
     """
@@ -640,7 +639,7 @@ def create_s_filepath(scene_id, strip_id, acqdate, prod_code):
     month = '{}_{}'.format(month_num, month_names[month_num])
 
     s_filepath = '/'.join([base, sensor, pd, year, month, strip_id, '{}.ntf'.format(scene_id)])
-    
+
     return s_filepath
 
 

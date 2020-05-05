@@ -17,7 +17,6 @@ from misc_utils.logging_utils import create_logger  # LOGGING_CONFIG
 from misc_utils.gdal_tools import clip_minbb
 
 logger = create_logger(__name__, 'sh')
-print(__name__)
 
 # logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
 # logger = logging.getLogger(__name__)
