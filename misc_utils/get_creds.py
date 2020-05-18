@@ -14,8 +14,8 @@ def get_creds():
 
     system = platform.system()
     if system == 'Linux':
-        # creds_loc = os.path.join('/mnt', 'pgc', 'data', 'scratch', 'jeff', 'code', 'pgc-code-all', 'config', 'cred.txt')
-        creds_loc = os.path.join('pgc-code-all', 'config', 'cred.txt')
+        creds_loc = os.path.join('/mnt', 'pgc', 'data', 'scratch', 'jeff', 'code', 'pgc-code-all', 'config', 'cred.txt')
+        # creds_loc = os.path.join('pgc-code-all', 'config', 'cred.txt')
     elif system == 'Windows':
         creds_loc = r"C:\code\pgc-code-all\config\cred.txt"
     with open(creds_loc, 'r') as cred:
