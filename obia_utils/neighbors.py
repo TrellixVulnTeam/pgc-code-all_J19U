@@ -94,6 +94,7 @@ def subset_df(gdf, params, skip_ids=None):
     if skip_ids:
         subset = subset[~subset.index.isin(skip_ids)]
     logger.debug('Subset size: {}'.format(len(subset)))
+    
     return subset
 
 
@@ -341,7 +342,7 @@ def merge_closest_val(gdf, vc, vt, nvc, subset_params, iter_btw_merge=100):
     # Check if neighbor value column exists
     if not nvc in gdf.columns:
         gdf[nvc] = None
-        # logger.debug('Neighbors not previously located. Locating now...')
+        logger.debug('Neighbors not previously located.')
         # # Create subset of features that meet subset parameters [(column, compare, thresh),...]
         # subset = subset_df(gdf, params=subset_params)
         # # Get neighbors for those features that meet subset parameters
@@ -361,7 +362,6 @@ def merge_closest_val(gdf, vc, vt, nvc, subset_params, iter_btw_merge=100):
 
         # Create subset of features that meet subset parameters [(column, compare, thresh),...]
         subset = subset_df(gdf, params=subset_params, skip_ids=skip_ids)
-        # subset = gdf[(gdf.geometry.area < 900) & (~gdf.index.isin(skip_ids))]  # fix to be a function
         if len(subset) <= 0:
             fts_to_merge = False
             break
@@ -418,81 +418,5 @@ def merge_closest_val(gdf, vc, vt, nvc, subset_params, iter_btw_merge=100):
         gdf = pd.concat([gdf, nan_feats])
 
     logger.info('Resulting number of features: {:,}'.format(len(gdf)))
+    
     return gdf
-
-
-from datetime import datetime
-start = datetime.now()
-logger.debug('Reading in segmentation...')
-seg = r'V:/pgc/data/scratch/jeff/ms/2020feb01/aoi6/seg/WV02_20150906_pcatdmx_slope_a6g_sr5_rr1_0_ms400_tx500_ty500_stats_nbs.shp'
-# seg = r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats.shp'
-gdf = gpd.read_file(seg)
-# gdf = gpd.read_file(r'C:\temp\merge_test.shp')
-# Existing columns
-unique_id = 'label'
-tpi31_mean = 'tpi31_mean'
-slope_mean = 'slope_mean'
-# Remove extra columns for testing
-gdf = gdf[[unique_id, tpi31_mean, slope_mean, 'geometry']]
-
-# Set index
-gdf.set_index(unique_id, inplace=True)
-logger.debug('DataFrame has unique index: {}'.format(str(gdf.index.is_unique)))
-
-#%% Params
-# For plotting original
-import copy
-g = copy.deepcopy(gdf)
-
-# Params
-vc = slope_mean
-nvc = 'nv_tpi31'
-vt = 2.5
-iter_btw_merge = 300
-min_size = 650
-subset_params = [('area', '<', min_size)]
-
-#%% merge_closest_value
-logger.info('Merging nearest features by value...')
-merge_start = datetime.now()
-g = copy.deepcopy(gdf)
-gdf = merge_closest_val(gdf, vc=vc, vt=vt, nvc=nvc, subset_params=subset_params, iter_btw_merge=iter_btw_merge)
-
-merge_end = datetime.now()
-merge_duration = merge_end-merge_start
-
-end = datetime.now()
-
-duration = end - start
-time_per_feat = duration / (len(g))
-logger.info('Total duration: {}'.format(duration))
-logger.info('Merge: {}'.format(merge_duration))
-
-#%% Plot
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-# from matplotlib.transforms import Bbox
-
-plt.style.use('spy4_blank')
-fig, ax = plt.subplots(1,1)
-
-# ax.axis('off')
-# ax.tick_params(axis='both', reset=True)
-divider = make_axes_locatable(ax)
-cax = divider.append_axes("right", size="3%", pad=0.2)
-
-g.plot(ax=ax, column=vc, edgecolor='white', linewidth=0.75, linestyle=':', 
-        legend=True, cax=cax, 
-        vmin=0, vmax=15)
-gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.75)
-
-ax.axis([-1752000, -1751600, -559300, -558950])
-for spine in ['bottom', 'top', 'left', 'right']:
-    ax.spines[spine].set_color('white')
-    ax.spines[spine].set_linewidth(1)
-    ax.spines[spine].set_visible(True)
-
-plt.tight_layout(pad=3)
-plt.savefig(r'C:\code\jeff-diz.github.io\images\merge_closest_neighbor\slope_thr_base_mcn_base.png'.format(vt,min_size),
-            facecolor='#19232d',
-            dpi=300)

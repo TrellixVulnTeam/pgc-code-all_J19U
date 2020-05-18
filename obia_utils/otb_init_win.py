@@ -22,6 +22,7 @@ def run_subprocess(command):
     logger.debug('Output: {}'.format(output.decode()))
     logger.debug('Err: {}'.format(error.decode()))
 
-otb_env_loc = r'C:\OSGeo4W64\OTB-6.6.1-Win64\OTB-6.6.1-Win64\otbenv.bat'
+# otb_env_loc = r'C:\OSGeo4W64\OTB-6.6.1-Win64\OTB-6.6.1-Win64\otbenv.bat'
+otb_env_loc = r"C:\OSGeo4W64\OTB-7.1.0-Win64\otbenv.bat"
 
 run_subprocess(otb_env_loc)

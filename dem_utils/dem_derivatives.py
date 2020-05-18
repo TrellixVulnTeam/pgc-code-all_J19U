@@ -8,8 +8,6 @@ DEM Derivatives
 
 ## Standard Libs
 import argparse
-import copy
-import logging.config
 import os
 import sys
 import numpy as np
@@ -21,16 +19,13 @@ from scipy.ndimage.filters import generic_filter
 
 ## Local libs
 from misc_utils.RasterWrapper import Raster
-from misc_utils.logging_utils import LOGGING_CONFIG
+from misc_utils.logging_utils import create_logger
 from misc_utils.array_utils import interpolate_nodata
 
 
 gdal.UseExceptions()
 
-handler_level = 'DEBUG'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
-
+logger = create_logger(__name__, 'sh', 'INFO')
 
 def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, **args):
     '''
@@ -44,7 +39,7 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
     supported_derivatives = ["hillshade", "slope", "aspect", "color-relief", 
                              "TRI", "TPI", "Roughness"]
     if derivative not in supported_derivatives:
-        logging.error('Unsupported derivative type. Must be one of: {}'.format(supported_derivatives))
+        logger.error('Unsupported derivative type. Must be one of: {}'.format(supported_derivatives))
         sys.exit()
 
 #    out_name = '{}_{}.tif'.format(os.path.basename(input_dem).split('.')[0], derivative)
@@ -52,7 +47,7 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
 
     # if args:
         # dem_options = gdal.DEMProcessingOptions(args)
-    logging.info('Creating and writing {} to: {}'.format(derivative, output_path))
+    logger.info('Creating and writing {} to: {}'.format(derivative, output_path))
     gdal.DEMProcessing(output_path, input_dem, derivative, **args)
 
     if return_array:
@@ -258,31 +253,17 @@ if __name__ == '__main__':
     else:
         gdal_args = {}
 
+    # Check if directory provided, if so create filename
+    if os.path.isdir(output_path):
+        derivative_name = derivative
+        if 'gdal' in derivative:
+            derivative_name = derivative.replace('gdal_', '')
+        if 'ocv' in derivative:
+            derivative_name = derivative.replace('_ocv', '')
+            if window_size:
+                derivative_name = '{}{}'.format(derivative_name, window_size)
+
+        out_name = os.path.splitext(os.path.basename(dem))[0]
+        output_path = os.path.join(output_path, '{}_{}.tif'.format(out_name, derivative_name))
+        
     dem_derivative(dem, derivative, output_path, window_size, **gdal_args)
-        
-        
-# Topographic Roughness Index
-
-# dem = np.array([[1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
-#                 [1,  1,  1,  1,  1,  1,  1,  3,  9,  8],
-#                 [1,  1,  1,  1,  1,  1,  1,  0,  1,  3],
-#                 [1,  1,  1,  1,  1,  1,  1,  2,  9,  6],
-#                 [1,  1,  1,  1,  1,  1,  1,  1,  1,  1]])
-# dem = dem.astype(float)
-
-# size = 3
-# # kernel = np.ones((size,size),np.float32)/(size*size)
-# kernel = np.ones((size,size),np.float32)
-# kernel 
-# dem_conv = cv2.filter2D(dem, -1, kernel=kernel, borderType=cv2.BORDER_REPLICATE)
-# dem_conv = np.round(dem_conv, 2)
-# print(dem)
-# print(dem_conv)
-
-# corr = correlate(dem, dem*-1)
-# print(corr)

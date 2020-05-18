@@ -32,7 +32,7 @@ def main(MFP_PATH):
 	GET_IDS_PY  = r'C:\code\pgc-code-all\misc_utils\mfp_ids.py'
 
 	mfp_name = os.path.basename(MFP_PATH)
-	IDS_LOC = os.path.join(os.path.dirname(TXT_LOC), '{}_catalog_id.txt'.format(mfp_name))
+	IDS_LOC = os.path.join(os.path.dirname(TXT_LOC), '{}_catalog_id.txt'.format(mfp_name.replace('.gdb', '')))
 	TXT_DIR = os.path.dirname(TXT_LOC)
 
 	logger.info('Updating text file of catalog_ids...')

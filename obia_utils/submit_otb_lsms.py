@@ -5,16 +5,11 @@ import os
 import subprocess
 from subprocess import PIPE, STDOUT
 
-from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
-
-
-
+from misc_utils.logging_utils import create_logger
 
 
 def submit_job(args):
-    """
-    Submits otb_lsms.py to scheduler.
-    """
+    """Submit otb_lsms.py to scheduler."""
     image_source = args.image_source
     out_vector = args.out_vector
     spatialr = args.spatial_radius
@@ -95,10 +90,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    #### Set up logger
+    # Set up logger
     handler_level = 'INFO'
 
-    logger = create_logger('submit_otb_lsms', 'sh',
+    logger = create_logger(__name__, 'sh',
                            handler_level=handler_level)
 
     submit_job(args)

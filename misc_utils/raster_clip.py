@@ -76,10 +76,10 @@ def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
         # Clip to shape
         logger.debug('Clipping {}...'.format(os.path.basename(raster_p)))
         # Create outpath
+        if not out_suffix:
+            out_suffix = ''
         raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
-        # print('ron: {}'.format(raster_out_name))
         raster_op = os.path.join(out_dir, raster_out_name)
-        # print('rop: {}'.format(raster_op))
         if os.path.exists(raster_op) and not overwrite:
             pass
         else:
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_suffix', type=str, help='Suffix to add to clipped rasters.')
     parser.add_argument('--raster_ext', type=str, default='.tif', help='Ext of input rasters.')
     parser.add_argument('--move_meta', action='store_true',
-                        help='Use this flag to move associated meta-data files to clip destination.')
+                        help='Use this flag to move associated metadata files to clip destination.')
     parser.add_argument('--dryrun', action='store_true', help='Prints inputs without running.')
 
     args = parser.parse_args()

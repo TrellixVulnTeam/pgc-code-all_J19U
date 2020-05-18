@@ -323,7 +323,7 @@ def cleanup(out_dir):
     
 def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
                   skip_cleanup=False,
-                  dryrun=False)
+                  dryrun=False):
     """
     Wrapper function to run pc_align for a number of DEMs, including applying
     the translation and computing RMSE if desired.

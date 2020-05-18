@@ -149,6 +149,7 @@ if __name__ == '__main__':
                         type=os.path.abspath,
                         help="""List of rasters to compute zonal statistics for.
                                 Or path to .txt file of raster paths (one per line).""")
+                        # TODO: Adjust to take json of {raster1: {path: C:\raster.tif, name: raster, stats: mean, max,}}
     parser.add_argument('-n', '--names',
                         type=str,
                         nargs='+',

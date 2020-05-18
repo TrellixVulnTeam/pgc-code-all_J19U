@@ -41,6 +41,7 @@ def list_danco_footprint():
     global logger
     logger.warning('list_danco_footprint depreciated, use list_danco_db() instead.')
     logger.debug('Listing danco.footprint databse tables...')
+    connection = None
     try:
         danco = "danco.pgc.umn.edu"
         print(creds[0])
@@ -60,12 +61,11 @@ def list_danco_footprint():
         raise error
     
     finally:
-#        return tables
         # Close database connection.
-        if (connection):
-            connection.close()
-            connection = None
-            logger.debug("PostgreSQL connection closed.")
+        if connection:
+           connection.close()
+           connection = None
+           logger.debug("PostgreSQL connection closed.")
 
 
 def list_danco_db(db):
@@ -118,6 +118,7 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
     '''
     global logger
     logger.debug('Querying danco.{}.{}'.format(db, layer))
+    connection = None
     try:
         db_tables = list_danco_db(db)
         
@@ -188,17 +189,15 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
             connection.close()
             connection = None
             logger.debug("PostgreSQL connection closed.")
-
-
-# def footprint_head(layer, n,
-#                     creds=[creds[0], creds[1]], 
-#                     table=False, where=None, columns=None):
     
-#     if where:
-#         where = '({}) ORDER BY random() LIMIT {}'.format(where, n)
-#     fhead = query_footprint(layer, where=where, table=table, columns=columns)
+
+def table_sample(layer, db='footprint', n=5, table=False, sql=False, where=None, 
+                 columns=None, orderby_asc=False, offset=None, dryrun=False):
     
-#     return fhead
+    sample = query_footprint(layer, db=db, table=table, sql=sql, where=where, 
+                             columns=columns, orderby="random()", limit=n)
+    
+    return sample
     
     
 def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.edu', 

@@ -435,7 +435,7 @@ def create_subset(gdf, subset_col, subset_thresh, subset_compare):
 
 # Merge similar
 # Load data
-seg = gpd.read_file(r'C:\temp\merge_test.shp')
+# seg = gpd.read_file(r'C:\temp\merge_test.shp')
 # # seg = pd.read_pickle(r'V:\pgc\data\scratch\jeff\ms\scratch\aoi6_good\seg\WV02_20150906_tpi31_tpi81_tpi101_stk_a6g_sr5_rr0x35_ms100_tx500_ty500_stats_nbs.pkl')
 
 # subset = copy.deepcopy(seg)

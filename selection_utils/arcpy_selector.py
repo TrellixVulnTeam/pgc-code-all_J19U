@@ -180,10 +180,10 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
         logger.info('Reading in IDs from: {}...'.format(os.path.basename(selector_path)))
         ids = read_ids(selector_path)
         logger.info('IDs found: {}'.format(len(ids)))
-        logger.debug('IDs: {}'.format(ids))
+        logger.debug('IDs: {}\n'.format(ids))
         ids_str = str(ids)[1:-1]
         where = """{} IN ({})""".format(id_field, ids_str)
-        logger.debug('Where clause for ID selection: {}'.format(where))
+        logger.debug('Where clause for ID selection: {}\n'.format(where))
 
         logger.info('Making selection...')
         selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
@@ -196,9 +196,9 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
         if id_field:
             with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
                 # num_selection_ids = len(sorted({row[0] for row in cursor}))
-                num_selection_ids = len(({row[0] for row in cursor}))
+                num_selection_ids = len(set([row[0] for row in cursor]))
             # TODO: This is not reporting the correct number of unique IDs
-            logger.info('Unique IDs found in selection: {}'.format(num_selection_ids))
+            logger.info('Unique {} found in selection: {}'.format(id_field, num_selection_ids))
 
     return selection
 
@@ -275,12 +275,14 @@ if __name__ == '__main__':
                         help='Longitude, latitude pairs. x1,y1 x2,y2 x3,y3, etc.')
     parser.add_argument('--place_name', type=str, default=argdef_place_name,
                         help='Select by Antarctic placename from acan danco DB.')
+    parser.add_argument('--override_defaults', action='store_true',
+                        help="""Use this flag to not use any default attribute selection
+                                parameters: prod_code, sensors, spec_type, max_cc,
+                                max_off_nadir""")
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Set logging level to DEBUG.')
 
     args = parser.parse_args()
-
-    print(args)
 
     if args.verbose:
         handler_level = 'DEBUG'
@@ -306,6 +308,7 @@ if __name__ == '__main__':
     search_distance = args.search_distance
     coordinate_pairs = args.coordinate_pairs
     place_name = args.place_name
+    override_defaults = args.override_defaults
 
     imagery_index = pgc_index_path()
     arcpy.env.overwriteOutput = True
@@ -342,39 +345,40 @@ if __name__ == '__main__':
 
     # Initialize an empty where clause
     where = ''
-    # CC20 if specified
-    if max_cc:
-        where = check_where(where)
-        where += """(cloudcover <= {})""".format(max_cc)
-    # PROD_CODE if sepcified
-    if prod_code:
-        if prod_code != ['any']:
+    if not override_defaults:
+        # CC20 if specified
+        if max_cc:
             where = check_where(where)
-            prod_code_str = str(prod_code)[1:-1]
-            where += """(prod_code IN ({}))""".format(prod_code_str)
-    # Selection by sensor if specified
-    if sensors:
-        where = check_where(where)
-        sensors_str = str(sensors)[1:-1]
-        where += """(sensor IN ({}))""".format(sensors_str)
-    # Time selection
-    if min_year != argdef_min_year or max_year != argdef_max_year or months != argdef_months:
-        where = check_where(where)
-        year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
-        month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
-        month_sql = " OR ".join(month_terms)
-        where += """({}) AND ({})""".format(year_sql, month_sql)
-    if max_off_nadir:
-        where = check_where(where)
-        off_nadir_sql = """(off_nadir < {})""".format(max_off_nadir)
-        where += off_nadir_sql
-    if spec_type:
-        where = check_where(where)
-        spec_type_str = str(spec_type)[1:-1]
-        spec_type_sql = """(spec_type IN ({}))""".format(spec_type_str)
-        where += spec_type_sql
-    logger.debug('Where clause for feature selection: {}'.format(where))
-
+            where += """(cloudcover <= {})""".format(max_cc)
+        # PROD_CODE if sepcified
+        if prod_code:
+            if prod_code != ['any']:
+                where = check_where(where)
+                prod_code_str = str(prod_code)[1:-1]
+                where += """(prod_code IN ({}))""".format(prod_code_str)
+        # Selection by sensor if specified
+        if sensors:
+            where = check_where(where)
+            sensors_str = str(sensors)[1:-1]
+            where += """(sensor IN ({}))""".format(sensors_str)
+        # Time selection
+        if min_year != argdef_min_year or max_year != argdef_max_year or months != argdef_months:
+            where = check_where(where)
+            year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
+            month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
+            month_sql = " OR ".join(month_terms)
+            where += """({}) AND ({})""".format(year_sql, month_sql)
+        if max_off_nadir:
+            where = check_where(where)
+            off_nadir_sql = """(off_nadir < {})""".format(max_off_nadir)
+            where += off_nadir_sql
+        if spec_type:
+            where = check_where(where)
+            spec_type_str = str(spec_type)[1:-1]
+            spec_type_sql = """(spec_type IN ({}))""".format(spec_type_str)
+            where += spec_type_sql
+    logger.debug('Where clause for non-ID attribute selection: {}'.format(where))
+    # Subset selection by attributes.
     selection = arcpy.MakeFeatureLayer_management(selection, where_clause=where)
 
     # Selection by date if specified

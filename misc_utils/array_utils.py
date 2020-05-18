@@ -8,11 +8,9 @@ import logging
 import numpy as np
 from scipy import interpolate
 
-from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
+from misc_utils.logging_utils import create_logger
 
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def interpolate_nodata(array, method):

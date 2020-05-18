@@ -4,8 +4,9 @@ Created on Thu Apr 23 11:35:49 2020
 
 @author: disbr007
 """
-
 import numpy as np
+import platform
+import os
 
 from osgeo import gdal
 import geopandas as gpd
@@ -17,6 +18,7 @@ from misc_utils.raster_clip import clip_rasters
 from misc_utils.RasterWrapper import Raster
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
+logger.debug('test')
 
 def dem_pair(name1, name2):
     """Create name for pair of DEMs"""
@@ -149,6 +151,13 @@ def compute_density(mt_p, aoi_p):
 
 def combined_density(mt1, mt2, aoi, in_mem_epsg=None, clip=False, out_path=None):
     """Get density for two matchtags over AOI"""
+    # Ensure both matchtags exist
+    if not os.path.exists(mt1) or not os.path.exists(mt2):
+        for mt in [mt1, mt2]:
+            if not os.path.exists(mt):
+                logger.error('Matchtag file not found: {}'.format(mt))
+        return -9999
+    
     # Determine type of aoi
     # If shapely geometry, save to in-memory file
     if isinstance(aoi, (shapely.geometry.polygon.Polygon, shapely.geometry.MultiPolygon)):
@@ -163,6 +172,7 @@ def combined_density(mt1, mt2, aoi, in_mem_epsg=None, clip=False, out_path=None)
     if not out_path:
         # compute combined matchtag in memory only
         out_path = r'/vsimem/temp_comb_mt.tif'
+        
     # Read matchtag arrays
     m1 = Raster(mt1)
     arr1 = m1.Array
@@ -183,6 +193,21 @@ def combined_density(mt1, mt2, aoi, in_mem_epsg=None, clip=False, out_path=None)
 
     return round(combo_dens.values[0], 2)
 
+
+def get_filepath_field():
+    OS = platform.system()
+    if OS == 'Windows':
+        filepath_field = 'win_path'
+    elif OS == 'Linux':
+        filepath_field = 'filepath'
+    else:
+        logger.error('Unknown operating system: {}'.format(OS))
+    
+    return filepath_field
+
+
+def get_dem_path(dem_dir, dem_name):
+    return os.path.join(dem_dir, dem_name)
 
 def get_matchtag_path(dem_path):
     return dem_path.replace('dem.tif', 'matchtag.tif')

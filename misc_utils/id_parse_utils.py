@@ -19,7 +19,6 @@ from misc_utils.dataframe_utils import determine_id_col, determine_stereopair_co
 #from ids_order_sources import get_ordered_ids
 from misc_utils.logging_utils import create_logger
 
-
 # Set up logging
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
