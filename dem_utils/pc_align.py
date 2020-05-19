@@ -365,28 +365,28 @@ def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
         if not meta_check['srs']:
             logger.error('Spatial references do not match. Exiting.')
             sys.exit()
-        
+
         # Determine output name
         cn = combo_name(ref_dem, dem, long_name=use_long_names)
-        
+
         # Calculate RMSE if desired
         if rmse:
             calc_rmse(ref_dem, dem, max_diff=max_diff, save=True, 
                       out_dir=out_dir, long_name=use_long_names,
                       suffix='_pre')
-        
+
         # Run pc_align
         run_pc_align(ref_dem, dem, max_diff=max_diff, out_dir=out_dir,
                      pc_align_prefix=cn,
                      threads=threads)
-        
+
         if not dryrun:
             # Read the translation vector from pc_align log file (dx, dy, dz)
             trans_vec = get_trans_vector(cn, out_dir=out_dir)
             # Apply the translation vector
             out_dem = os.path.join(out_dir, '{}-pcaDEM.tif'.format(cn))
             apply_trans(dem, trans_vec=trans_vec, out_path=out_dem)
-    
+
     if not dryrun:
         # Copy the reference DEM to the output folder
         logger.info('Copying reference DEM to output location.')
@@ -395,10 +395,10 @@ def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
         if not skip_cleanup:
             cleanup(out_dir=out_dir)
 
-    
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    
+
     parser.add_argument('--dems', nargs='+', type=os.path.abspath,
                         help="""Paths to the DEMs to align or directory of DEMs. The first DEM
                                 passed will be the reference DEM.""")
@@ -419,9 +419,9 @@ if __name__ == '__main__':
                         help='Print actions without performing.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Set logging to DEBUG')
-    
+
     args = parser.parse_args()
-    
+
     dems = args.dems
     dem_ext = args.dem_ext
     out_dir = args.out_dir
@@ -432,16 +432,18 @@ if __name__ == '__main__':
     dryrun = args.dryrun
     verbose = args.verbose
 
-    pc_align_dems(dems=dems, out_dir=out_dir, rmse=rmse, 
-                  max_diff=max_diff, threads=threads,
-                  skip_cleanup=skip_cleanup,
-                  dryrun=dryrun)
-    
     if verbose:
         log_lvl = 'DEBUG'
     else:
         log_lvl = 'INFO'
+
     logger = create_logger(__name__, 'sh', log_lvl)
     now = datetime.datetime.now().strftime('%Y%b%dt%H%M%S')
     log_file = os.path.join(out_dir, 'pca_log{}.txt'.format(now))
+
     logger = create_logger(__name__, 'fh', 'INFO', filename=log_file)
+
+    pc_align_dems(dems=dems, out_dir=out_dir, rmse=rmse,
+                  max_diff=max_diff, threads=threads,
+                  skip_cleanup=skip_cleanup,
+                  dryrun=dryrun)

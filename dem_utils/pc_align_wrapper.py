@@ -6,7 +6,7 @@ Created on Tue Jan 28 21:53:45 2020
 """
 
 import argparse
-import logging.config
+# import logging.config
 import os
 import re
 import shutil
@@ -16,22 +16,22 @@ import sys
 
 import geopandas as gpd
 
-from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
+from misc_utils.logging_utils import create_logger
 from misc_utils.RasterWrapper import Raster
-from dem_utils.dem_rmse import dem_rmse
-from dem_utils.rmse_compare import rmse_compare
+from dem_rmse import dem_rmse
+from rmse_compare import rmse_compare
 
 
-# logger = create_logger(os.path.basename(__file__), 'sh',)
+# logger = create_logger(__name__, 'sh', 'INFO')
 
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+# handler_level = 'INFO'
+# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+# logger = logging.getLogger(__name__)
 
 
 def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, warp=False, dryrun=False):
     """
-    Runs pc_align, then point2dem on two input DEMs,
+    Run pc_align, then point2dem on two input DEMs,
     optionally calculating before and after RMSE's,
     and/or clipping (?).
 
@@ -56,7 +56,6 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
     None.
 
     """
-
     # PARAMETERS
     if use_long_names:
         dem1_name = os.path.basename(dem1).split('.')[0]
@@ -68,8 +67,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
     # Regex for cleaning streaming text outputs
     clean_re = re.compile('(?:\s+|\t+|\n+)')
 
-
-    #### FUNCTION DEFINITION ####
+    # FUNCTION DEFINITION
     def run_subprocess(command):
         proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
         # proc.wait()
@@ -77,8 +75,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
         logger.debug('Output: {}'.format(output.decode()))
         logger.debug('Err: {}'.format(error.decode()))
 
-
-    #### GET INFO ABOUT DEMS ####
+    # GET INFO ABOUT DEMS
     logger.info('Getting DEM metadata...')
     # DEM 1
     dem1_src = Raster(dem1)
@@ -108,7 +105,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
         logger.warning('Resolutions do not match. Defaulting to DEM1.\nDEM1: {}\nDEM2: {}'.format(res1, res2))
     if nodata1 != nodata2:
         logger.warning('NoData values do not match. Defaulting to DEM1 NoData value when creating new DEM.\nDEM1:{}\nDEM2: {}'.format(nodata1, nodata2))
-    if srs1.IsSame(srs2) == 0: # GDAL method for spatial reference comparison
+    if srs1.IsSame(srs2) == 0:  # GDAL method for spatial reference comparison
         logger.warning('Spatial references do not match. Defaulting to DEM1.\nDEM1:\n{}\n\nDEM2:\n{}\n'.format(srs1, srs2))
         if warp is True:
             # TODO: Add support for reprojecting
@@ -123,14 +120,14 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
         if dryrun:
             rmse_outfile = None
             save_plot = None
-        pre_rmse = dem_rmse(dem1, dem2, 
+        pre_rmse = dem_rmse(dem1, dem2,
                             max_diff=max_diff,
                             outfile=rmse_outfile,
                             plot=True,
                             save_plot=save_plot)
         logger.info('RMSE prior to alignment: {:.2f}\n'.format(pre_rmse))
 
-    #### PC_ALIGN ####
+    # PC_ALIGN
     logger.info('Running pc_align...')
     max_displacement = max_diff
     # TODO: Make number threads an argument
@@ -166,8 +163,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
                     break
             logger.debug(trans_info)
 
-
-    #### POINT2DEM ####
+    # POINT2DEM
     logger.info('Running point2dem...')
     out_name = os.path.join(out_dir, '{}_pca'.format(dem2_name))
     trans_source = os.path.join(out_dir, '{}-trans_source.tif'.format(prefix))
@@ -181,7 +177,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
     logger.debug('point2dem command:\n{}\n'.format(p2d_command))
     if not dryrun:
         run_subprocess(p2d_command)
-    
+
     if rmse:
         logger.info('Computing post-alignment RMSE...')
         out_dem = os.path.join(out_dir, '{}-DEM.tif'.format(out_name))
@@ -205,7 +201,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
 
     # Move files into subdirectories
     # Move everything else
-    ## TODO: Clean up how this works -- it is creating dem and misc/dem
+    # TODO: Clean up how this works -- it is creating dem and misc/dem
     misc_files = [os.path.join(out_dir, x) for x in os.listdir(out_dir)
                   if os.path.join(out_dir, x) != out_dem]
     misc_dir = os.path.join(out_dir, 'misc')
@@ -224,13 +220,11 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
 
 
 def main(dems, out_dir, max_diff=10, dem_ext='tif', dem_fp=None, rmse=False, warp=False, dryrun=False, verbose=False):
-    """
-    Aligns DEMs and writes outputs to out_dir.
-    """
-    if verbose:
-        handler_level = 'DEBUG'
-    else:
-        handler_level = 'INFO'
+    """Align DEMs and writes outputs to out_dir."""
+    # if verbose:
+    #     handler_level = 'DEBUG'
+    # else:
+    #     handler_level = 'INFO'
     # logger = create_logger(__name__, 'sh',
     #                        handler_level=handler_level)
     # logger = create_logger(__name__, 'fh',
@@ -262,28 +256,28 @@ def main(dems, out_dir, max_diff=10, dem_ext='tif', dem_fp=None, rmse=False, war
     logger.info("Reference DEM located:\n{}".format(ref_dem))
     other_dems = [x for x in dems if x is not ref_dem]
     logger.info("DEMs to align to reference:\n{}".format('\n'.join(other_dems)))
-    
+
     # Check for same 'short-names' and if they exist use full filenames for outputs
     if True in [dn[:13] in [x[:13] for x in dems if x != dn] for dn in dems]:
         use_long_names = True
-    
-    for i, od in enumerate(other_dems):
-        logger.info('Processing DEM {} / {}'.format(i+1, len(other_dems)))
-        logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM:    {}'.format(ref_dem, od))
-        pca_p2d(ref_dem, od, max_diff=max_diff, out_dir=out_dir, rmse=rmse, 
-                use_long_names=use_long_names, warp=warp, dryrun=dryrun)
-    
-    logger.info('Done.')
 
+    for i, od in enumerate(other_dems):
+        logger.info('Processing DEM {} / {}'.format(i + 1, len(other_dems)))
+        logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM:    {}'.format(ref_dem, od))
+        pca_p2d(ref_dem, od, max_diff=max_diff, out_dir=out_dir, rmse=rmse,
+                use_long_names=use_long_names, warp=warp, dryrun=dryrun)
+
+    logger.info('Done.')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    
+
     parser.add_argument('--dems', nargs='+', type=os.path.abspath,
-                        help='Paths to the DEMs to align or directory of DEMs. The first DEM')
+                        help="""Paths to the DEMs to align or directory of DEMs. The first DEM
+                                is used a the reference DEM.""")
     # parser.add_argument('dem2', type=os.path.abspath,
-                        # help='Path to the DEM to translate.')
+    #                     help='Path to the DEM to translate.')
     parser.add_argument('--dem_ext', type=str, default='tif',
                         help="""If dems is a directory, the extension the DEMs share, used
                               to select DEM files.""")
@@ -301,22 +295,36 @@ if __name__ == '__main__':
                         help='Compute RMSE before and after alignment.')
     parser.add_argument('--max_diff', type=int, default=10,
                         help='Maximum difference to use in pc_align and RMSE calculations.')
+    parser.add_argument('--logfile', type=os.path.abspath,
+                        help='Path to write log file.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Set logging to DEBUG')
-    
+
     args = parser.parse_args()
-    
+
     dems = args.dems
     dem_ext = args.dem_ext
     out_dir = args.out_dir
     dem_fp = args.dem_fp
     rmse = args.rmse
     max_diff = args.max_diff
+    logfile = args.logfile
     dryrun = args.dryrun
     verbose = args.verbose
-    
-    
+
+    if verbose:
+        handler_level = 'DEBUG'
+    else:
+        handler_level = 'INFO'
+
+    if logfile:
+        logger = create_logger(__name__, 'fh',
+                               handler_level=handler_level,
+                               filename=logfile)
+    else:
+        logger = create_logger(__name__, 'sh',
+                               handler_level=handler_level)
+
     main(dems, out_dir, max_diff=max_diff, dem_ext=dem_ext, dem_fp=dem_fp, rmse=rmse, dryrun=dryrun, verbose=verbose)
-    
