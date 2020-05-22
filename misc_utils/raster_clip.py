@@ -24,6 +24,7 @@ ogr.UseExceptions()
 
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
+sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'DEBUG')
 
 
 def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
@@ -220,14 +221,21 @@ if __name__ == '__main__':
     rasters = args.rasters
     out_dir = args.out_dir
     out_suffix = args.out_suffix
+    raster_ext = args.raster_ext
     move_meta = args.move_meta
 
     # Check if list of rasters given or directory
     if os.path.isdir(args.rasters[0]):
-        r_ps = os.listdir(args.rasters[0])
-        rasters = [os.path.join(args.rasters[0], r_p) for r_p in r_ps if r_p.endswith(args.raster_ext)]
-    elif args.rasters[0].endswith('.txt'):
-        rasters = read_ids(args.rasters[0])
+        logger.debug('Directory of rasters provided: {}'.format(args.rasters[0]))
+        if not raster_ext:
+            logger.warning('Directory provided, but no extension to identify rasters. Provide raster_ext.')
+        r_ps = os.listdir(rasters[0])
+        rasters = [os.path.join(rasters[0], r_p) for r_p in r_ps if r_p.endswith(raster_ext)]
+        if len(rasters) == 0:
+            logger.error('No rasters provided.')
+            raise Exception
+    elif rasters[0].endswith('.txt'):
+        rasters = read_ids(rasters[0])
 
     if args.dryrun:
         print('Input shapefile:\n{}'.format(shp_path))
@@ -235,5 +243,5 @@ if __name__ == '__main__':
         print('Output directory:\n{}'.format(out_dir))
 
     else:
-        clip_rasters(shp_path, rasters, out_dir, out_suffix, raster_ext=args.raster_ext,
+        clip_rasters(shp_path, rasters, out_dir, out_suffix, raster_ext=raster_ext,
                      move_meta=move_meta)
