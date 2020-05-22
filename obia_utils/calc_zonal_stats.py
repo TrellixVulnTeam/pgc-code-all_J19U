@@ -56,7 +56,7 @@ def compute_stats(gdf, raster, stats_dict):
 
 
 def calc_zonal_stats(shp, rasters, names, 
-                stats=['min', 'max', 'mean', 'count', 'median' ],
+                stats=['min', 'max', 'mean', 'count', 'median'],
                 area=True,
                 compactness=True,
                 out_path=None):
@@ -168,9 +168,9 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--compactness',
                         action='store_true',
                         help='Use to compute a compactness field.')
-    
+
     args = parser.parse_args()
-    
+
     calc_zonal_stats(shp=args.input_shp,
                      rasters=args.rasters,
                      names=args.names,

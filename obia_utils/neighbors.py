@@ -143,7 +143,7 @@ def neighbor_values(row, gdf, vc, nc=None):
     nc : str
         Name of column containing list of neighbor indicies. Default = None.
 
-    Returns
+    Returnsnie
     ---------
     list of tuple : [(neighbor index, value), (n_2, v_2), ... (n_i, v_i)]
         The index of each neighbor and its value.
@@ -179,7 +179,7 @@ def adj_neighbor(row, vt, nvc, tc):
 
     Returns
     -------
-    Bool : True if row adjacent to feature meating passed requirements.
+    Bool : True if row adjacent to a feature meating passed requirements.
 
     """
     values = row[nvc]

@@ -48,7 +48,6 @@ def rank_dem_pair(density, ovlp_perc, date_diff, doy_diff):
     return round(score, 2)
 
 
-
 #%% Set up
 # Inputs
 out_dir = r'V:\pgc\data\scratch\jeff\ms\2020may12\footprints'

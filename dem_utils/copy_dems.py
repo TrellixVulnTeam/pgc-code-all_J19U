@@ -8,34 +8,51 @@ import argparse
 import os
 import shutil
 
+import pandas as pd
 import geopandas as gpd
 from tqdm import tqdm
 
 from misc_utils.logging_utils import create_logger
-# from dem_utils.dem_utils import get_filepath_field, get_dem_path
-from dem_utils import get_filepath_field, get_dem_path
+from dem_utils.dem_utils import get_filepath_field, get_dem_path
+# from dem_utils import get_filepath_field, get_dem_path
 
+logger = create_logger(__name__, 'sh', 'INFO')
 
 #%% Load Footprint - Check existence
-def get_footprint_dems(footprint_path, filepath=get_filepath_field(), 
+def get_footprint_dems(footprint_path, filepath=get_filepath_field(),
                        dem_name='dem_name', dem_path_fld='dem_path',
                        dem_exist_fld='dem_exist'):
-    # Load footprint
-    logger.info('Loading DEM footprint...')
-    fp = gpd.read_file(footprint_path)
-    num_fps = len(fp)
-    logger.info('Records found: {}'.format(num_fps))
-    
-    fp[dem_path_fld] = fp.apply(lambda x: get_dem_path(x[filepath], x[dem_name]), axis=1)
+    if isinstance(footprint_path, list):
+        # List of paths
+        fp = pd.DataFrame({dem_path_fld: footprint_path})
+    else:
+        if isinstance(footprint_path, str):
+            # Paths in text file
+            if os.path.splitext(footprint_path) == '.txt':
+                with open(footprint_path, 'r') as src:
+                    content = src.readlines()
+                fp = pd.DataFrame({dem_path_fld: content})
+        # Vector file of footprints with path field
+        else:
+            if isinstance(footprint_path, gpd.GeoDataFrame):
+                fp = footprint_path
+            else:
+                # Load footprint
+                logger.info('Loading DEM footprint...')
+                fp = gpd.read_file(footprint_path)
+                fp[dem_path_fld] = fp.apply(lambda x: get_dem_path(x[filepath], x[dem_name]), axis=1)
+            num_fps = len(fp)
+            logger.info('Records found: {}'.format(num_fps))
+
     fp[dem_exist_fld] = fp.apply(lambda x: os.path.exists(x[dem_path_fld]), axis=1)
-    
-    dem_paths = list(fp[fp[dem_exist_fld]==True][dem_path_fld])
+
+    dem_paths = list(fp[fp[dem_exist_fld] == True][dem_path_fld])
     num_exist_fps = len(fp)
     if num_exist_fps != num_fps:
         logger.warning('Filepaths could not be found for {} records, skipping...'.format(num_fps - num_exist_fps))
-    
+
     return dem_paths
-   
+
 
 #%% Create copy list
 def create_copy_list(dem_paths, dest_parent_dir, meta_file_sfx, flat=False):
@@ -53,25 +70,44 @@ def create_copy_list(dem_paths, dest_parent_dir, meta_file_sfx, flat=False):
                 meta_files.append(mf)
             else:
                 logger.debug('Missing metadata file: {}'.format(mf))
-        copy_list.append((dem, dst_dir))
-        copy_list.extend([(mf, dst_dir) for mf in meta_files])
-    
+        if not os.path.exists(os.path.join(dst_dir, os.path.basename(dem))):
+            copy_list.append((dem, dst_dir))
+        copy_list.extend([(mf, dst_dir) for mf in meta_files
+                          if not os.path.exists(os.path.join(dst_dir, os.path.basename(mf)))])
+
     return copy_list
 
 
 #%% Copy
-def copy_dems(footprint_path, output_directory, meta_file_sfx, 
+def copy_dems(footprint_path, output_directory, 
               dems_only=False, skip_ortho=False,
               flat=False, dryrun=False):
-    
+    if dems_only:
+        logger.debug('Copying DEMs only.')
+        meta_file_sfx = []
+    else:
+        meta_file_sfx = ['dem.log',
+                          # 'ortho_browse.tif',
+                          'dem.tif.aux.xml',
+                          'density.txt',
+                          'mdf.txt',
+                          'reg.txt',
+                          'dem_browse.tif',
+                          'meta.txt',
+                          'ortho.tif',
+                          'matchtag.tif']
+        if skip_ortho:
+            logger.debug('Skipping ortho files.')
+            meta_file_sfx.remove('ortho.tif')
+
     dem_paths = get_footprint_dems(footprint_path)
     copy_list = create_copy_list(dem_paths, output_directory, meta_file_sfx, flat=flat)
 
     dem_src_list = [pair[0] for pair in copy_list if pair[0].endswith('dem.tif')]
     dem_dst_list = [os.path.join(pair[1], os.path.basename(pair[0])) for pair in copy_list if pair[0].endswith('dem.tif')]
-    
+
     logger.info('Located DEMs to copy: {}'.format(len(dem_src_list)))
-    
+
     total_src_dems = len(dem_src_list)
     remaining_dems = total_src_dems
     pbar = tqdm(copy_list, desc='Remaining DEMs: {}'.format(remaining_dems))
@@ -81,7 +117,11 @@ def copy_dems(footprint_path, output_directory, meta_file_sfx,
                 pbar.write('Copying: {}'.format(os.path.basename(src)))
                 if not os.path.exists(dst):
                     os.makedirs(dst)
-                shutil.copy2(src, dst)
+                dst_file = os.path.join(dst, os.path.basename(src))
+                if not os.path.exists(dst_file):
+                    shutil.copy2(src, dst)
+                else:
+                    pbar.write('Skipping (exists): {}'.format(dst_file))
             # else:
             #     pbar.write('[DRYRUN] Copying: {}'.format(src))
         except Exception as e:
@@ -131,31 +171,13 @@ if __name__ == '__main__':
     dryrun = args.dryrun
     verbose = args.verbose
     
-    if verbose:
-        log_lvl = 'DEBUG'
-    else:
-        log_lvl = 'INFO'
-    logger = create_logger(__name__, 'sh', log_lvl)
-    
-    if dems_only:
-        logger.debug('Copying DEMs only.')
-        meta_file_sfx = []
-    else:
-        meta_file_sfx = ['dem.log', 
-                          # 'ortho_browse.tif',
-                          'dem.tif.aux.xml',
-                          'density.txt',
-                          'mdf.txt',
-                          'reg.txt',
-                          'dem_browse.tif',
-                          'meta.txt',
-                          'ortho.tif',
-                          'matchtag.tif']
-        if skip_ortho:
-            logger.debug('Skipping ortho files.')
-            meta_file_sfx.remove('ortho.tif')
-            
-    copy_dems(footprint_path, output_directory, meta_file_sfx, 
+    # if verbose:
+    #     log_lvl = 'DEBUG'
+    # else:
+        # log_lvl = 'INFO'
+
+
+    copy_dems(footprint_path, output_directory,
               dems_only=dems_only, skip_ortho=skip_ortho,
               flat=flat, dryrun=dryrun)
 

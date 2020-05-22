@@ -17,8 +17,9 @@ from misc_utils.logging_utils import create_logger
 from misc_utils.raster_clip import clip_rasters
 from misc_utils.RasterWrapper import Raster
 
+
 logger = create_logger(__name__, 'sh', 'DEBUG')
-logger.debug('test')
+
 
 def dem_pair(name1, name2):
     """Create name for pair of DEMs"""

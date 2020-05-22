@@ -34,6 +34,7 @@ with open(os.path.join(PRJ_DIR, 'config', 'cred.txt'), 'r') as cred:
     for line in content:
         creds.append(str(line).strip())
 
+
 def list_danco_footprint():
     '''
     queries the danco footprint database, returns all layer names in list
@@ -102,8 +103,7 @@ def list_danco_db(db):
             connection = None
             logger.debug("PostgreSQL connection closed.")
             
-            
-            
+                      
 def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[creds[0], creds[1]], 
                     table=False, sql=False,
                     where=None, columns=None, orderby=None, orderby_asc=False, 
@@ -123,7 +123,8 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
         db_tables = list_danco_db(db)
         
         if layer not in db_tables:
-            logger.warning('{} not found in {}'.format(layer, db))
+            logger.error('{} not found in {}'.format(layer, db))
+            raise Exception
 
 
         engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/{}'.format(creds[0], creds[1], db),
@@ -264,12 +265,12 @@ def layer_fields(layer, db='footprint'):
     Gets fields in a danco layer by loading with an SQL
     query that returns only one result (for speed).
     '''
-    layer = query_footprint(layer, db=db, table=True, where="objectid = 1")
+    layer = query_footprint(layer, db=db, table=True, offset=1)
     fields = list(layer)
     return fields
 
 
-def layer_crs(layer, db):
+def layer_crs(layer, db='footprint'):
     """
     Returns the crs of the given layer in the given db.
     
@@ -284,7 +285,7 @@ def layer_crs(layer, db):
     -------
     dict : crs of layer.
     """
-    layer = query_footprint(layer=layer, db=db, where="objectid = 1")
+    layer = query_footprint(layer=layer, db=db, limit=1)
     crs = layer.crs
     
     return crs
@@ -408,3 +409,7 @@ def all_IK01(where=None, onhand=None):
     
     return df
 
+
+def pgc_ids():
+    return query_footprint('pgc_imagery_catalogids', table=True).values
+    
