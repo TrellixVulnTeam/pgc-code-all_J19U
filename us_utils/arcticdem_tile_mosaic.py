@@ -24,10 +24,22 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 # Inputs
-aoi_path = r'V:\pgc\data\scratch\jeff\ms\2020may12\footprints\aoi1_dem_fps_danco.shp'
-# Optional (have default)
-tiles_dir = r'V:\pgc\data\scratch\jeff\elev\arcticdem\tiles\ind_tiles' # directory of tiles / directory to download tiles to
-out_mosaic = r'V:\pgc\data\scratch\jeff\elev\arcticdem\tiles\mosaics\2020may12_aoi1_scene.tif'
+# aoi_path = r'V:\pgc\data\scratch\jeff\ms\2020may12\footprints\aoi1_dem_fps_danco.shp'
+# # Optional (have default)
+# tiles_dir = r'V:\pgc\data\scratch\jeff\elev\arcticdem\tiles\ind_tiles' # directory of tiles / directory to download tiles to
+# out_mosaic = r'V:\pgc\data\scratch\jeff\elev\arcticdem\tiles\mosaics\2020may12_aoi1_scene.tif'
+
+# # Params
+# tiles_index_path = r'E:\disbr007\arctic_dem\ArcticDEM_Tile_Index_Rel7\ArcticDEM_Tile_Index_Rel7.shp'
+# tile_name = 'name'
+# fileurl = 'fileurl'
+# # Created
+# dem_path = 'dem_path'
+# dem_exist = 'dem_exist'
+# gz_path = 'gz_path'
+# gz_exist = 'gz_exist'
+# to_dl = 'to_dl'
+# to_unzip = 'to_unzip'
 
 
 def run_subprocess(command):
@@ -38,20 +50,8 @@ def run_subprocess(command):
         logger.info('Err: {}'.format(error))
         logger.info('Command: {}'.format(command))
 
-# Params
-tiles_index_path = r'E:\disbr007\arctic_dem\ArcticDEM_Tile_Index_Rel7\ArcticDEM_Tile_Index_Rel7.shp'
-tile_name = 'name'
-fileurl = 'fileurl'
-# Created
-dem_path = 'dem_path'
-dem_exist = 'dem_exist'
-gz_path = 'gz_path'
-gz_exist = 'gz_exist'
-to_dl = 'to_dl'
-to_unzip = 'to_unzip'
 
-
-def locate_tiles(aoi_path, tiles_path):
+def locate_tiles(aoi_path, tiles_path, tile_name='name'):
     # Read AOI
     aoi = gpd.read_file(aoi_path)
     # Read tiles index
@@ -111,10 +111,11 @@ def mosaic_tiles(tile_paths, out_mosaic):
     logger.info('Mosaic created at: {}'.format(out_mosaic))
     
 
-def arcticdem_mosaic(aoi_path, tiles_dir=None, tiles_index_path=None,
+def arcticdem_mosaic(aoi_path, out_mosaic=out_mosaic, 
+                     tiles_dir=None, tiles_index_path=None,
                      tile_name='tile_name', gz_path='gz_path', dem_path='dem_path',
                      gz_exist='gz_exist', dem_exist='dem_exist',
-                     to_dl='to_dl', fileurl='fileurl'):
+                     to_dl='to_dl', to_unzip='to_unzip', fileurl='fileurl'):
     
     # If tiles index not provided, use defaults
     if tiles_index_path is None:
