@@ -39,7 +39,7 @@ def main(MFP_PATH):
     gdb_fp = os.path.join(pgc_dir, gdb_name)  # full path to gdb
     mfp_layer = os.path.join(gdb_fp, gdb_basename)  # full path to layer
 
-    logger.info('Unzipping...')
+    logger.info('Unzipping to {}...'.format(gdb_fp))
     with zipfile.ZipFile(MFP_PATH, 'r') as zip_ref:
         zip_ref.extractall(gdb_fp)
 

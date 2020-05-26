@@ -14,8 +14,8 @@ from misc_utils.get_creds import get_creds
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(os.path.basename(__file__), 'sh',
-                       handler_level='INFO')
+logger = create_logger(__name__, 'sh',
+                       handler_level='DEBUG')
 
 
 ogr.UseExceptions()
