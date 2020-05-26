@@ -118,7 +118,7 @@ def clean_dataframe(dataframe, keep_swir, out_path=None):
     return dataframe
 
 
-def list_chopper(platform_df, outpath, outnamebase, output_suffix, order_date):
+def list_chopper(platform_df, outpath, outnamebase, output_suffix, order_date, fullname):
     '''
     Takes a dataframe representing a platform and creates spreadsheets of 'n' ids where n is determined
     by the platform. The spreadsheets include only the catalog ids from that platform
@@ -165,7 +165,11 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix, order_date):
     for i, df in enumerate(platform_list): # loop through this platforms dataframes (e.g. WV01 - 0:1000, WV01 - 1001:2000, WV01 - 2001:2200)
         # Add entry to dict - e.g. key = 'WV01_part1of2', val = 1000
         platform_dict[r'{}_part{}of{}'.format(platform, (int(i)+1), total_length)] = len(df)
-        out_name = '{}{}_{}_{}_{}of{}.xlsx'.format(outnamebase, date_words(date=order_date), output_suffix, platform, (int(i)+1), total_length) # name of output sheet
+        if fullname:
+            out_name = '{}_{}_{}of{}.xlsx'.format(fullname, platform, (int(i)+1), total_length)
+        else:
+            out_name = '{}{}_{}_{}_{}of{}.xlsx'.format(outnamebase, date_words(date=order_date), 
+                                                       output_suffix, platform, (int(i)+1), total_length) # name of output sheet
         # Write sheet to excel file
         out_xl = os.path.join(outpath, out_name) # path of output sheet
         writer = pd.ExcelWriter(out_xl, engine='xlsxwriter')
@@ -178,7 +182,7 @@ def list_chopper(platform_df, outpath, outnamebase, output_suffix, order_date):
     return platform_dict
 
 
-def write_master(dataframe, outpath, outnamebase, output_suffix, order_date, keep_swir):
+def write_master(dataframe, outpath, outnamebase, output_suffix, order_date, keep_swir, fullname):
     '''write all ids to master sheet for reference, to text file for entering into IMA'''
 #    # Write master excel
 #    master_name = os.path.join(outpath, '{}{}_{}_master.xlsx'.format(outnamebase, date_words(order_date), output_suffix))
@@ -186,7 +190,10 @@ def write_master(dataframe, outpath, outnamebase, output_suffix, order_date, kee
 #    dataframe.to_excel(master_writer, columns=['catalogid'], header=False, index=False, sheet_name='Sheet1')
 #    master_writer.save()
     # Write text file
-    txt_path = os.path.join(outpath, '{}{}_{}_master.txt'.format(outnamebase, date_words(order_date), output_suffix))
+    if fullname:
+        txt_path = os.path.join(outpath, '{}_master.txt'.format(fullname))
+    else:
+        txt_path = os.path.join(outpath, '{}{}_{}_master.txt'.format(outnamebase, date_words(order_date), output_suffix))
     
     if keep_swir == True:
         # Keep SWIR
@@ -203,7 +210,7 @@ def write_master(dataframe, outpath, outnamebase, output_suffix, order_date, kee
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
 
 
-def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None):
+def create_sheets(filepath, output_suffix, order_date, keep_swir, fullname, out_path=None):
     '''
     create sheets based on platforms present in list, including one formatted for entering into gsheets
     filepath: path to ids. can be txt, dbf, excel, csv, or dataframe
@@ -245,12 +252,16 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
         all_platforms_dict[pf] = {} # create nested dict for each platform
         df = dataframe[dataframe['platform'] == pf] # create dataframe for each platform (select from master) 
         all_platforms_dict[pf]['df'] = df # store dataframe for each platform in its dict
-        all_platforms_dict[pf]['g_sheet'] = list_chopper(df, project_path, project_base, output_suffix, order_date) # split dataframe into excel sheets
+        all_platforms_dict[pf]['g_sheet'] = list_chopper(df, project_path, project_base, output_suffix, order_date,
+                                                         fullname=fullname) # split dataframe into excel sheets
         print('{} IDs found: {:,}'.format(pf, len(df.index)))
         ids_written += len(df.index)
         
     # Write sheet to copy to GSheet
-    gsheet_path = os.path.join(project_path, '{}{}_{}_gsheet.xlsx'.format(project_base, date_words(order_date), output_suffix))
+    if fullname:
+        gsheet_path = os.path.join(project_path, '{}_gsheet.xlsx'.format(fullname))
+    else:
+        gsheet_path = os.path.join(project_path, '{}{}_{}_gsheet.xlsx'.format(project_base, date_words(order_date), output_suffix))
     gsheet_dict = {}
     
     for k in all_platforms_dict:
@@ -278,7 +289,8 @@ def create_sheets(filepath, output_suffix, order_date, keep_swir, out_path=None)
     gsheet_writer = pd.ExcelWriter(gsheet_path, engine='xlsxwriter')
     gsheet_df.to_excel(gsheet_writer, index=True, sheet_name='Sheet1')
     gsheet_writer.save()
-    write_master(dataframe, project_path, project_base, output_suffix, order_date, keep_swir)
+    write_master(dataframe, project_path, project_base, output_suffix, order_date, keep_swir, 
+                 fullname=fullname)
     print('IDs written to sheets: {:,}'.format(ids_written))
     return all_platforms_dict
 
@@ -289,6 +301,9 @@ if __name__ == '__main__':
                         help="File containing ids. Supported types: csv, dbf, xls, xlsx, txt")
     parser.add_argument("out_name", type=str, 
                         help="Output sheets suffix. E.g. 'PGC_order_2019_[out_name]_WV01_1of2'")
+    parser.add_argument("-fn", "--fullname", type=str,
+                        help="""Overwrite default naming schema and use what is provided here plus sensor
+                                and sheet numbers.""")
     parser.add_argument("--order_date", type=str, default=datetime.datetime.now().strftime('%Y-%m-%d'), 
                         help="Date to attach to order. E.g. '2019-02-21'")
     parser.add_argument("--out_path", type=str, help="Directory to write sheets to.")
@@ -301,11 +316,14 @@ if __name__ == '__main__':
     
     input_file = args.input_file
     out_suffix = args.out_name
+    fullname = args.fullname
     order_date = args.order_date 
     out_path = args.out_path
     keep_swir = args.keep_swir # True/False
     
         
     print("Creating sheets...\n")
-    create_sheets(filepath=input_file, output_suffix=out_suffix, order_date=order_date, keep_swir=keep_swir, out_path=out_path)
+    create_sheets(filepath=input_file, output_suffix=out_suffix, 
+                  fullname=fullname, order_date=order_date, 
+                  keep_swir=keep_swir, out_path=out_path)
     print('\nComplete.')

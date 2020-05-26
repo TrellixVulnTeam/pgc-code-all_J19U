@@ -37,18 +37,25 @@ pd.options.mode.chained_assignment = None
 #%% Set up
 # Inputs
 num_ids = 20_000 # Desired number of IDs
-sensors = ['WV01', 'WV02', 'WV03']
+remove_onhand = True
+combo_sensors = False
+# sensors = ['WV01', 'WV02', 'WV03']
+sensors = ['WV03']
+min_date = '2019-01-00'
+max_date = '2020-05-26'
 orderby = 'perc_ovlp'
-where = "(project = 'EarthDEM') AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
-aoi_path = r'E:\disbr007\general\US_States\us_no_AK.shp'
-out_path = r'E:\disbr007\imagery_orders\PGC_order_2020may06_xtrack_cc20_conus\xtrack_20k_ids_2.txt'
+where = "(project = 'EarthDEM')" # AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
+# aoi_path = r'E:\disbr007\general\US_States\us_no_AK.shp'
+aoi_path = None
+out_path = r'E:\disbr007\imagery_orders\NASA_order_2020may26_global_xtrack_1k_2019jan01_2020may25\NASA_order_2020may26_global_xtrack_1k_2019jan01_2020may25.txt'
+
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # Check for existence of aoi and out_path directory
-if not os.path.exists(aoi_path):
-    logger.error('AOI path does not exist: {}'.aoi_path)
-    sys.exit()
+# if not os.path.exists(aoi_path):
+    # logger.error('AOI path does not exist: {}'.aoi_path)
+    # sys.exit()
 if not os.path.exists(os.path.dirname(out_path)):
     logger.warning('Out directory does not exist, will be created: {}'.format(out_path))
 
@@ -61,6 +68,18 @@ if sensors:
     if where:
         where += " AND "
     where += '({})'.format(sensor_where)
+if min_date:
+    if where:
+        where += " AND "
+    where += "(acqdate1 >= '{}')".format(min_date)
+if max_date:
+    if where:
+        where += " AND "
+    where += "(acqdate1 <= '{}')".format(max_date)
+if not combo_sensors:
+    if where:
+        where += " AND "
+    where += "(SUBSTRING(catalogid1, 1, 3) = SUBSTRING(catalogid2, 1, 3))"
 logger.debug('SQL where: {}'.format(where))
 
 if aoi_path:
@@ -70,7 +89,7 @@ if aoi_path:
 xtrack_tbl = 'dg_imagery_index_xtrack_cc20'
 chunk_size = 50_000
 area_col = 'area_sqkm'
-columns = ['catalogid1', 'catalogid2', 'region_name', 'pairname']
+columns = ['catalogid1', 'catalogid2', 'region_name', 'pairname', 'acqdate1']
 
 table_total = count_table(xtrack_tbl, where=where)
 logger.info('Total table size with query: {:,}'.format(table_total))
@@ -142,13 +161,16 @@ logger.info('Records meeting criteria where both IDs are not onhand: {}'.format(
 logger.info('Removing any onhand ids...')
 for c1_c2, area in all_ids_dict:
     c1, c2 = c1_c2.split('_')
-    if c1 not in oh_ids and c1 not in final_ids:
+    if remove_onhand:
+        if c1 not in oh_ids and c1 not in final_ids:
+            final_ids.append(c1)
+        if c2 not in oh_ids and c2 not in final_ids:
+            final_ids.append(c2)
+    else:
         final_ids.append(c1)
-    if c2 not in oh_ids and c2 not in final_ids:
         final_ids.append(c2)
-
 logger.info('Total IDs matching criteria: {:,}'.format(len(final_ids)))
-logger.info('Selecting {} IDs...'.format(num_ids))
+logger.info('Selecting {:,} IDs...'.format(num_ids))
 selected_final_ids = final_ids[0:num_ids]
 
 #%% Write

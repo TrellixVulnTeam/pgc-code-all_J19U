@@ -643,8 +643,8 @@ def create_s_filepath(scene_id, strip_id, acqdate, prod_code):
 
 
 #%% Update ordered
-def update_ordered(ordered_dir=None, ordered_loc=None):
-    """Update the text file of ordered IDs by reading for order sheets"""
+def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA')):
+    """Update the text file of ordered IDs by reading from order sheets"""
     from tqdm import tqdm
 
     if not ordered_loc:
@@ -662,6 +662,7 @@ def update_ordered(ordered_dir=None, ordered_loc=None):
     logger.debug('Reading sheets from: {}'.format(ordered_dir))
     ordered_ids = []
     for root, dirs, files in os.walk(ordered_dir):
+        dirs = [d for d in dirs if not d.startswith(exclude)]
         last_dir = None
         for f in files:
             cur_dir = os.path.basename(os.path.dirname(os.path.join(root, f)))

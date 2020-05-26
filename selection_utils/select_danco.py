@@ -258,11 +258,11 @@ def select_danco(layer_name,
                  columns='*',
                  drop_dup=None,
                  add_where=None):
-    ## Determine selection method - by location or by ID
+    # Determine selection method - by location or by ID
     selection_method = determine_selection_method(selector_path, by_id)
-    ## Create selector - geodataframe or list of IDs, or None
+    # Create selector - geodataframe or list of IDs, or None
     selector = create_selector(selector_path, selection_method)
-    ## Build where clause
+    # Build where clause
     where = build_where(platforms=platforms,
                         min_year=min_year,
                         max_year=max_year,
@@ -276,18 +276,19 @@ def select_danco(layer_name,
                         layer_name=layer_name)
     if add_where:
         where += """AND {}""".format(add_where)
-    ## Load footprint layer with where clause
+    # Load footprint layer with where clause
     src = load_src(layer_name, where, columns)
-    ## Make selection if provided
+    logger.info('Loaded source layer with SQL clause: {}'.format(len(src)))
+    # Make selection if provided
     if selector is not None:
         logger.debug('Dropping duplicate "{}" records'.format(drop_dup))
         selection = make_selection(selector, src, selection_method, drop_dup=drop_dup)
     else:
         selection = src
-    logger.debug('Selected features before removing MFP (if requested): {}'.format(len(selection)))
+    logger.info('Selected features before removing MFP (if requested): {}'.format(len(selection)))
     if remove_mfp is True:
         selection = remove_mfp_selection(selection)
-        logger.debug('Selected features after removing MFP: {}'.format(len(selection)))
+        logger.info('Selected features after removing MFP: {}'.format(len(selection)))
     if destination_path is not None:
         write_selection(selection, destination_path, dst_type)
 
@@ -369,7 +370,7 @@ if __name__ == '__main__':
                  dst_type=dst_type,
                  by_id=by_id,
                  columns=columns,
-                 remove_mfp_ids=remove_mfp_ids,
+                 remove_mfp=remove_mfp_ids,
                  platforms=platforms,
                  min_year=min_year,
                  max_year=max_year,
