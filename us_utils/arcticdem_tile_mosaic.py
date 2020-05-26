@@ -111,7 +111,7 @@ def mosaic_tiles(tile_paths, out_mosaic):
     logger.info('Mosaic created at: {}'.format(out_mosaic))
     
 
-def arcticdem_mosaic(aoi_path, out_mosaic=out_mosaic, 
+def arcticdem_mosaic(aoi_path, out_mosaic, 
                      tiles_dir=None, tiles_index_path=None,
                      tile_name='tile_name', gz_path='gz_path', dem_path='dem_path',
                      gz_exist='gz_exist', dem_exist='dem_exist',
