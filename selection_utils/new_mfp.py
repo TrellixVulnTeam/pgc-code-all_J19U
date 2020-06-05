@@ -12,12 +12,13 @@ import subprocess
 from subprocess import PIPE
 import zipfile
 
-from misc_utils.logging_utils import LOGGING_CONFIG
+from tqdm import tqdm
+from misc_utils.logging_utils import create_logger
 
 
-handler_level = 'DEBUG'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+# logger = logging.getLogger(__name__)
+logger = create_logger(__name__, 'sh', 'INFO'
 
 
 def run_subprocess(command):
@@ -41,7 +42,14 @@ def main(MFP_PATH):
 
     logger.info('Unzipping to {}...'.format(gdb_fp))
     with zipfile.ZipFile(MFP_PATH, 'r') as zip_ref:
-        zip_ref.extractall(gdb_fp)
+        uncompress_size = sum((file.file_size for file in zip_ref.infolist()))
+        extracted_size = 0
+        with tqdm(total=uncompress_size) as pbar:
+            for f in zip_ref.infolist():
+                extracted_size += f.file_size
+                zip_ref.extract(f)
+                pbar.update(extracted_size)
+        # zip_ref.extractall(gdb_fp)
 
     # mfp_name = os.path.basename(MFP_PATH)
     IDS_LOC = os.path.join(os.path.dirname(TXT_LOC), '{}_catalog_id.txt'.format(gdb_name.replace('.gdb', '')))
@@ -65,7 +73,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('mfp_path', type=os.path.abspath,
-                        help="""Path to new master footprint gdb.
+                        help="""Path to new master footprint zipped gdb.
                                 Layer name need not be specified - created automatically.""")
 
     args = parser.parse_args()

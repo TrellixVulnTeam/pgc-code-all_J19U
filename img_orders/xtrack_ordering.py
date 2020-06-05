@@ -36,18 +36,18 @@ pd.options.mode.chained_assignment = None
 
 #%% Set up
 # Inputs
-num_ids = 20_000 # Desired number of IDs
+num_ids = 60_000 # Desired number of IDs
 remove_onhand = True
 combo_sensors = False
 # sensors = ['WV01', 'WV02', 'WV03']
 sensors = ['WV03']
-min_date = '2019-01-00'
-max_date = '2020-05-26'
+min_date = '2018-07-00'
+max_date = '2019-12-32'
 orderby = 'perc_ovlp'
 where = "(project = 'EarthDEM')" # AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
 # aoi_path = r'E:\disbr007\general\US_States\us_no_AK.shp'
 aoi_path = None
-out_path = r'E:\disbr007\imagery_orders\NASA_order_2020may26_global_xtrack_1k_2019jan01_2020may25\NASA_order_2020may26_global_xtrack_1k_2019jan01_2020may25.txt'
+out_path = r'E:\disbr007\imagery_orders\NASA_order_2020jun04_global_xtrack_2018jan01_2019dec31\NASA_order_2020jun04_global_xtrack_2018jul01_2019dec31.txt'
 
 
 logger = create_logger(__name__, 'sh', 'DEBUG')

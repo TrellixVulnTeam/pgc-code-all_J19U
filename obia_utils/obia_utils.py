@@ -4,7 +4,7 @@ Created on Sat Mar 14 12:27:22 2020
 
 @author: disbr007
 """
-import traceback, sys, pdb
+# import traceback, sys, pdb
 # import logging.config
 import copy
 from random import randint
@@ -17,7 +17,7 @@ import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger #LOGGING_CONFIG
 from misc_utils.RasterWrapper import Raster
-from obia_utils.calc_zonal_stats import calc_zonal_stats
+# from obia_utils.calc_zonal_stats import calc_zonal_stats
 # from calc_zonal_stats import calc_zonal_stats
 
 

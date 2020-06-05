@@ -424,8 +424,9 @@ def ordered_ids(update=False):
     if update:
         # Read all IDs in order sheets and rewrite txt file
         update_ordered()
-    ordered = set(read_ids(ordered_path))
-    
+    ordered = list(set(read_ids(ordered_path)))
+    ordered = [o for o in ordered if o != '']
+
     return ordered
 
 
@@ -468,11 +469,11 @@ def remove_ordered(src):
     logger.debug('Removing IDs in order sheets...')
     logger.debug('Removing ordered...')
     src_ids = set(src)
-    ordered = ordered_ids()
-    
+    ordered = set(ordered_ids())
+
     not_ordered = list(src_ids - ordered)
-    logger.debug('IDs removed: {}'.format((len(src_ids)-len(not_ordered))))
-    
+    logger.debug('IDs removed: {}'.format((len(src_ids) - len(not_ordered))))
+
     return not_ordered
 
 

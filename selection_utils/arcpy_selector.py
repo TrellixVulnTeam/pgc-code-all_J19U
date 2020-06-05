@@ -9,6 +9,7 @@ Select from index by list of ids
 import argparse
 import logging.config
 import os
+import sys
 
 import arcpy
 
@@ -139,7 +140,8 @@ def create_points(coords, shp_path):
     logger.debug('Point feature class created from coordinates at: {}'.format(shp_path))
 
 
-def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field):
+def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field,
+                      selector_field):
     """Select footprints from MFP given criteria"""
     if input_type == 'shp' and not id_field:
         # if not id_field:
@@ -178,7 +180,7 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
     # elif input_type == 'txt':
         # Initial selection by id
         logger.info('Reading in IDs from: {}...'.format(os.path.basename(selector_path)))
-        ids = read_ids(selector_path)
+        ids = read_ids(selector_path, field=selector_field)
         logger.info('IDs found: {}'.format(len(ids)))
         logger.debug('IDs: {}\n'.format(ids))
         ids_str = str(ids)[1:-1]
@@ -192,6 +194,9 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
         result = arcpy.GetCount_management(selection)
         count = int(result.getOutput(0))
         logger.debug('Selected features: {}'.format(count))
+        if count == 0:
+            logger.warning('No features found, exiting...')
+            sys.exit()
 
         if id_field:
             with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
@@ -245,8 +250,10 @@ if __name__ == '__main__':
                         or placename, the path to write the created AOI shapefile to.''')
     parser.add_argument('--id_field', type=str, default=argdef_id_field,
                         help='''If using a .txt file of ids for the selection, specify here the
-                        type of ids in the .txt.:
+                        type of ids in the .txt, i.e. the field in the master footprint to select by.:
                         e.g.: CATALOG_ID, SCENE_ID, etc.''')
+    parser.add_argument('--selector_field', type=str,
+                        help='If selector is shp, and select by ID desired, the field name to pull IDs from.')
     parser.add_argument('--secondary_selector', type=os.path.abspath,
                         help='Path to an AOI layer to combine with an initial ID selection.')
     parser.add_argument('--prod_code', type=str, nargs='+', default=argdef_prod_code,
@@ -295,6 +302,7 @@ if __name__ == '__main__':
     out_path = args.out_path
     selector_path = args.selector_path
     id_field = args.id_field
+    selector_field = args.selector_field
     secondary_selector = args.secondary_selector
     prod_code = args.prod_code
     sensors = args.sensors
@@ -329,7 +337,8 @@ if __name__ == '__main__':
                                   imagery_index=imagery_index,
                                   overlap_type=overlap_type,
                                   search_distance=search_distance,
-                                  id_field=id_field)
+                                  id_field=id_field,
+                                  selector_field=selector_field)
 #                                      prod_code=prod_code)
     if secondary_selector:
         logger.info('Selecting within secondary selector...')

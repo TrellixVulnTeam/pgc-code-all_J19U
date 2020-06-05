@@ -66,7 +66,7 @@ def locate_tiles(aoi_path, tiles_path, tile_name='name'):
 
 
 def check_exist(gdf, path_field, exist_field):
-    gdf[exist_field] = gdf.apply(lambda x: os.path.exists(x[path_field]))
+    gdf[exist_field] = gdf.apply(lambda x: os.path.exists(x[path_field]), axis=1)
     
 
 def download_tiles(download_urls, download_dir):
@@ -75,7 +75,7 @@ def download_tiles(download_urls, download_dir):
     for url in tqdm(download_urls):
         # Download
         logger.debug('wget-ting: {}'.format(url))
-        log_file = os.path.join(tiles_dir, 'wget_log.txt')
+        log_file = os.path.join(download_dir, 'wget_log.txt')
         cmd = r"""wget --directory-prefix {} -o {} {}""".format(download_dir, log_file, url)
         run_subprocess(cmd)
 
@@ -113,7 +113,7 @@ def mosaic_tiles(tile_paths, out_mosaic):
 
 def arcticdem_mosaic(aoi_path, out_mosaic, 
                      tiles_dir=None, tiles_index_path=None,
-                     tile_name='tile_name', gz_path='gz_path', dem_path='dem_path',
+                     tile_name='name', gz_path='gz_path', dem_path='dem_path',
                      gz_exist='gz_exist', dem_exist='dem_exist',
                      to_dl='to_dl', to_unzip='to_unzip', fileurl='fileurl'):
     
@@ -139,7 +139,9 @@ def arcticdem_mosaic(aoi_path, out_mosaic,
     
     # Check for existence of tar.gz's and DEMs locally
     check_exist(aoi_tiles, gz_path, gz_exist)
+    logger.info('Tarfiles found locally: {}'.format(len(aoi_tiles[gz_exist]==True)))
     check_exist(aoi_tiles, dem_path, dem_exist)
+    logger.info('DEMs found locally: {}'.format(len(aoi_tiles[dem_exist]==True)))
     
     # Create list where tar.gz and DEM do not exist -> to download
     aoi_tiles[to_dl] = ~aoi_tiles[gz_exist] & ~aoi_tiles[dem_exist]
@@ -187,4 +189,4 @@ if __name__ == '__main__':
     out_mosaic = args.out_mosaic
     tiles_dir = args.tiles_dir
     
-    arcticdem_mosaic(aoi_path=aoi_path, out_mosaic=out_mosaic, tiles_dir=tiles_dir)
+    arcticdem_mosaic(aoi_path=aoi_path, out_mosaic=out_mosaic, tiles_dir=None)

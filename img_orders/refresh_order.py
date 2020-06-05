@@ -111,9 +111,9 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     
     # Select only those features that intersect land polygons
     if use_land:
+        logger.info('Selecting only imagery within land inclusion shapefile...')
         land_shp = r'E:\disbr007\imagery_orders\coastline_include_fix_geom_dis.shp'
         land = gpd.read_file(land_shp)
-        logger.info('Selecting only imagery within land inclusion shapefile...')
         # Drop 'index' columns if they exists
         drop_cols = [x for x in list(noh_recent_roi) if 'index' in x]
         

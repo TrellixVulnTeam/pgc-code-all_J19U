@@ -5,6 +5,7 @@ with in memory writing ability.
 
 import copy
 import os
+import glob
 import logging
 import posixpath
 
@@ -364,3 +365,62 @@ def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip', out_form
             logger.warning('Unable to translate raster: {}'.format(raster_p))
 
     return translated
+
+
+def gdal_polygonize(img, out_vec, band=1, fieldname='label', overwrite=True):
+    """
+    Polygonize the band specified of the provided image
+    to the out_vec vector file
+
+    Parameters
+    ----------
+    img : os.path.abspath
+        The raster file to be vectorized.
+    out_vec : os.path.abspath
+        The vector file to create.
+    band : int, optional
+        The raster band to vectorize. The default is 1.
+    fieldname : str, optional
+        The name of the field to create in the vector. The default is 'label'.
+    overwrite : bool, optional
+        True to overwrite if out_vec exists. The default is True.
+
+    Returns
+    -------
+    status : int
+        GDAL exit code: -1 indicates failure and triggers a logging message.
+
+    """
+    
+
+    
+    logger.info('Vectorizing raster:\n{}\n-->\n{}\n'.format(img, out_vec))
+    if os.path.exists(out_vec) and overwrite:
+        vec_base = '{}'.format(os.path.splitext(out_vec)[0])
+        vec_meta_ext = ['dbf', 'shx', 'prj']
+        vec_files = ['{}.{}'.format(vec_base, m) for m in vec_meta_ext
+                      if os.path.exists('{}.{}'.format(vec_base, m))]
+        vec_files.append(out_vec)
+        logger.debug('Removing existing vector files: {}'.format('\n'.join(vec_files)))
+        _del_files = [os.remove(f) for f in vec_files]
+    # Open raster, get band and coordinate reference
+    src_ds = gdal.Open(img)
+    src_band = src_ds.GetRasterBand(band)
+    src_srs = get_raster_sr(img)
+    # Create vector
+    dst_driver = auto_detect_ogr_driver(out_vec)
+    dst_ds = dst_driver.CreateDataSource(out_vec)
+    # Drop extension for layer name
+    lyr_name = os.path.basename(os.path.splitext(out_vec)[0])
+    dst_lyr = dst_ds.CreateLayer(lyr_name, srs = src_srs)
+    field_dfn = ogr.FieldDefn(fieldname, ogr.OFTString)
+    dst_lyr.CreateField(field_dfn)
+    # Polygonize
+    logger.debug('Vectorizing...')
+    status = gdal.Polygonize(src_band, None, dst_lyr, 0, [], callback=None)
+    
+    if status == -1:
+        logger.error('Error during vectorization.')
+        logger.error('GDAL exit code: {}'.format(status))
+        
+    return status

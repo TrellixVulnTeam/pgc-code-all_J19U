@@ -22,7 +22,7 @@ from sqlalchemy import create_engine, pool
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(os.path.basename(__file__), 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 ## Credentials for logging into danco
@@ -202,7 +202,7 @@ def table_sample(layer, db='footprint', n=5, table=False, sql=False, where=None,
     
     
 def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.edu', 
-                cred=[creds[0], creds[1]], table=False, where=None, columns=None):
+                cred=[creds[0], creds[1]], table=False, where=None):
     global logger
     logger.debug('Querying danco.{}.{}'.format(db, layer))
     try:
@@ -219,11 +219,7 @@ def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.e
         cursor = connection.cursor()
 
         if connection:
-            # If specific columns are requested, created comma sep string of those columns to pass in sql
-            if columns:
-                cols_str = ', '.join(columns)
-            else:
-                cols_str = '*' # select all columns
+            cols_str = '*' # select all columns
             if distinct:
                 sql = "SELECT COUNT(DISTINCT {}) FROM {}".format(cols_str, layer)
             else:
@@ -233,6 +229,8 @@ def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.e
             cursor.execute(sql)
             result = cursor.fetchall()
             count = [x[0] for x in result][0]
+            
+            logger.debug('Query will result in {} records.'.format(count))
             return count
         
             
@@ -265,7 +263,7 @@ def layer_fields(layer, db='footprint'):
     Gets fields in a danco layer by loading with an SQL
     query that returns only one result (for speed).
     '''
-    layer = query_footprint(layer, db=db, table=True, offset=1)
+    layer = query_footprint(layer, db=db, table=True, limit=1)
     fields = list(layer)
     return fields
 
@@ -411,5 +409,5 @@ def all_IK01(where=None, onhand=None):
 
 
 def pgc_ids():
-    return query_footprint('pgc_imagery_catalogids', table=True).values
+    return query_footprint('pgc_imagery_catalogids', columns=['catalog_id'], table=True)['catalog_id'].values
     

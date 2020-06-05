@@ -32,10 +32,12 @@ def calculate_density(grid_p, footprint_p, out_path=None, date_col=None, rasteri
         grid = copy.deepcopy(grid_p)
 
     danco_footprints = list_danco_db('footprint')
-    if footprint_p in danco_footprints:
+    if isinstance(footprint_p, gpd.GeoDataFrame):
+        footprint = copy.deepcopy(footprint_p)
+    elif footprint_p in danco_footprints:
         logger.info('Loading footprint from danco...')
         footprint = query_footprint(footprint_p)
-    elif not isinstance(footprint_p, gpd.GeoDataFrame):
+    else:
         logger.info('Loading footprint...')
         if 'gdb' in footprint_p:
             gdb, layer = footprint_p.split('.gdb\\')
@@ -43,12 +45,10 @@ def calculate_density(grid_p, footprint_p, out_path=None, date_col=None, rasteri
             footprint = gpd.read_file(gdb, layer=layer)
         else:
             footprint = gpd.read_file(footprint_p)
-    else:
-        footprint = copy.deepcopy(footprint_p)
+
 
     logger.info('Calculating density...')
     density = get_count(grid, footprint, date_col=date_col)
-    logger.info('Writing density...')
     # Convert any tuple columns to strings (occurs with agg-ing same column multiple ways)
     density.columns = [str(x) if type(x) == tuple else x for x in density.columns]
     if rasterize:
@@ -62,6 +62,7 @@ def calculate_density(grid_p, footprint_p, out_path=None, date_col=None, rasteri
             # Rasterize to out_path
     else:
         if out_path:
+            logger.info('Writing density...')
             density.to_file(out_path)
         
     return density

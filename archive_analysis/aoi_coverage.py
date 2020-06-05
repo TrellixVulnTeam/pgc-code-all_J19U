@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 import geopandas as gpd
 
-from archive_analysis.grid_aoi import grid_aoi
-from misc_utils.logging_utils import LOGGING_CONFIG
+from archive_analysis.archive_analysis_utils import grid_aoi
+from misc_utils.logging_utils import create_logger
 
 
 # Use footprint that covers most points? -- break down acqdate into year or year-month, sort by that
@@ -22,25 +22,23 @@ from misc_utils.logging_utils import LOGGING_CONFIG
 # TODO: Drop any grid points that are not covered by input footprint and warn, but at list this 
 #       will prevent unneccessary looping of footprints when no new points will be covered
 
-#### Inputs
-aoi_path = r'V:\pgc\data\scratch\jeff\deliverables\schild_temp\SarahChild_2_13_20_data_request.shp'
+# Inputs
+aoi_path = r'V:\pgc\data\scratch\jeff\deliverables\4218_schild_thwaites_dems\SarahChild_Jun1_data_request.shp'
 # or danco DB (add danco suport later)
-fps_path = r'V:\pgc\data\scratch\jeff\deliverables\schild_temp\pgc_dem_setsm_strips_selection.shp'
+fps_path = r'V:\pgc\data\scratch\jeff\deliverables\4218_schild_thwaites_dems\schild_2020jun03_request_init_selection.shp'
 danco_fp = r''
 depth = 1 # number of repeats
-min_fps = False # Find footprints that cover most area
+min_fps = True # Find footprints that cover most area
 init_check = True # Perform initial check to ensure footprints cover AOI, warn if not
-x_space = 1000 # in units of AOI, lower = more grid points and longer inital creation time
-y_space = 1000 # in units of AOI
+# x_space = 10000 # in units of AOI, lower = more grid points and longer inital creation time
+# y_space = 10000 # in units of AOI
+n_pts_x = 1000
+n_pts_y = 1000
 step = None # number of rows and columns to grid with
-plot = True
-
+# plot = True
 
 # Logging set up
-handler_level = 'DEBUG'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
-
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 #### Parameters
 sort_crit = 'acqdate1'
@@ -60,24 +58,20 @@ fps = gpd.read_file(fps_path)
 
 # Check for crs match
 if fps.crs != aoi.crs:
-    logger.debug('CRS mismatch, converting footprints crs...')
+    logger.debug('CRS mismatch, converting footprints crs to:\n{}'.format(aoi.crs))
     fps = fps.to_crs(aoi.crs)
 
-# testing only - subset to larger strips only
-fps = fps[fps.area/1e6 > 1000]    
-# testing only - subset to higher density only
-fps = fps[fps['density'] > 0.80]
-
-
+#%%
 #### For each polygon, create grid as geodataframe, add to list
 aoi_grids = []
 # Loop over polygons
 logger.info('Creating a grid for each polygon in AOI ({})'.format(len(aoi)))
 for poly_idx in aoi.index.unique():
+    logger.debug('Creating grid for polygon: {}'.format(poly_idx))
     poly = aoi[aoi.index == poly_idx]
 
     # Grid polygon
-    grid = grid_aoi(poly, x_space=x_space, y_space=y_space, step=step)
+    grid = grid_aoi(poly, n_pts_x=n_pts_x, n_pts_y=n_pts_y)
     # Add unique ID field
     grid[pt_id] = [x for x in range(len(grid))]
     
@@ -102,6 +96,7 @@ for poly_idx in aoi.index.unique():
     # Add to list
     aoi_grids.append(grid)
 
+#%%
 
 #### For each grid, for each point,
 # En masse, via sjoin:

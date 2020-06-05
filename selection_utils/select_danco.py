@@ -14,10 +14,8 @@ from misc_utils.id_parse_utils import read_ids, remove_mfp
 from selection_utils.query_danco import query_footprint, layer_fields
 
 
-
 # Logging
-logger = create_logger(os.path.basename(__file__), 'sh',
-                       handler_level='DEBUG')
+logger = create_logger(__name__, 'sh', handler_level='DEBUG')
 
 
 def determine_selection_method(selector_path, by_id):
@@ -43,7 +41,8 @@ def determine_selection_method(selector_path, by_id):
             else:
                 selection_method = None
                 logger.error('Unknown file format for selection. Supported formats: .txt and .shp')
-            
+    logger.info('Selection method: {}'.format(selection_method))
+
     return selection_method
 
 
@@ -54,17 +53,18 @@ def create_selector(selector_path, selection_method):
     If selection method is by location, creates a geo-
     dataframe to use for selection.
     """
+    logger.debug('Creating selector from: {}'.format(os.path.basename(selector_path)))
     if selection_method == 'ID':
         selector = read_ids(selector_path)
     elif selection_method == 'LOC':
         selector = gpd.read_file(selector_path)
-    elif selection_method == None:
+    elif not selection_method:
         selector = None
-    
-    return selector
-    
 
-def check_alt_field_names(field_name, table_name):
+    return selector
+
+
+def check_alt_field_names(field_name, table_name, table_fields=None):
     """
     Checks to see if the field name is in the given table. If not, checks
     to see if other, comparable field names are. If so, it returns them,
@@ -81,7 +81,10 @@ def check_alt_field_names(field_name, table_name):
     -------
     Corrected field name if found, otherwise None.
     """
-    table_fields = layer_fields(table_name)
+    logger.debug('Looking for field "{}" in table "{}"'.format(field_name, table_name))
+    if not table_fields:
+        table_fields = layer_fields(table_name)
+
     checked_field_name = None
     if field_name in table_fields:
         logger.debug('Field "{}" found in {}'.format(field_name, table_name))
@@ -107,7 +110,7 @@ def check_alt_field_names(field_name, table_name):
                 break
             else:
                 checked_field_name = None
-        logger.error('Cannot locate field {} in table {}'.format(field_name, table_name))
+                logger.error('Cannot locate field {} in table {}'.format(field_name, table_name))
     if checked_field_name == None:
         logger.debug('Cannot locate field "{}" in "{}"'.format(field_name, table_name))
     
@@ -124,50 +127,57 @@ def build_where(platforms=None, min_year=None, max_year=None, months=None,
     # Create string of platforms
     if platforms is not None:
         platforms = '({})'.format(str(platforms)[1:-1])
-    
-    cols = {'platforms' : {'field': 'platform',   'arg_value': platforms, 'arg_comparison': 'IN'},
-            'min_year'  : {'field': 'acqdate',    'arg_value': min_year,  'arg_comparison': '>='},
-            'max_year'  : {'field': 'acqdate',    'arg_value': max_year,  'arg_comparison': '<='},
+
+    cols = {'platforms' : {'field': 'platform',   'arg_value': platforms, 'arg_comparison': 'IN', 'field_type': str},
+            'min_year'  : {'field': 'acqdate',    'arg_value': min_year,  'arg_comparison': '>=', 'field_type': str}, 
+            'max_year'  : {'field': 'acqdate',    'arg_value': max_year,  'arg_comparison': '<=', 'field_type': str},
             'months'    : {'field': 'acqdate',    'arg_value': months,    'arg_comparison': ''},
-            'max_cc'    : {'field': 'cloudcover', 'arg_value': max_cc,    'arg_comparison': '<='},
-            'min_cc'    : {'field': 'cloudcover', 'arg_value': min_cc,    'arg_comparison': '>='},
-            'min_x1'    : {'field': 'x1',         'arg_value': min_x1,    'arg_comparison': '>='},
-            'max_x1'    : {'field': 'x1',         'arg_value': max_x1,    'arg_comparison': '<='},
-            'min_y1'    : {'field': 'y1',         'arg_value': min_y1,    'arg_comparison': '>='},
-            'max_y1'    : {'field': 'y1',         'arg_value': max_y1,    'arg_comparison': '<='}}
+            'max_cc'    : {'field': 'cloudcover', 'arg_value': max_cc,    'arg_comparison': '<=', 'field_type': int},
+            'min_cc'    : {'field': 'cloudcover', 'arg_value': min_cc,    'arg_comparison': '>=', 'field_type': int},
+            'min_x1'    : {'field': 'x1',         'arg_value': min_x1,    'arg_comparison': '>=', 'field_type': float},
+            'max_x1'    : {'field': 'x1',         'arg_value': max_x1,    'arg_comparison': '<=', 'field_type': float},
+            'min_y1'    : {'field': 'y1',         'arg_value': min_y1,    'arg_comparison': '>=', 'field_type': float},
+            'max_y1'    : {'field': 'y1',         'arg_value': max_y1,    'arg_comparison': '<=', 'field_type': float}}
 
     where = ''
+    table_fields = layer_fields(layer_name)
     for col, col_dict in cols.items():
-        # Check if current col in layer fields, if not try alternate names
-        if layer_name is not None:
-            field = check_alt_field_names(col_dict['field'], layer_name)
-        else:
-            field = col_dict['field']
-        if col == 'months':
-            if months:
-                months_str = ''
-                for m in months:
-                    if months_str:
-                        months_str += " OR "
-                    m_str = "({} LIKE '%%-{}-%%')".format(field, m)
-                    months_str += m_str
-                months_str = '({})'.format(months_str)
-                logging.debug('months_str {}'.format(months_str))
-                if not where:
-                    where += months_str
-                else:
-                    where += ' AND {}'.format(months_str)
-        else:
-            if col_dict['arg_value'] != None:
-                arg_where = "({} {} {})".format(field, col_dict['arg_comparison'], col_dict['arg_value'])
-                if not where:
-                    where += arg_where
-                else:
-                    where += ' AND {}'.format(arg_where)
+        # Check if arg provided
+        if col_dict['arg_value']:
+            # Check if current col in layer fields, if not try alternate names
+            if layer_name is not None:
+                field = check_alt_field_names(col_dict['field'], layer_name, table_fields=table_fields)
+            else:
+                field = col_dict['field']
+
+            if col == 'months':
+                if months:
+                    months_str = ''
+                    for m in months:
+                        if months_str:
+                            months_str += " OR "
+                        m_str = "({} LIKE '%%-{}-%%')".format(field, m)
+                        months_str += m_str
+                    months_str = '({})'.format(months_str)
+                    logging.debug('months_str {}'.format(months_str))
+                    if not where:
+                        where += months_str
+                    else:
+                        where += ' AND {}'.format(months_str)
+            else:
+                if col_dict['arg_value'] != None:
+                    if col_dict['field_type'] == str:
+                        arg_where = "({} {} '{}')".format(field, col_dict['arg_comparison'], col_dict['arg_value'])
+                    else:
+                        arg_where = "({} {} {})".format(field, col_dict['arg_comparison'], col_dict['arg_value'])
+                    if not where:
+                        where += arg_where
+                    else:
+                        where += ' AND {}'.format(arg_where)
     logger.debug('Using where clause: {}'.format(where))
 
     return where
-    
+
 
 def load_src(layer, where, columns, write_source=False):
     """
@@ -190,7 +200,7 @@ def make_selection(selector, src, selection_method, drop_dup=None):
     sel_path: path to text file of ids, or path to shapefile
     src: geopandas dataframe of src footprint
     '''
-    ## Load selection method
+    # Load selection method
     logger.debug("Making selection...")
     if selection_method == 'LOC':
         logger.debug('Performing select by location...')
@@ -203,9 +213,11 @@ def make_selection(selector, src, selection_method, drop_dup=None):
 #        selection.drop(columns=list(selector), inplace=True)
     elif selection_method == 'ID':
         logger.debug('Selecting by ID')
-        selection = src[src['catalogid'].isin(selector)]
-    
+        catid_fields = [f for f in list(src) if 'catalogid' in f]
+        selection = src[src[catid_fields[0]].isin(selector)]
+
     logger.info('Selected features: {}'.format(len(selection)))
+
     return selection
 
 
@@ -218,7 +230,9 @@ def remove_mfp_selection(selection):
         selection = remove_mfp(selection)
     # Assume dataframe
     else:
-        selection = selection[selection['catalogid'].isin(remove_mfp(list(selection['catalogid'])))]
+        catid_fields = [f for f in list(selection) if 'catalogid' in f]
+        selection = selection[selection[catid_fields[0]].isin(remove_mfp(list(selection[catid_fields[0]])))]
+
     return selection
 
 
@@ -237,8 +251,8 @@ def write_selection(selection, destination_path, dst_type):
             for each_id in selection:
                 dst.write('{}\n'.format(each_id))
     logger.info('Writing successful.')
-    
-    
+
+
 def select_danco(layer_name,
                  destination_path=None,
                  selector_path=None,
@@ -257,12 +271,15 @@ def select_danco(layer_name,
                  max_y1=None,
                  columns='*',
                  drop_dup=None,
-                 add_where=None):
+                 add_where=None,
+                 use_land=None):
     # Determine selection method - by location or by ID
     selection_method = determine_selection_method(selector_path, by_id)
     # Create selector - geodataframe or list of IDs, or None
+    logger.debug('Creating selector...')
     selector = create_selector(selector_path, selection_method)
     # Build where clause
+    logger.debug('Building where clause')
     where = build_where(platforms=platforms,
                         min_year=min_year,
                         max_year=max_year,
@@ -276,8 +293,9 @@ def select_danco(layer_name,
                         layer_name=layer_name)
     if add_where:
         where += """AND {}""".format(add_where)
+    logger.debug('Where clause: {}'.format(where))
     # Load footprint layer with where clause
-    src = load_src(layer_name, where, columns)
+    # src = load_src(layer_name, where, columns)
     logger.info('Loaded source layer with SQL clause: {}'.format(len(src)))
     # Make selection if provided
     if selector is not None:
@@ -285,6 +303,17 @@ def select_danco(layer_name,
         selection = make_selection(selector, src, selection_method, drop_dup=drop_dup)
     else:
         selection = src
+
+    if use_land:
+        logger.info('Selecting only records within land inclusion shapefile...')
+        land_shp = r'E:\disbr007\imagery_orders\coastline_include_fix_geom_dis.shp'
+        land = gpd.read_file(land_shp)
+        # Drop 'index' columns if they exists
+        # drop_cols = [x for x in list(noh_recent_roi) if 'index' in x]
+
+        # noh_recent_roi = noh_recent_roi.drop(columns=drop_cols)
+        selection = gpd.sjoin(selection, land, how='left')
+
     logger.info('Selected features before removing MFP (if requested): {}'.format(len(selection)))
     if remove_mfp is True:
         selection = remove_mfp_selection(selection)
@@ -305,45 +334,47 @@ if __name__ == '__main__':
                         help='''Type of file to write, either "shp" or "txt".
                                 If not provided, infered from extension of
                                 destination_path.''')
-    parser.add_argument('--selector_path', type=os.path.abspath, 
+    parser.add_argument('--selector_path', type=os.path.abspath,
                         help='''The path to the selector to use. If not provided,
                                 only the SQL arguments are applied to the danco layer.
                                 Supported extensions:
                                 .txt: results in a select by ID
-                                .shp: defaults to select by location, use --by_id 
+                                .shp: defaults to select by location, use --by_id
                                 to force select by ID with shp.''')
-    
+
     parser.add_argument('--by_id', action='store_true',
                         help='Force select by ID when a shape is provided.')
-    
+
     parser.add_argument('--platforms', nargs='+',
                         help='Sensors to include.')
     parser.add_argument('--min_year', type=str, help='Earliest year to include.')
     parser.add_argument('--max_year', type=str, help='Latest year to include')
     parser.add_argument('--months', nargs='+', help='Months to include. E.g. 01 02 03')
-    
+
     parser.add_argument('--min_cc', type=int, help='Minimum cloudcover to include.')
     parser.add_argument('--max_cc', type=int, help='Max cloudcover to include.')
-    
+
     parser.add_argument('--min_long', type=int, help='Minimum x (longitude) of footprints - in DD.')
     parser.add_argument('--max_long', type=int, help='Maximum x (longitude) of footprints - in DD.')
     parser.add_argument('--min_lat', type=int, help='Minimum y (latitude) of footprints - in DD.')
     parser.add_argument('--max_lat', type=int, help='Maximum y (latitude) of footprints - in DD.')
-    
-    parser.add_argument('--add_where', type=str, default=None,
-                        help='''Any additional SQL where clause to limit the 
+
+    parser.add_argument('--add_where', type=str,
+                        help='''Any additional SQL where clause to limit the
                                 chosen layer, E.g. "cloudcover < 20"''')
-    
-    parser.add_argument('-c', '--columns', nargs='+', default='*',
+    parser.add_argument('-c', '--columns', nargs='+',
                         help='''The columns to include from the chosen layer, E.g. "catalogid acqdate".
                                 Limiting the number of columns will speed up a large selection, however,
                                 any columns used by selection criteria must be loaded.''')
+    parser.add_argument("--use_land", action='store_true',
+                        help="Use coastline inclusion shapefile.")
     parser.add_argument('--remove_mfp_ids', action='store_true',
                         help='Remove any ids that have are in the master footprint.')
-    
+
+
     args = parser.parse_args()
-    
-    ## Parse args
+
+    # Parse args
     selector_path    = args.selector_path
     layer_name       = args.layer_name
     destination_path = args.destination_path
@@ -351,7 +382,8 @@ if __name__ == '__main__':
     by_id            = args.by_id
     columns          = args.columns
     remove_mfp_ids   = args.remove_mfp_ids
-    
+    use_land         = args.use_land
+
     platforms = args.platforms
     min_year  = args.min_year
     max_year  = args.max_year
@@ -363,7 +395,7 @@ if __name__ == '__main__':
     min_y1    = args.min_lat
     max_y1    = args.max_lat
     add_where = args.add_where
-    
+
     select_danco(selector_path=selector_path,
                  layer_name=layer_name,
                  destination_path=destination_path,
@@ -381,4 +413,5 @@ if __name__ == '__main__':
                  max_x1=max_x1,
                  min_y1=min_y1,
                  max_y1=max_y1,
-                 add_where=add_where)
+                 add_where=add_where,
+                 use_land=use_land)

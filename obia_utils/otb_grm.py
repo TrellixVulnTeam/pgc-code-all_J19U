@@ -11,8 +11,11 @@ import os
 import subprocess
 from subprocess import PIPE
 
+from osgeo import gdal
+
 from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
-from misc_utils.RasterWrapper import Raster
+from misc_utils.gdal_tools import gdal_polygonize
+# from misc_utils.RasterWrapper import Raster
 
 
 # Function definition
@@ -27,7 +30,8 @@ def run_subprocess(command):
 
 def otb_grm(img,
             threshold,
-            out_img=None,
+            out_seg=None,
+            out_format='raster',
             criterion='bs',
             niter=0,
             speed=0,
@@ -43,7 +47,7 @@ def otb_grm(img,
         Path to source to be segmented.
     threshold : float,
         Threshold within which to merge. The default is 0.
-    out_img: os.path.abspath, optional
+    out_seg: os.path.abspath, optional
         Path to write segmentation image to. The default is None.
     criterion : str, optional
         Homogeneity criterion to use. The default is 'bs'. One of: [bs, ed, fls]
@@ -61,27 +65,40 @@ def otb_grm(img,
     None.
 
     """
-    # Log input image information
-    src = Raster(img)
-    x_sz = src.x_sz
-    y_sz = src.y_sz
-    depth = src.depth
-    src = None
+    # # Log input image information
+    # TODO: This is not working due to OTB using it's own GDAL.
+    # src = Raster(img)
+    # x_sz = src.x_sz
+    # y_sz = src.y_sz
+    # depth = src.depth
+    # src = None
+
+    # logger.info("""Running OTB Generic Region Merging...
+    #                Input image: {}
+    #                Image X Size: {}
+    #                Image Y Size: {}
+    #                Image # Bands: {}
+    #                Out image:   {}
+    #                Criterion:   {}
+    #                Threshold:   {}
+    #                # Iterate:   {}
+    #                Spectral:    {}
+    #                Spatial:     {}""".format(img, x_sz, y_sz, depth,
+    #                                          out_seg, criterion, threshold,
+    #                                          niter, cw, sw))
+
 
     logger.info("""Running OTB Generic Region Merging...
-                   Input image: {}
-                   Image X Size: {}
-                   Image Y Size: {}
-                   Image # Bands: {}
-                   Out image:   {}
-                   Criterion:   {}
-                   Threshold:   {}
-                   # Iterate:   {}
-                   Spectral:    {}
-                   Spatial:     {}""".format(img, x_sz, y_sz, depth,
-                                             out_img, criterion, threshold,
-                                             niter, cw, sw))
-
+                    Input image: {}
+                    Out image:   {}
+                    Out format:  {}
+                    Criterion:   {}
+                    Threshold:   {}
+                    # Iterate:   {}
+                    Spectral:    {}
+                    Spatial:     {}""".format(img, out_seg, out_format,
+                                              criterion, threshold,
+                                              niter, cw, sw))
     # Build the command
     cmd = """otbcli_GenericRegionMerging
              -in {}
@@ -90,7 +107,7 @@ def otb_grm(img,
              -threshold {}
              -niter {}
              -cw {}
-             -sw {}""".format(img, out_img,
+             -sw {}""".format(img, out_seg,
                               criterion,
                               threshold,
                               niter,
@@ -116,15 +133,23 @@ def otb_grm(img,
                           module load otb/6.6.1
                           """)
     logger.info('GenericRegionMerging finished. Runtime: {}'.format(str(run_time)))
+    
+    if out_format == 'vector':
+        logger.info('Vectorizing...')
+        vec_seg = out_seg.replace('tif', 'shp')
+        gdal_polygonize(img=out_seg, out_vec=vec_seg, fieldname='label')
+        logger.info('Segmentation created at: {}'.format(vec_seg))
+        logger.debug('Removing raster segmentation...')
+        os.remove(out_seg)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-i', '--image_source',
                         type=os.path.abspath,
                         help='Path to image to be segmented')
-    parser.add_argument('-o', '--out_img',
+    parser.add_argument('-o', '--out_seg',
                         type=os.path.abspath,
                         help='Path to write segmentation image to')
     parser.add_argument('-od', '--out_dir',
@@ -133,6 +158,8 @@ if __name__ == "__main__":
                                 just the output directory and the name will be
                                 created in a standardized fashion following:
                                 [input_filename]_c[criterion]t[threshold]ni[num_iterations]s[speed]spec[spectral]spat[spatial].tif""")
+    parser.add_argument('-of', '--out_format', choices=['raster', 'vector'],
+                        help='Format of output segmentation.')
     parser.add_argument('-t', '--threshold',
                         type=float,
                         help='Threshold within which to merge.')
@@ -145,7 +172,7 @@ if __name__ == "__main__":
                                 Baatz and Schape
                                 Euclidian Distance
                                 Full Lambda Schedule""")
-    parser.add_argument('-ni', '-num_iterations',
+    parser.add_argument('-ni', '--num_iterations',
                         type=int,
                         default=0,
                         help='Merging iterations, 0 = no additional merging.')
@@ -173,8 +200,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     image_source = args.image_source
-    out_img = args.out_img
+    out_seg = args.out_seg
     out_dir = args.out_dir
+    out_format = args.out_format
     threshold = args.threshold
     criterion = args.criterion
     num_iterations = args.num_iterations
@@ -182,17 +210,17 @@ if __name__ == "__main__":
     spectral = args.spectral
     spatial = args.spatial
 
-    # Build out image path if not provided
-    if out_img is None:
+    # Create output names as needed
+    if out_seg is None:
         if out_dir is None:
             out_dir = os.path.dirname(image_source)
         out_name = os.path.basename(image_source).split('.')[0]
-        out_name = '{}_c{}t{}ni{}s{}spec{}spat{}.tif'.format(out_name, criterion,
-                                                             str(threshold).replace('.', 'x'),
-                                                             num_iterations, speed,
-                                                             str(spectral).replace('.', 'x'),
-                                                             str(spatial).replace('.', 'x'))
-        out_tif = os.path.join(out_dir, out_name)
+        out_name = '{}_{}t{}ni{}s{}spec{}spat{}.tif'.format(out_name, criterion,
+                                                            str(threshold).replace('.', 'x'),
+                                                            num_iterations, speed,
+                                                            str(spectral).replace('.', 'x'),
+                                                            str(spatial).replace('.', 'x'))
+        out_seg = os.path.join(out_dir, out_name)
 
     # Set up logger
     handler_level = 'INFO'
@@ -200,8 +228,8 @@ if __name__ == "__main__":
     log_dir = args.log_dir
     if not log_file:
         if not log_dir:
-            log_dir = os.path.dirname(out_tif)
-        log_name = os.path.basename(out_tif).replace('.tif', '_log.txt')
+            log_dir = os.path.dirname(out_seg)
+        log_name = os.path.basename(out_seg).replace('.tif', '_log.txt')
         log_file = os.path.join(log_dir, log_name)
 
     logger = create_logger(__name__, 'fh',
@@ -213,9 +241,10 @@ if __name__ == "__main__":
     # Run segmentation
     otb_grm(img=image_source,
             threshold=threshold,
-            out_img=out_img,
+            out_seg=out_seg,
+            out_format=out_format,
             criterion=criterion,
-            num_iterations=num_iterations,
+            niter=num_iterations,
             speed=speed,
-            spectral=spectral,
-            spatial=spatial)
+            cw=spectral,
+            sw=spatial)

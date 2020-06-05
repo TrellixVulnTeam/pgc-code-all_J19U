@@ -13,7 +13,7 @@ from datetime import datetime as dt
 
 from tqdm import tqdm
 import fiona
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 import geopandas as gpd
 import pandas as pd
 
@@ -31,66 +31,112 @@ def run_subprocess(command):
     output, error = proc.communicate()
 
 
-def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
-    '''
-    Create a grid of points over an AOI shapefile. Only one of 'step' or 'x_space' and 'y_space'
-    should be provided.
-    aoi_shp: path to shapefile of AOI - must be only one feature -> can be MultiPolygon
-    step: number of rows and columns desired in output grid
-    x_space: horizontal spacing in units of aoi_shp projection
-    y_space: vertical spacing in units of aoi_shp projection
-    '''
-    logger.info('Creating grid in AOI...')
-    if isinstance(aoi_shp, gpd.GeoDataFrame):
-        boundary = aoi_shp
+def grid_aoi(aoi_path, n_pts_x=None, n_pts_y=None,
+             x_space=None, y_space=None, aoi_crs=None):
+    # Read in AOI - assumes only one feature
+    logger.debug('Creating grid in AOI...')
+    if isinstance(aoi_path, gpd.GeoDataFrame):
+        aoi_all = aoi_path
+    elif isinstance(aoi_path, Polygon):
+        aoi_all = gpd.GeoDataFrame(geometry=[aoi_path], crs=aoi_crs)
     else:
-        if os.path.exists(aoi_shp):
-            boundary = gpd.read_file(aoi_shp)
+        if os.path.exists(aoi_path):
+            aoi_all = gpd.read_file(aoi_path)
         else:
-            logger.error('Could not locate: {}'.format(aoi_shp))
+            logger.error('Could not locate: {}'.format(aoi_path))
     
-    # with fiona.open(aoi_shp, 'r') as ds_in:
-    #     crs = ds_in.crs
-    crs = boundary.crs
-    # Determine bounds
-    # minx, miny, maxx, maxy = get_bounding_box(aoi_shp)
-    minx, miny, maxx, maxy = boundary.total_bounds
-    range_x = (maxx - minx)
-    range_y = (maxy - miny)
-        
-    # Set number of rows and cols for grid
-    if step:
-        # Determine spacing of points in units of polygon projection (xrange / step)
-        x_space = range_x / step
-        y_space = range_y / step
+    # Get first feature - should be only feature
+    aoi = aoi_all.iloc[:1] 
     
-    # Create points (loop over number cols, inner loop number rows), add to list of gdfs of points
-    x = minx
-    y = miny
-    points = []
-    logger.info('Creating grid points...')
-    for x_step in tqdm(np.arange(minx, maxx+x_space, x_space)):
-        y = miny
-        for y_step in np.arange(miny, maxy+y_space, y_space):
-            # print('{:.2f}, {:.2f}'.format(x, y))
-            the_point = Point(x,y)
-            if the_point.intersects(boundary.geometry[0]):
-                points.append(the_point)
-            y += y_space
-        x += x_space
+    # Get aoi bounding box
+    minx, miny, maxx, maxy = aoi.geometry.bounds.values[0]
+    x_range = maxx - minx
+    y_range = maxy - miny
+    # Determine spacing
+    if x_space and y_space:
+        logger.debug('Using provided spacing.')
+    elif n_pts_x and n_pts_y:
+        logger.debug('Determining spacing based on number of points requested.')
+        x_space = x_range / n_pts_x
+        y_space = y_range / n_pts_y
+    logger.debug('Grid spacing\nx: {}\ny: {}'.format(round(x_space, 2), round(y_space, 2)))    
     
-    # Put points into geodataframe
-    col_names = ['geometry']
-    points_gdf = gpd.GeoDataFrame(columns=col_names)
-    points_gdf.crs = crs
-    points_gdf['geometry'] = points
-    if write:
-        out_dir = os.path.dirname(aoi_shp)
-        out_name = '{}_grid.shp'.format(os.path.basename(aoi_shp).split('.')[0])
-        out_path = os.path.join(out_dir, out_name)
-        points_gdf.to_file(out_path)
+    # Create x,y Point geometries
+    x_pts = np.arange(minx, maxx, step=x_space)
+    y_pts = np.arange(miny, maxy, step=y_space)
+    mesh = np.array(np.meshgrid(x_pts, y_pts))
+    xys = mesh.T.reshape(-1, 2)
+    grid_points = [Point(x, y) for (x,y) in xys]
+    
+    # Make geodataframe of Point geometries
+    grid = gpd.GeoDataFrame(geometry=grid_points, crs=aoi.crs)
+    
+    # Remove any grid points that do not fall in actual feature aoi_all
+    grid['in'] = [pt.within(aoi.geometry.iloc[0]) for pt in grid.geometry]
+    
+    return grid[grid['in']==True].drop(columns=['in'])
 
-    return points_gdf
+
+# def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):
+#     '''
+#     Create a grid of points over an AOI shapefile. Only one of 'step' or 'x_space' and 'y_space'
+#     should be provided.
+#     aoi_shp: path to shapefile of AOI - must be only one feature -> can be MultiPolygon
+#     step: number of rows and columns desired in output grid
+#     x_space: horizontal spacing in units of aoi_shp projection
+#     y_space: vertical spacing in units of aoi_shp projection
+#     '''
+#     logger.info('Creating grid in AOI...')
+#     if isinstance(aoi_shp, gpd.GeoDataFrame):
+#         boundary = aoi_shp
+#     else:
+#         if os.path.exists(aoi_shp):
+#             boundary = gpd.read_file(aoi_shp)
+#         else:
+#             logger.error('Could not locate: {}'.format(aoi_shp))
+    
+#     # with fiona.open(aoi_shp, 'r') as ds_in:
+#     #     crs = ds_in.crs
+#     crs = boundary.crs
+#     # Determine bounds
+#     # minx, miny, maxx, maxy = get_bounding_box(aoi_shp)
+#     minx, miny, maxx, maxy = boundary.total_bounds
+#     range_x = (maxx - minx)
+#     range_y = (maxy - miny)
+        
+#     # Set number of rows and cols for grid
+#     if step:
+#         # Determine spacing of points in units of polygon projection (xrange / step)
+#         x_space = range_x / step
+#         y_space = range_y / step
+    
+#     # Create points (loop over number cols, inner loop number rows), add to list of gdfs of points
+#     x = minx
+#     y = miny
+#     points = []
+#     logger.info('Creating grid points...')
+#     for x_step in tqdm(np.arange(minx, maxx+x_space, x_space)):
+#         y = miny
+#         for y_step in np.arange(miny, maxy+y_space, y_space):
+#             # print('{:.2f}, {:.2f}'.format(x, y))
+#             the_point = Point(x,y)
+#             if the_point.intersects(boundary.geometry[0]):
+#                 points.append(the_point)
+#             y += y_space
+#         x += x_space
+    
+#     # Put points into geodataframe
+#     col_names = ['geometry']
+#     points_gdf = gpd.GeoDataFrame(columns=col_names)
+#     points_gdf.crs = crs
+#     points_gdf['geometry'] = points
+#     if write:
+#         out_dir = os.path.dirname(aoi_shp)
+#         out_name = '{}_grid.shp'.format(os.path.basename(aoi_shp).split('.')[0])
+#         out_path = os.path.join(out_dir, out_name)
+#         points_gdf.to_file(out_path)
+
+#     return points_gdf
 
 
 def get_count(geocells, fps, date_col=None):
@@ -98,7 +144,7 @@ def get_count(geocells, fps, date_col=None):
     Gets the count of features in fps that intersect with each feature in geocells
     This method is essentially a many to many spatial join, so if two footprints
     overlaps a grid cell, there will be two of that grid cell in the resulting
-    dataframe. These repeated cells are then counted and saved to the returned 
+    dataframe. These repeated cells are then counted and saved to the returned
     dataframe
     
     geocells: geodataframe of features to count within
@@ -128,7 +174,7 @@ def get_count(geocells, fps, date_col=None):
     ## Join geocells to dataframe with counts
     out = geocells.join(gb)
 
-    out = gpd.GeoDataFrame(out, geometry='geometry', crs=geocells.crs)
+    out = gpd.GeoDataFrame(out, geometry=out.geometry, crs=geocells.crs)
 
     return out
 
