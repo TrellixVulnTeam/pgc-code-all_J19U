@@ -412,7 +412,7 @@ def mfp_ids():
     Returns all catalogids in the current masterfootprint.
     """
     ids_path = pgc_index_path(ids=True)
-    ids = read_ids(ids_path)
+    ids = set(read_ids(ids_path))
     return ids
 
 
@@ -425,7 +425,7 @@ def ordered_ids(update=False):
         # Read all IDs in order sheets and rewrite txt file
         update_ordered()
     ordered = list(set(read_ids(ordered_path)))
-    ordered = [o for o in ordered if o != '']
+    ordered = set([o for o in ordered if o != ''])
 
     return ordered
 
@@ -437,7 +437,7 @@ def onhand_ids(update=False):
     mfp = mfp_ids()
     ordered = ordered_ids(update)
     
-    onhand = set(list(mfp) + list(ordered))
+    onhand = mfp | ordered
     
     return onhand
 
@@ -661,27 +661,28 @@ def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA')):
 
     # List for all IDs
     logger.debug('Reading sheets from: {}'.format(ordered_dir))
-    ordered_ids = []
+    ordered = []
     for root, dirs, files in os.walk(ordered_dir):
-        dirs = [d for d in dirs if not d.startswith(exclude)]
+        dirs = [d for d in dirs if not any(ex in d for ex in exclude)]
         last_dir = None
         for f in files:
             cur_dir = os.path.basename(os.path.dirname(os.path.join(root, f)))
-            if cur_dir != last_dir:
-                pbar.write('Reading from: {}'.format(cur_dir))
-            ext = os.path.splitext(f)[1]
-            if ext in ['.txt', '.csv', '.xls', '.xlsx']:
-                try:
-                    # logger.info('Reading; {}'.format(f))
-                    sheet_ids = read_ids(os.path.join(root, f))
-                    ordered_ids.extend(sheet_ids)
-                except Exception as e:
-                    print('failed to read: {}'.format(f))
-                    logger.error(e)
+            if exclude and not any(ex in cur_dir for ex in exclude):
+                if cur_dir != last_dir:
+                    pbar.write('Reading from: {}'.format(cur_dir))
+                ext = os.path.splitext(f)[1]
+                if ext in ['.txt', '.csv', '.xls', '.xlsx']:
+                    try:
+                        # logger.info('Reading; {}'.format(f))
+                        sheet_ids = read_ids(os.path.join(root, f))
+                        ordered.extend(sheet_ids)
+                    except Exception as e:
+                        print('failed to read: {}'.format(f))
+                        logger.error(e)
 
-            pbar.update(1)
-            last_dir = cur_dir
+                pbar.update(1)
+                last_dir = cur_dir
 
     logger.debug('Writing ordered IDs to: {}'.format(ordered_loc))
-    ordered_ids = list(set(ordered_ids))
-    write_ids(ordered_ids, ordered_loc)
+    ordered = list(set(ordered))
+    write_ids(ordered, ordered_loc)

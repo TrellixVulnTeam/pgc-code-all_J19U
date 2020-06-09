@@ -18,7 +18,7 @@ from misc_utils.logging_utils import create_logger
 
 # logging.config.dictConfig(LOGGING_CONFIG(handler_level))
 # logger = logging.getLogger(__name__)
-logger = create_logger(__name__, 'sh', 'INFO'
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def run_subprocess(command):

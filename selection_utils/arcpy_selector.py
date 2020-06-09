@@ -27,7 +27,7 @@ def pgc_index_path(ids=False):
     if not ids:
         index_path = content[0].strip('\n')
     if ids:
-        index_path = content[1].strip('\n')
+        index_path = content[1].strip   ('\n')
     logger.debug('PGC index path loaded: {}'.format(index_path))
 
     return index_path
