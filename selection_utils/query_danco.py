@@ -22,7 +22,7 @@ from sqlalchemy import create_engine, pool
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 ## Credentials for logging into danco
 # TODO: Fix this
@@ -106,7 +106,7 @@ def list_danco_db(db):
 def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[creds[0], creds[1]], 
                     table=False, sql=False,
                     where=None, columns=None, orderby=None, orderby_asc=False, 
-                    limit=None, offset=None, noh=True, catid_field='catalogid',
+                    limit=None, offset=None, noh=False, catid_field='catalogid',
                     dryrun=False):
     '''
     queries the danco footprint database, for the specified layer and optional where clause
@@ -185,8 +185,9 @@ def table_sample(layer, db='footprint', n=5, table=False, sql=False, where=None,
     return sample
     
     
-def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.edu', 
-                cred=[creds[0], creds[1]], table=False, where=None):
+def count_table(layer, db='footprint', distinct=False, distinct_col=None, 
+                instance='danco.pgc.umn.edu', cred=[creds[0], creds[1]], 
+                noh=False, where=None, table=True):
     global logger
     logger.debug('Querying danco.{}.{}'.format(db, layer))
     try:
@@ -204,17 +205,25 @@ def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.e
 
         if connection:
             cols_str = '*' # select all columns
-            if distinct:
-                sql = "SELECT COUNT(DISTINCT {}) FROM {}".format(cols_str, layer)
-            else:
-                sql = "SELECT COUNT({}) FROM {}".format(cols_str, layer)
-            if where:
-                sql += " WHERE {}".format(where)
+            sql = generate_sql(layer=layer, columns=cols_str, where=where, noh=noh, table=True)
+            sql = sql.replace('SELECT *', 'SELECT COUNT(*)')
+            
+            # if distinct:
+            #     if not distinct_col:
+            #         logger.error('SQL: DISTINCT requested, but distinct_col not provided.')
+            #     sql = "SELECT COUNT(DISTINCT {}) FROM {}".format(distinct_col, layer)
+            # else:
+            #     sql = "SELECT COUNT({}) FROM {}".format(cols_str, layer)
+            # if where:
+            #     sql += " WHERE {}".format(where)
+                
+            logger.debug('SQL: {}'.format(sql))
             cursor.execute(sql)
             result = cursor.fetchall()
             count = [x[0] for x in result][0]
             
-            logger.debug('Query will result in {} records.'.format(count))
+            logger.debug('Query will result in {:,} records.'.format(count))
+            
             return count
         
             
@@ -397,7 +406,7 @@ def pgc_ids():
     return query_footprint('pgc_imagery_catalogids', columns=['catalog_id'], table=True)['catalog_id'].values
 
 
-def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False, 
+def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False, distinct=False,
                  limit=False, offset=None, noh=False, catid_field='catalogid', table=False):
     # COLUMNS
     if columns:
@@ -412,8 +421,14 @@ def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=Fal
         sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)
     
     if noh:
-        sql += " LEFT JOIN pgc_imagery_catalogids ON {}.{} = pgc_imagery_catalogids.catalog_id".format(layer, catid_field)
-    
+        oh_layer = 'pgc_imagery_catalogids'
+        oh_catid_field = 'catalog_id'
+        sql += " LEFT JOIN {0} ON {1}.{2} = {0}.{3}".format(oh_layer, layer, catid_field, oh_catid_field)
+        null_clause = "{}.{} IS NULL".format(oh_layer, oh_catid_field)
+        if where:
+            where += " AND {}".format(null_clause)
+        else:
+            where = null_clause
     # CUSTOM WHERE CLAUSE
     if where:
         sql_where = " WHERE {}".format(where)
@@ -435,5 +450,7 @@ def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=Fal
     if offset:
         sql_offset = " OFFSET {}".format(offset)
         sql += sql_offset
-        
+    
+    # logger.debug('Generated SQL:\n{}'.format(sql))
+    
     return sql
