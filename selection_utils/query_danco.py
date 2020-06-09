@@ -24,7 +24,6 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-
 ## Credentials for logging into danco
 # TODO: Fix this
 PRJ_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -98,7 +97,7 @@ def list_danco_db(db):
     finally:
 #        return tables
         # Close database connection.
-        if (connection):
+        if connection:
             connection.close()
             connection = None
             logger.debug("PostgreSQL connection closed.")
@@ -107,14 +106,26 @@ def list_danco_db(db):
 def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[creds[0], creds[1]], 
                     table=False, sql=False,
                     where=None, columns=None, orderby=None, orderby_asc=False, 
-                    limit=None, offset=None,
+                    limit=None, offset=None, noh=True, catid_field='catalogid',
                     dryrun=False):
     '''
     queries the danco footprint database, for the specified layer and optional where clause
     returns a dataframe of match
     layer: danco layer to query - e.g.: 'dg_imagery_index_stereo_cc20'
+    instance: host to query
+    db: database to query
+    creds: tuple of (username, password)
+    table: True to omit geometry
+    sql: SQL statement to override all other passed SQL parameters
     where: sql where clause     - e.g.: "acqdate > '2015-01-21'"
     columns: list of column names to load
+    orderby: column to sort returned dataframe by, done at the postgres level
+    orderby_asc: if orderby, order ascending if True
+    limit: limit number of records returned
+    offset: number of records to offset from beginning of table
+    noh: Return only records not in pgc_imagery_catalogids
+    catid_field: Field in layer to compare to pgc_imagery_catalogids, default: catalogid
+    dryrun: print SQL statement without running.
     '''
     global logger
     logger.debug('Querying danco.{}.{}'.format(db, layer))
@@ -135,37 +146,9 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
 
         if connection:
             if not sql:
-                # COLUMNS
-                if columns:
-                    cols_str = ', '.join(columns)
-                else:
-                    cols_str = '*' # select all columns
-                
-                # If table, do not select geometry
-                if table == True:
-                    sql = "SELECT {} FROM {}".format(cols_str, layer)
-                else:
-                    sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)
-                
-                # CUSTOM WHERE CLAUSE
-                if where:
-                    sql_where = " WHERE {}".format(where)
-                    sql = sql + sql_where
-                # ORDERBY
-                if orderby:
-                    if orderby_asc:
-                        asc = 'ASC'
-                    else:
-                        asc = 'DESC'
-                    sql_orderby = " ORDER BY {} {}".format(orderby, asc)
-                    sql += sql_orderby
-                # LIMIT number of rows
-                if limit:
-                    sql_limit = " LIMIT {}".format(limit)
-                    sql += sql_limit
-                if offset:
-                    sql_offset = " OFFSET {}".format(offset)
-                    sql += sql_offset
+                sql = generate_sql(layer=layer, columns=columns, where=where, orderby=orderby,
+                                   orderby_asc=orderby_asc, limit=limit, offset=offset, noh=noh,
+                                   catid_field=catid_field, table=table)
                 
             if not dryrun:
                 # Create pandas df for tables, geopandas df for feature classes
@@ -182,11 +165,12 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
 
     except (Exception, psycopg2.Error) as error :
         logger.debug("Error while connecting to PostgreSQL", error)
+        logger.debug("SQL: {}".format(sql))
         raise error
 
     finally:
         # Close database connection.
-        if (connection):
+        if connection:
             connection.close()
             connection = None
             logger.debug("PostgreSQL connection closed.")
@@ -240,7 +224,7 @@ def count_table(layer, db='footprint', distinct=False, instance='danco.pgc.umn.e
 
     finally:
         # Close database connection.
-        if (connection):
+        if connection:
             connection.close()
             connection = None
             logger.debug("PostgreSQL connection closed.")
@@ -310,6 +294,7 @@ def stereo_noh(where=None):
     # Combine columns
     noh = pd.concat([noh_left, noh_right], sort=True)
     del noh_left, noh_right
+
     return noh
 
 
@@ -410,4 +395,45 @@ def all_IK01(where=None, onhand=None):
 
 def pgc_ids():
     return query_footprint('pgc_imagery_catalogids', columns=['catalog_id'], table=True)['catalog_id'].values
+
+
+def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False, 
+                 limit=False, offset=None, noh=False, catid_field='catalogid', table=False):
+    # COLUMNS
+    if columns:
+        cols_str = ', '.join(columns)
+    else:
+        cols_str = '*' # select all columns
     
+    # If table, do not select geometry
+    if table == True:
+        sql = "SELECT {} FROM {}".format(cols_str, layer)
+    else:
+        sql = "SELECT {}, encode(ST_AsBinary(shape), 'hex') AS geom FROM {}".format(cols_str, layer)
+    
+    if noh:
+        sql += " LEFT JOIN pgc_imagery_catalogids ON {}.{} = pgc_imagery_catalogids.catalog_id".format(layer, catid_field)
+    
+    # CUSTOM WHERE CLAUSE
+    if where:
+        sql_where = " WHERE {}".format(where)
+        sql = sql + sql_where
+    
+    # ORDERBY
+    if orderby:
+        if orderby_asc:
+            asc = 'ASC'
+        else:
+            asc = 'DESC'
+        sql_orderby = " ORDER BY {} {}".format(orderby, asc)
+        sql += sql_orderby
+    
+    # LIMIT number of rows
+    if limit:
+        sql_limit = " LIMIT {}".format(limit)
+        sql += sql_limit
+    if offset:
+        sql_offset = " OFFSET {}".format(offset)
+        sql += sql_offset
+        
+    return sql
