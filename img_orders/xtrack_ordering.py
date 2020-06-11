@@ -127,11 +127,13 @@ while offset < table_total:
     if use_land:
         logger.info('Selecting IDs over land only...')
         land = gpd.read_file(land_shp)
+        poly_geom = chunk.geometry
         chunk.geometry = chunk.geometry.centroid
         if land.crs != chunk.crs:
             land = land.to_crs(chunk.crs)
         chunk_cols = list(chunk)
         chunk = gpd.sjoin(chunk, land, how='inner', op='within')
+        chunk.geometry = poly_geom
         chunk = chunk[chunk_cols]
         chunk.drop_duplicates(subset='pairname')
         logger.debug('Remaining records over land: {:,}'.format(len(chunk)))
@@ -195,10 +197,10 @@ for c1_c2, area in all_ids_list:
     if len(final_ids) >= num_ids:
         break
 
-logger.info('Total IDs matching criteria: {:,}'.format(len(final_ids)))
-logger.info('Selecting {:,} IDs...'.format(num_ids))
+# logger.info('Total IDs matching criteria: {:,}'.format(len(final_ids)))
+# logger.info('Selecting {:,} IDs...'.format(num_ids))
 selected_final_ids = list(final_ids)[0:num_ids]
-logger.info('Minimum overlap area kept: {}'.format(min(sorted(kept_areas, reverse=True)[0:num_ids])))
+logger.info('Minimum overlap area kept: {}km^2'.format(min(sorted(kept_areas, reverse=True)[0:num_ids])))
 
 #%% Write
 if not os.path.exists(os.path.dirname(out_path)):

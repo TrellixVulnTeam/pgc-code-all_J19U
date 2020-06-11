@@ -22,7 +22,7 @@ from sqlalchemy import create_engine, pool
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 ## Credentials for logging into danco
 # TODO: Fix this

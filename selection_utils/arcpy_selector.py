@@ -7,6 +7,7 @@ Select from index by list of ids
 """
 
 import argparse
+import datetime
 import logging.config
 import os
 import sys
@@ -269,7 +270,7 @@ if __name__ == '__main__':
     parser.add_argument('--months', nargs='+',
                         default=argdef_months,
                         help='Months to include. E.g. 01 02 03')
-    parser.add_argument('--max_cc', type=int, help='Max cloudcover to include.')
+    parser.add_argument('--max_cc', type=float, help='Max cloudcover to include.')
     parser.add_argument('--max_off_nadir', type=int, help='Max off_nadir angle to include')
     parser.add_argument('--overlap_type', type=str, default=argdef_overlap_type,
                         help='''Type of select by location to perform. Must be one of:
@@ -286,6 +287,8 @@ if __name__ == '__main__':
                         help="""Use this flag to not use any default attribute selection
                                 parameters: prod_code, sensors, spec_type, max_cc,
                                 max_off_nadir""")
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Print information about selection, but do not write.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Set logging level to DEBUG.')
 
@@ -317,6 +320,7 @@ if __name__ == '__main__':
     coordinate_pairs = args.coordinate_pairs
     place_name = args.place_name
     override_defaults = args.override_defaults
+    dryrun = args.dryrun
 
     imagery_index = pgc_index_path()
     arcpy.env.overwriteOutput = True
@@ -357,6 +361,10 @@ if __name__ == '__main__':
     if not override_defaults:
         # CC20 if specified
         if max_cc:
+            if max_cc > 1:
+                logger.warning('Cloudcovers in MFP are specified as porportions from 0.0 - 1.0. Converting {} to this scale.'.format(max_cc))
+                max_cc = max_cc / 100
+                logger.debug('max_cc: {}'.format(max_cc))
             where = check_where(where)
             where += """(cloudcover <= {})""".format(max_cc)
         # PROD_CODE if sepcified
@@ -397,7 +405,34 @@ if __name__ == '__main__':
     result = arcpy.GetCount_management(selection)
     count = int(result.getOutput(0))
     logger.info('Selected features: {}'.format(count))
+    stats_fields_dict = {'cloudcover': [max_cc],
+                         'acq_time':   [min_year, max_year],
+                         'off_nadir':  [max_off_nadir],
+                         'spec_type':  [spec_type]}
+    stats_fields = [fld for fld in arcpy.ListFields(selection)
+                    if fld.name in stats_fields_dict.keys() and any(stats_fields_dict[fld.name])]
+
     if count != 0:
-        write_shp(selection, out_path)
+        for fld in stats_fields:
+            logger.debug('Calculating summary statistics for field: {}'.format(fld.name))
+            if fld.type in ['Integer', 'Double', 'SmallInteger', 'Date']:
+                fld_min = min([row[0] for row in arcpy.da.SearchCursor(selection, (fld.name), where_clause='{} IS NOT NULL'.format(fld.name))])
+                fld_max = max([row[0] for row in arcpy.da.SearchCursor(selection, (fld.name), where_clause='{} IS NOT NULL'.format(fld.name))])
+                logger.info('{} min: {}'.format(fld.name, fld_min))
+                logger.info('{} max: {}'.format(fld.name, fld_max))
+            elif fld.type == 'String':
+                if fld.name == 'acq_time':
+                    fld_min = min([datetime.datetime.strptime(row[0][:10], '%Y-%m-%d') for row in arcpy.da.SearchCursor(selection, (fld.name), where_clause='{} IS NOT NULL'.format(fld.name))])
+                    fld_max = max([datetime.datetime.strptime(row[0][:10], '%Y-%m-%d') for row in arcpy.da.SearchCursor(selection, (fld.name), where_clause='{} IS NOT NULL'.format(fld.name))])
+                    logger.info('{} min: {}'.format(fld.name, fld_min))
+                    logger.info('{} max: {}'.format(fld.name, fld_max))
+                else:
+                    fld_unique = set([row[0] for row in arcpy.da.SearchCursor(selection, (fld.name), where_clause='{} IS NOT NULL'.format(fld.name))])
+                    logger.info('{} unique: {}'.format(fld.name, fld_unique))
+
+        if not dryrun:
+            write_shp(selection, out_path)
+        else:
+            logger.info('Dryrun - skipping writing.')
     else:
         logger.info('No matching features found, skipping writing.')

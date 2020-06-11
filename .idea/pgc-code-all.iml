@@ -4,7 +4,6 @@
     <content url="file://$MODULE_DIR$" />
     <orderEntry type="jdk" jdkName="Python 3.7 (gps) (2)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module" module-name="update_pgc_imagery_catalogids" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />

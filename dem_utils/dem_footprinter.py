@@ -23,8 +23,6 @@ logging.config.dictConfig(LOGGING_CONFIG(handler_level))
 logger = logging.getLogger(__name__)
 
 
-
-
 # cmd = """gdaltindex {} {}""".format(index_name, matches_str)
 # run_subprocess(cmd)
  

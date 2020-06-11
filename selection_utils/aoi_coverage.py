@@ -140,16 +140,14 @@ for i, row in aoi.iterrows():
 fps[keep] = np.where(fps[fps_id].isin(keep_fps), True, fps[keep])
 logger.debug(len(fps[fps[keep]==True]))
 
-
-
 # Select the footprint(s) with most coverage until all points covered
 # (only select footprint if it covers x% more of AOI)
 # (secondary sorting criteria - if within range of %, but x higher criteria, choose instead)
 
 #%%
-import matplotlib.pyplot as plt
-plt.style.use('spy4_blank')
+# import matplotlib.pyplot as plt
+# plt.style.use('spy4_blank')
 
-fig, ax = plt.subplots(1,1)
-fps[fps[keep]==True].plot(color='white', alpha=0.5, ax=ax)
-aoi.plot(color='none', edgecolor='red', ax=ax)
+# fig, ax = plt.subplots(1,1)
+# fps[fps[keep]==True].plot(color='white', alpha=0.5, ax=ax)
+# aoi.plot(color='none', edgecolor='red', ax=ax)
