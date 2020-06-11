@@ -51,13 +51,25 @@ def get_unique_ids(table, field, where=None, clean_fxn=None):
     return unique_ids
 
 
+def cid_from_sid(sid):
+    """Parses a catalog_id from a scene_id"""
+    try:
+        cid = sid.split('_')[2]
+    except IndexError:
+        cid = None
+
+    return cid
+
+
 def compare_tables(tbl_a, tbl_b,
                    field_a, field_b,
                    where_a=None, where_b=None,
                    clean_fxn_a=None, clean_fxn_b=None):
     """
     Compares the values in two tables, return two sets, the values in
-    table A not in table B, and the values in table B not in table A.
+    table A not in table B, and the values in table B not in table A,
+    using supplied where clauses to limit records and functions to
+    modify values.
 
     Parameters:
     tbl_a: os.path.abspath
@@ -88,23 +100,13 @@ def compare_tables(tbl_a, tbl_b,
     return (missing_from_a, missing_from_b)
 
 
-def cid_from_sid(sid):
-    """Parses a catalog_id from a scene_id"""
-    try:
-        cid = sid.split('_')[2]
-    except IndexError:
-        cid = None
-
-    return cid
-
-
 def update_table(sde, table, catid_fld, sensor_fld, new_ids, missing_catids, dryrun=False):
-    """Updates the given table by adding the ids in new ids and removes the
+    """Updates the given table by adding the ids in new ids and removing the
     ids in missing ids (if any passed).
 
     Parameters:
     sde: os.path.abspath
-        Path to the sde file of the database containing table.
+        Path to the sde connection file to the database containing table to modify.
     table: os.path.abspath
         Path to the table to update
     catid_fld: str
@@ -112,7 +114,7 @@ def update_table(sde, table, catid_fld, sensor_fld, new_ids, missing_catids, dry
     sensor_fld: str
         Name of the sensor field to update.
     new_ids: dict
-        sensor: set of ids to add to table
+        [sensor: set of ids to add to table}
     missing_catids: set
         ids to remove from table
 
@@ -123,6 +125,8 @@ def update_table(sde, table, catid_fld, sensor_fld, new_ids, missing_catids, dry
     edit = arcpy.da.Editor(sde)
     edit.startEditing(False, True)
     edit.startOperation()
+
+    # Add new IDs
     logger.info('Appending new catalog IDs to: {}'.format(table))
     with arcpy.da.InsertCursor(table, [catid_fld, sensor_fld]) as icur:
         i = 0
@@ -172,6 +176,7 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+# TODO: Add log file
 
 #### Paths to sde files and tables
 dgarchive_sde = r'C:\dbconn\sandwich-pool.dgarchive.sde'
@@ -191,6 +196,7 @@ platforms = ['QB02', 'WV01', 'WV02', 'WV03', 'GE01', 'IK01']
 catid_fld = 'catalog_id'
 sid_fld = 'scene_id'
 sensor_fld = 'sensor'
+# TODO: What should sensor be for IDs that don't confirm to platform code convention?
 other = 'other'  # used as key for IDs that don't conform to the platform code
 
 
@@ -198,7 +204,7 @@ other = 'other'  # used as key for IDs that don't conform to the platform code
 starting_counts = dict()
 for tbl in [danco_catid_table_abs, danco_stereo_tbl_abs]:
     tbl_count = int(arcpy.GetCount_management(tbl).getOutput(0))
-    logger.debug('{} starting count: {:,}'.format(os.path.basename(tbl), tbl_count))
+    logger.info('{} starting count: {:,}'.format(os.path.basename(tbl), tbl_count))
     starting_counts[tbl] = tbl_count
 
 
@@ -346,8 +352,7 @@ missing_stereo_catids = missing_stereo_catids | missing_other
 del new_other, missing_other
 logger.info('\n')
 
-# Perform updatea: pgc_imagery_catalogids_stereo
-# if not dryrun:
+# Perform updates: pgc_imagery_catalogids_stereo
 update_table(danco_sde, danco_stereo_tbl_abs,
              catid_fld=catid_fld, sensor_fld=sensor_fld,
              new_ids=new_stereo_catids, missing_catids=missing_stereo_catids,
@@ -356,6 +361,6 @@ update_table(danco_sde, danco_stereo_tbl_abs,
 
 # Compare starting counts and ending counts
 for tbl in [danco_catid_table_abs, danco_stereo_tbl_abs]:
-    logger.debug('{} starting count: {:,}'.format(os.path.basename(tbl), starting_counts[tbl]))
+    logger.info('{} starting count: {:,}'.format(os.path.basename(tbl), starting_counts[tbl]))
     tbl_count = int(arcpy.GetCount_management(tbl).getOutput(0))
-    logger.debug('{} ending count:   {:,}'.format(os.path.basename(tbl), tbl_count))
+    logger.info('{} ending count:   {:,}'.format(os.path.basename(tbl), tbl_count))
