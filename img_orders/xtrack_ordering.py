@@ -18,7 +18,6 @@ import geopandas as gpd
 # from tqdm import tqdm
 
 from misc_utils.utm_area_calc import area_calc
-
 from misc_utils.logging_utils import create_logger
 from misc_utils.id_parse_utils import write_ids, get_platform_code, onhand_ids
 from selection_utils.query_danco import query_footprint, count_table
@@ -26,7 +25,7 @@ from selection_utils.query_danco import query_footprint, count_table
 # Turn off pandas warning
 pd.options.mode.chained_assignment = None 
 
-#%% Set up
+# %% Set up
 # Inputs
 num_ids = 50_000 # Desired number of IDs
 remove_onhand = True
@@ -34,17 +33,21 @@ update_ordered = False
 combo_sensors = False # Only get WV01-WV01 or WV02-WV02, etc. for each sensor in sensors
 use_land = True
 sensors = ['WV01', 'WV02', 'WV03']
-# sensors = ['WV03']
-min_date = '2007-01-01'
-max_date = '2020-06-09'
-orderby = 'perc_ovlp'
-where = "(project = 'EarthDEM')" # AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
+# min_date = '2015-01-01'
+# max_date = '2020-06-09'
+min_date = None
+max_date = None
+# orderby = 'perc_ovlp'
+# where = "(project = 'EarthDEM')" # AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
+where = "(project IN ('ArcticDEM', 'REMA'))"
 # aoi_path = r'E:\disbr007\general\US_States\us_no_AK.shp'
 aoi_path = None
 
-out_path = r'E:\disbr007\imagery_orders\PGC_order_2020jun09_global_xtrack_cc50\PGC_order_2020jun09_global_xtrack_cc50.txt'
+out_path = r'E:\disbr007\imagery_orders\PGC_order_2020jun15_polar_xtrack_cc50\PGC_order_2020jun15_polar_xtrack_cc50.txt'
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
+sublogger = create_logger('selection_utils.query_danco', 'sh', 'DEBUG')
+# sublogger = create_logger('misc_utils.area_calc', 'sh', 'DEBUG')
 
 # Check for existence of aoi and out_path directory
 if aoi_path:
@@ -52,9 +55,7 @@ if aoi_path:
         logger.error('AOI path does not exist: {}'.aoi_path)
         sys.exit()
 
-if not os.path.exists(os.path.dirname(out_path)):
-    logger.warning('Out directory does not exist, will be created: {}'.format(out_path))
-
+# Create where clause
 if sensors:
     sensor_where = ''
     for sensor in sensors:
@@ -72,7 +73,7 @@ if max_date:
     if where:
         where += " AND "
     where += "(acqdate1 <= '{}')".format(max_date)
-if not combo_sensors:
+if combo_sensors:
     if where:
         where += " AND "
     where += "(SUBSTRING(catalogid1, 1, 3) = SUBSTRING(catalogid2, 1, 3))"
@@ -94,7 +95,7 @@ logger.info('Total table size with query: {:,}'.format(table_total))
 # Get all onhand ids
 oh_ids = set(onhand_ids(update=update_ordered))
 
-#%% Iterate
+# %% Iterate
 # Iterate chunks of table, calculating area and adding id1, id2, area to dictionary
 all_ids = []
 limit = chunk_size
@@ -110,7 +111,10 @@ while offset < table_total:
     # Remove records where both IDs are onhand
     logger.info('Dropping records where both IDs are on onhand...')
     chunk = chunk[~((chunk['catalogid1'].isin(oh_ids)) & (chunk['catalogid2'].isin(oh_ids)))]
-    logger.info('Remaining records: {:,}'.format(len(chunk)))
+    remaining_records = len(chunk)
+    logger.info('Remaining records: {:,}'.format(remaining_records))
+    if remaining_records == 0:
+        continue
 
     # Find only IDs in AOI if provided
     if aoi_path:
@@ -136,7 +140,10 @@ while offset < table_total:
         chunk.geometry = poly_geom
         chunk = chunk[chunk_cols]
         chunk.drop_duplicates(subset='pairname')
+        remaining_records = len(chunk)
         logger.debug('Remaining records over land: {:,}'.format(len(chunk)))
+        if remaining_records == 0:
+            continue
 
     # Calculate area for chunk
     logger.info('Calculating area...')
@@ -154,7 +161,7 @@ while offset < table_total:
     # Increase offset
     offset += limit
 
-#%% Combining
+# %% Combining
 # Remove any duplicates from different pairs of cid1+cid2, cid1+cid3, etc.
 all_ids = set(list(set(all_ids)))
 

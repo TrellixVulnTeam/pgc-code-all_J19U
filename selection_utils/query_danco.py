@@ -34,7 +34,7 @@ with open(os.path.join(PRJ_DIR, 'config', 'cred.txt'), 'r') as cred:
         creds.append(str(line).strip())
 
 
-def list_danco_footprint():
+def list_danco_footprint(instance='danco.pgc.umn.edu'):
     '''
     queries the danco footprint database, returns all layer names in list
     '''
@@ -43,12 +43,12 @@ def list_danco_footprint():
     logger.debug('Listing danco.footprint databse tables...')
     connection = None
     try:
-        danco = "danco.pgc.umn.edu"
+        # danco = "danco.pgc.umn.edu"
         print(creds[0])
-        connection = psycopg2.connect(user = creds[0],
-                                      password = creds[1],
-                                      host = danco,
-                                      database = "footprint")
+        connection = psycopg2.connect(user=creds[0],
+                                      password=creds[1],
+                                      host=instance,
+                                      database="footprint")
         cursor = connection.cursor()
         cursor.execute("""SELECT table_name FROM information_schema.tables""")
         tables = cursor.fetchall()    
@@ -68,7 +68,7 @@ def list_danco_footprint():
            logger.debug("PostgreSQL connection closed.")
 
 
-def list_danco_db(db):
+def list_danco_db(db, instance='danco.pgc.umn.edu'):
     '''
     queries the danco footprint database, returns all layer names in list
     '''
@@ -76,11 +76,10 @@ def list_danco_db(db):
     logger.debug('Listing danco.{} tables...'.format(db))
     connection = None
     try:
-        danco = "danco.pgc.umn.edu"
-        connection = psycopg2.connect(user = creds[0],
-                                      password = creds[1],
-                                      host = danco,
-                                      database = db)
+        connection = psycopg2.connect(user=creds[0],
+                                      password=creds[1],
+                                      host=instance,
+                                      database=db)
         cursor = connection.cursor()
         cursor.execute("""SELECT table_name FROM information_schema.tables""")
         tables = cursor.fetchall()    
@@ -131,14 +130,12 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
     logger.debug('Querying danco.{}.{}'.format(db, layer))
     connection = None
     try:
-        db_tables = list_danco_db(db)
+        db_tables = list_danco_db(db=db, instance=instance)
         
         if layer not in db_tables:
-            logger.error('{} not found in {}'.format(layer, db))
-            raise Exception
+            logger.warning('{} not found in {}'.format(layer, db))
 
-
-        engine = create_engine('postgresql+psycopg2://{}:{}@danco.pgc.umn.edu/{}'.format(creds[0], creds[1], db),
+        engine = create_engine('postgresql+psycopg2://{}:{}@{}/{}'.format(creds[0], creds[1], instance, db),
                                poolclass=pool.NullPool)
 
 #        engine = create_engine('postgresql+psycopg2://{}:{}@{}/{}'.format(creds[0], creds[1], instance, db))
@@ -157,13 +154,14 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
                     df = pd.read_sql_query(sql, con=engine)
                 else:
                 	# TODO: Fix hard coded epsg
+                    logger.debug('SQL: {}'.format(sql))
                     df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs='epsg:4326')
                 
                 return df
             else:
                 logger.info('SQL: {}'.format(sql))
 
-    except (Exception, psycopg2.Error) as error :
+    except psycopg2.Error as error:
         logger.debug("Error while connecting to PostgreSQL", error)
         logger.debug("SQL: {}".format(sql))
         raise error
@@ -188,34 +186,25 @@ def table_sample(layer, db='footprint', n=5, table=False, sql=False, where=None,
 def count_table(layer, db='footprint', distinct=False, distinct_col=None, 
                 instance='danco.pgc.umn.edu', cred=[creds[0], creds[1]], 
                 noh=False, where=None, table=True):
-    global logger
     logger.debug('Querying danco.{}.{}'.format(db, layer))
+    connection = None
     try:
         db_tables = list_danco_db(db)
         
         if layer not in db_tables:
-            logger.warning('{} not found in {}'.format(layer, db))
+            logger.error('{} not found in {}'.format(layer, db))
 
 
-        connection = psycopg2.connect(user = creds[0],
-                                      password = creds[1],
-                                      host = instance,
-                                      database = db)
+        connection = psycopg2.connect(user=creds[0],
+                                      password=creds[1],
+                                      host=instance,
+                                      database=db)
         cursor = connection.cursor()
 
         if connection:
             cols_str = '*' # select all columns
             sql = generate_sql(layer=layer, columns=cols_str, where=where, noh=noh, table=True)
             sql = sql.replace('SELECT *', 'SELECT COUNT(*)')
-            
-            # if distinct:
-            #     if not distinct_col:
-            #         logger.error('SQL: DISTINCT requested, but distinct_col not provided.')
-            #     sql = "SELECT COUNT(DISTINCT {}) FROM {}".format(distinct_col, layer)
-            # else:
-            #     sql = "SELECT COUNT({}) FROM {}".format(cols_str, layer)
-            # if where:
-            #     sql += " WHERE {}".format(where)
                 
             logger.debug('SQL: {}'.format(sql))
             cursor.execute(sql)

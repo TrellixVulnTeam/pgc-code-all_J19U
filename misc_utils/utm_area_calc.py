@@ -14,8 +14,7 @@ from fiona.crs import from_epsg, from_string
 
 from misc_utils.logging_utils import create_logger
 
-
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 def area_calc(geodataframe, area_col='area_sqkm'):
@@ -28,6 +27,7 @@ def area_calc(geodataframe, area_col='area_sqkm'):
     area_col: name of column to hold area
     '''
     gdf = copy.deepcopy(geodataframe)
+
     ## Load UTM zones shapefile
     utm_zone_path = r'E:\disbr007\general\UTM_Zone_Boundaries\UTM_Zone_Boundaries.shp'
     utm_zones = gpd.read_file(utm_zone_path, driver='ESRI Shapefile')
@@ -38,13 +38,13 @@ def area_calc(geodataframe, area_col='area_sqkm'):
     source_crs = gdf.crs
     # Get original list of columns - add new area col
     cols = list(gdf)
-#    utm_area_col = 'sqkm_utm'
-    utm_area_col = area_col
-    pol_area_col = 'polar_area'
-    cols.append(utm_area_col)
-    cols.append(pol_area_col)
-    # gdf[utm_area_col] = np.nan
-    # gdf[pol_area_col] = np.nan
+#    area_col = 'sqkm_utm'
+    area_col = area_col
+    # area_col = 'polar_area'
+    cols.append(area_col)
+    # cols.append(area_col)
+    # gdf[area_col] = np.nan
+    # gdf[area_col] = np.nan
 
     # Use centroid to locate UTM zone
     gdf['centroid'] = gdf.centroid
@@ -73,9 +73,11 @@ def area_calc(geodataframe, area_col='area_sqkm'):
         logger.debug('Projecting to: {}'.format(proj4))
         df.geometry = df.geometry.to_crs(proj4)
         df.crs = from_string(proj4)
-        df[utm_area_col] = df.geometry.area / 10**6
+        logger.debug('Calculating area in {} column...'.format(area_col))
+        df[area_col] = df.geometry.area / 10**6
         df.geometry = df.geometry.to_crs(source_crs)
         df.crs = source_crs
+        df = df[cols]
         dfs_with_area.append(df)
     
     ## Calculate south pole areas using Anatarctic polar stereographic and north pole using Arctic polar stereographic
@@ -83,12 +85,17 @@ def area_calc(geodataframe, area_col='area_sqkm'):
         # Return to orginal geometry
         each_df.set_geometry(geom_name, inplace=True)
         each_df = each_df.to_crs({'init':'epsg:{}'.format(epsg)})
-        each_df[pol_area_col] = each_df.geometry.area / 10**6
+        logger.debug('Calculating area in {} column...'.format(area_col))
+        each_df[area_col] = each_df.geometry.area / 10**6
         each_df = each_df.to_crs(source_crs)
+        each_df = each_df[cols]
         dfs_with_area.append(each_df)
+
+    for df in dfs_with_area:
+        print(list(df))
     recombine = pd.concat(dfs_with_area)
     recombine = recombine[cols]
-    recombine[area_col] = np.where(recombine[area_col].isna(), recombine.polar_area, recombine[area_col])
+    recombine[area_col] = np.where(recombine[area_col].isna(), recombine[area_col], np.NaN)
     
     return recombine
 
