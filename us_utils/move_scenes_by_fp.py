@@ -63,15 +63,16 @@ def move_scenes_by_fps(src_dir, dst_par_dir, imagery_base_dir,
     pbar = tqdm(total=len(all_moves), desc='Copying files')
     for (s, d) in all_moves:
         if os.path.exists(d):
+            pbar.write('Destination exists, skipping: {}'.format(s))
             continue
         if link:
             pbar.write('Linking: {} -> {}'.format(s, d))
-            time.sleep(0.1)
-            # os.symlink(s, d)
+            # time.sleep(0.1)
+            os.symlink(s, d)
         else:
             pbar.write('Copying: {} -> {}'.format(s, d))
-            time.sleep(0.1)
-            # shutil.copy(s, d)
+            # time.sleep(0.1)
+            shutil.copy(s, d)
         pbar.update(1)
 
 
