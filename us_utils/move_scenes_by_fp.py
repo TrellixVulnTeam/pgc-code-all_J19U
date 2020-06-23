@@ -67,7 +67,6 @@ def move_scenes_by_fps(src_dir, dst_par_dir, imagery_base_dir,
             continue
         if not os.path.exists(os.path.dirname(d)):
             os.makedirs(os.path.dirname(d))
-        if not os.path.exists
         if link:
             pbar.write('Linking: {} -> {}'.format(s, d))
             # time.sleep(0.1)
