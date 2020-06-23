@@ -64,14 +64,19 @@ def check_where(where):
     return where
 
 
-def determine_input_type(selector_path):
+def determine_input_type(selector_path, id_field):
     """
     Determine the type of selector provided (.shp or .txt)
     based on the extension.
     """
     ext = os.path.basename(selector_path).split('.')[1]
 
-    return ext
+    if ext in ['shp', 'geojson'] and not id_field:
+        input_type = 'location'
+    else:
+        input_type = 'ids'
+
+    return input_type
 
 
 def danco_connection(db, layer):
@@ -158,32 +163,15 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
                                                            aoi_lyr,
                                                            selection_type="NEW_SELECTION",
                                                            search_distance=search_distance)
-        # else:
-        #     # Select by the ID field provided
-        #     logger.info('Reading in IDs...')
-        #     try:
-        #         ids = read_ids(selector_path, field=id_field)
-        #     except KeyError:
-        #         # TODO: Not sure what this does
-        #         ids = read_ids(selector_path, field=''.join(id_field.split('_')).lower())
 
-        #     logger.info('IDs found: {}'.format(len(ids)))
-        #     if len(ids) != len(set(ids)):
-        #         logger.info('Unique IDs found: {}'.format(len(set(ids))))
-
-        #     logger.debug('IDs: {}'.format('\n'.join(ids)))
-        #     ids_str = str(ids)[1:-1]
-        #     where = """{} IN ({})""".format(id_field, ids_str)
-        #     logger.debug('Where clause for ID selection: {}'.format(where))
-        #     logger.info('Making selection...')
-        #     selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
     else:
-    # elif input_type == 'txt':
         # Initial selection by id
         logger.info('Reading in IDs from: {}...'.format(os.path.basename(selector_path)))
-        ids = read_ids(selector_path, field=selector_field)
-        logger.info('IDs found: {}'.format(len(ids)))
-        logger.debug('IDs: {}\n'.format(ids))
+        ids = sorted(read_ids(selector_path, field=selector_field))
+        unique_ids = set(ids)
+        logger.info('Total source IDs found: {}'.format(len(ids)))
+        logger.info('Unique source IDs found: {}'.format(len(unique_ids)))
+        logger.debug('IDs:\n{}'.format('\n'.join(ids)))
         ids_str = str(ids)[1:-1]
         where = """{} IN ({})""".format(id_field, ids_str)
         logger.debug('Where clause for ID selection: {}\n'.format(where))
@@ -201,10 +189,41 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
 
         if id_field:
             with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
-                # num_selection_ids = len(sorted({row[0] for row in cursor}))
-                num_selection_ids = len(set([row[0] for row in cursor]))
+                selected_ids = [row[0] for row in cursor]
+                num_selection_ids = len(set(selected_ids))
             # TODO: This is not reporting the correct number of unique IDs
+            logger.debug('Selected IDs:\n{}'.format('\n'.join([str((i, each_id)) for i, each_id in enumerate(selected_ids)])))
             logger.info('Unique {} found in selection: {}'.format(id_field, num_selection_ids))
+
+    return selection
+
+
+def select_by_id(ids, imagery_index, id_field='CATALOG_ID'):
+    """Select scene footprints from the master footprint by ID"""
+    logger.info('Selecting by IDs...')
+    ids_str = str(ids)[1:-1]
+    where = """{} IN ({})""".format(id_field, ids_str)
+    logger.debug('Where clause for ID selection: {}\n'.format(where))
+
+    logger.info('Making selection...')
+    selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
+
+    return selection
+
+
+def select_by_location(aoi_path, imagery_index, overlap_type, search_distance):
+    """Select scene footprints from master footprint by location with AOI"""
+    logger.info('Performing selection by location...')
+    logger.info('Loading index: {}'.format(imagery_index))
+    idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
+    logger.info('Loading AOI: {}'.format(selector_path))
+    aoi_lyr = arcpy.MakeFeatureLayer_management(aoi_path)
+    logger.info('Making selection...')
+    selection = arcpy.SelectLayerByLocation_management(idx_lyr,
+                                                       overlap_type,
+                                                       aoi_lyr,
+                                                       selection_type="NEW_SELECTION",
+                                                       search_distance=search_distance)
 
     return selection
 
@@ -230,7 +249,7 @@ def write_shp(selection, out_path):
 
 if __name__ == '__main__':
     # Default arguments
-    argdef_sensors          = ['QB01', 'IK01', 'GE01', 'WV01', 'WV02', 'WV03']
+    argdef_sensors          = ['QB02', 'IK01', 'GE01', 'WV01', 'WV02', 'WV03']
     argdef_prod_code        = ['M1BS', 'P1BS']
     argdef_min_year         = '1900'
     argdef_max_year         = '9999'
@@ -336,14 +355,41 @@ if __name__ == '__main__':
 
     # Inital selection by location or ID
     # logger.info('Making selection...')
-    selection = select_footprints(selector_path=selector_path,
-                                  input_type=determine_input_type(selector_path),
-                                  imagery_index=imagery_index,
-                                  overlap_type=overlap_type,
-                                  search_distance=search_distance,
-                                  id_field=id_field,
-                                  selector_field=selector_field)
-#                                      prod_code=prod_code)
+    # selection = select_footprints(selector_path=selector_path,
+    #                               input_type=determine_input_type(selector_path),
+    #                               imagery_index=imagery_index,
+    #                               overlap_type=overlap_type,
+    #                               search_distance=search_distance,
+    #                               id_field=id_field,
+    #                               selector_field=selector_field)
+
+    input_type = determine_input_type(selector_path, id_field)
+
+    if input_type == 'location':
+        selection = select_by_location(aoi_path=selector_path,
+                                       imagery_index=imagery_index,
+                                       overlap_type=overlap_type,
+                                       search_distance=search_distance)
+        
+    elif input_type == 'ids':
+        ids = read_ids(selector_path, field=selector_field)
+        unique_ids = set(ids)
+        logger.info('Source IDs found: {}'.format(len(ids)))
+        logger.info('Unique source IDs: {}'.format(len(unique_ids)))
+        logger.debug('\n{}'.format('\n'.join(unique_ids)))
+
+        selection = select_by_id(ids=unique_ids,
+                                 imagery_index=imagery_index,
+                                 id_field=id_field)
+
+        with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
+            unique_selected_ids = set([row[0] for row in cursor])
+        logger.info('Unique selected IDs: {}'.format(len(unique_selected_ids)))
+        logger.info('Unique Selected IDs:\n{}'.format('\n'.join(unique_selected_ids)))
+
+        if len(unique_ids) != len(unique_selected_ids):
+            logger.warning('Not all IDs found in MFP, missing IDs:\n{}'.format('\n'.join(list(unique_ids-unique_selected_ids))))
+        
     if secondary_selector:
         logger.info('Selecting within secondary selector...')
         aoi_lyr = arcpy.MakeFeatureLayer_management(secondary_selector)
@@ -405,6 +451,15 @@ if __name__ == '__main__':
     result = arcpy.GetCount_management(selection)
     count = int(result.getOutput(0))
     logger.info('Selected features: {}'.format(count))
+    if id_field:
+        with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
+            selected_ids = [row[0] for row in cursor]
+            num_selection_ids = len(set(selected_ids))
+        # TODO: This is not reporting the correct number of unique IDs
+        logger.debug(
+            'Selected IDs:\n{}'.format('\n'.join([str((i, each_id)) for i, each_id in enumerate(selected_ids)])))
+        logger.info('Unique {} found in selection: {}'.format(id_field, num_selection_ids))
+
     stats_fields_dict = {'cloudcover': [max_cc],
                          'acq_time':   [min_year, max_year],
                          'off_nadir':  [max_off_nadir],

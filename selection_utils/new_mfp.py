@@ -16,8 +16,6 @@ from tqdm import tqdm
 from misc_utils.logging_utils import create_logger
 
 
-# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-# logger = logging.getLogger(__name__)
 logger = create_logger(__name__, 'sh', 'INFO')
 
 
@@ -40,16 +38,12 @@ def main(MFP_PATH):
     gdb_fp = os.path.join(pgc_dir, gdb_name)  # full path to gdb
     mfp_layer = os.path.join(gdb_fp, gdb_basename)  # full path to layer
 
-    logger.info('Unzipping to {}...'.format(gdb_fp))
-    with zipfile.ZipFile(MFP_PATH, 'r') as zip_ref:
-        uncompress_size = sum((file.file_size for file in zip_ref.infolist()))
-        extracted_size = 0
-        with tqdm(total=uncompress_size) as pbar:
-            for f in zip_ref.infolist():
-                extracted_size += f.file_size
-                zip_ref.extract(f)
-                pbar.update(extracted_size)
-        # zip_ref.extractall(gdb_fp)
+    if not os.path.exists(gdb_fp):
+        logger.info('Unzipping to {}...'.format(gdb_fp))
+        with zipfile.ZipFile(MFP_PATH, 'r') as zip_ref:
+            zip_ref.extractall(path=pgc_dir)
+    else:
+        logger.info('Unzipped MFP already in destination directory. Skipping unzip.')
 
     # mfp_name = os.path.basename(MFP_PATH)
     IDS_LOC = os.path.join(os.path.dirname(TXT_LOC), '{}_catalog_id.txt'.format(gdb_name.replace('.gdb', '')))
