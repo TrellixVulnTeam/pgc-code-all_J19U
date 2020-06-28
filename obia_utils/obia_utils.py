@@ -28,7 +28,7 @@ logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def get_value(df, lookup_field, lookup_value, value_field):
-    val = df[df[lookup_field]==lookup_value][value_field]
+    val = df[df[lookup_field] == lookup_value][value_field]
     if len(val) == 0:
         logger.error('Lookup value not found: {} in {}'.format(lookup_value, lookup_field))
     elif len(val) > 1:
@@ -300,6 +300,7 @@ def mask_class(gdf, column, raster, out_path, mask_value=1):
     column : str
         Name of column containing values to burn into raster.
     raster : str
+        TODO: Make this an already open raster object
         Path to raster to be masked.
     out_path : str
         Path to masked raster. This can be an in-memory location ('/vsimem/temp.tif').
@@ -346,7 +347,7 @@ def mask_class(gdf, column, raster, out_path, mask_value=1):
     
     # Convert where the column is value to no data in the orginal image, keeping other original
     # values
-    new = np.where(t_arr==mask_value, img.nodata_val, o_arr)
+    new = np.where(t_arr == mask_value, img.nodata_val, o_arr)
     
     # Write the updated array/image out
     img.WriteArray(new, out_path)
@@ -403,7 +404,7 @@ def merge(gdf, unique_id, neighbor_field, feat,
     
     # Merge
     # Dummy field to merge on
-    to_merge.loc[:,'merge_temp'] = 1
+    to_merge.loc[:, 'merge_temp'] = 1
     merged = to_merge.dissolve(by='merge_temp')
     # Create new unique id
     merged[unique_id] = gdf[unique_id].max()+1
@@ -418,6 +419,7 @@ def merge(gdf, unique_id, neighbor_field, feat,
 
 
 def create_subset(gdf, subset_col, subset_thresh, subset_compare):
+    # TODO: Change this to use operator module
     # Create subset
     if subset_compare == '<':
         subset = gdf[gdf[subset_col] < subset_thresh]

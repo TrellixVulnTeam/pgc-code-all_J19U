@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="b9d5cd2c-8602-4f19-8d9f-0bac71fe8ddd" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/../.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.idea/pgc-code-all.iml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/rts.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../archive_analysis/aoi_coverage.py" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="ProjectId" id="1dxrXvzCZuiVfrHvz2QZwaqvtlX" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="settings.editor.selected.configurable" value="preferences.lookFeel" />
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b9d5cd2c-8602-4f19-8d9f-0bac71fe8ddd" name="Default Changelist" comment="" />
+      <created>1593377628759</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1593377628759</updated>
+      <workItem from="1593377630071" duration="131000" />
+      <workItem from="1593377905476" duration="4000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="2" />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="755" y="283" key="FileChooserDialogImpl" timestamp="1593377753079">
+      <screen x="32" y="0" width="1888" height="1080" />
+    </state>
+    <state x="755" y="283" key="FileChooserDialogImpl/32.0.1888.1080/1920.0.1920.1080@32.0.1888.1080" timestamp="1593377753079" />
+    <state x="492" y="186" key="SettingsEditor" timestamp="1593377697246">
+      <screen x="32" y="0" width="1888" height="1080" />
+    </state>
+    <state x="492" y="186" key="SettingsEditor/32.0.1888.1080/1920.0.1920.1080@32.0.1888.1080" timestamp="1593377697246" />
+  </component>
+</project>
