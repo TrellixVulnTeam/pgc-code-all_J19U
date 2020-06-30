@@ -27,7 +27,7 @@ def create_epsg(zone, hemi):
     return epsg
 
 
-def split_epsg(fp_p, utm_p, out_dir, out_name):
+def split_epsg(fp_p, utm_p, out_dir, out_name, dryrun):
     logger.info('Loading footprints: {}'.format(os.path.basename(fp_p)))
     logger.info('Loading UTM zones: {}'.format(os.path.basename(utm_p)))
     fp = gpd.read_file(fp_p)
@@ -42,10 +42,10 @@ def split_epsg(fp_p, utm_p, out_dir, out_name):
     for epsg in list(fp_utm['epsg'].unique()):
         epsg_fp = fp_utm[fp_utm['epsg']==epsg]
         logger.info('Zone {}: {}'.format(epsg, len(epsg_fp)))
-
-        epsg_out = os.path.join(out_dir, "{}_{}.shp".format(out_name, epsg))
-        logger.debug('Writing to file: {}'.format(epsg_out))
-        epsg_fp.to_file(epsg_out)
+        if not dryrun:
+            epsg_out = os.path.join(out_dir, "{}_{}.shp".format(out_name, epsg))
+            logger.debug('Writing to file: {}'.format(epsg_out))
+            epsg_fp.to_file(epsg_out)
 
 
 if __name__ == '__main__':
@@ -61,6 +61,8 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--out_name', type=os.path.abspath,
                         help="""Basename to use for output files. If not provided,
                                 input basename will be used.""")
+    parser.add_argument('-d', '--dryrun', action='store_true',
+                        help='Print UTM zones without writing split files out.')
 
     args = parser.parse_args()
 
@@ -68,6 +70,7 @@ if __name__ == '__main__':
     utm_zones = args.utm_zones
     out_directory = args.out_directory
     out_name = args.out_name
+    dryrun = args.dryrun
 
     if not utm_zones:
         system = platform.system()
@@ -81,4 +84,4 @@ if __name__ == '__main__':
     if not out_name:
         out_name = os.path.basename(os.path.splitext(input_footprint)[0])
 
-    split_epsg(input_footprint, utm_zones, out_directory, out_name)
+    split_epsg(input_footprint, utm_zones, out_directory, out_name, dryrun)

@@ -13,12 +13,9 @@ import subprocess
 
 import geopandas as gpd
 
-from misc_utils.logging_utils import LOGGING_CONFIG
+from misc_utils.logging_utils import create_logger
 
-
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 def main(aoi_path, out_mosaic, local_tiles_dir, tile_index=None):
@@ -39,19 +36,28 @@ def main(aoi_path, out_mosaic, local_tiles_dir, tile_index=None):
     else:
         tiles_path = r'E:\disbr007\general\geocell\us_one_degree_geocells_named.shp'
 
+    logger.info('Reading in tile index...')
     tiles = gpd.read_file(tiles_path)
+    logger.debug('Tiles loaded in index: {:,}'.format(len(tiles)))
     aoi = gpd.read_file(aoi_path)
+    logger.debug('Features found in AOI input: {:,}'.format(len(aoi)))
     if aoi.geometry.type[0] == 'Point':
         aoi.geometry = aoi.geometry.buffer(0.5)
 
     # Select AOI relevant tiles:
+    logger.info('Identifying necessary tiles...')
     if aoi.crs != tiles.crs:
         aoi = aoi.to_crs(tiles.crs)
-    selected_tiles = gpd.overlay(aoi, tiles)
+    logger.debug('AOI CRS: {}'.format(aoi.crs))
+    logger.debug('Tiles CRS: {}'.format(tiles.crs))
+
+    selected_tiles = gpd.sjoin(aoi, tiles)
+    logger.debug('Tiles selected: {}'.format(len(selected_tiles)))
+
     # Overlay results in duplicates, so remove
     selected_tiles = selected_tiles.drop_duplicates(subset=['name'])
     logger.info('Total number of tiles needed for selection: {}'.format(len(selected_tiles)))
-    
+
     # Create local path
     selected_tiles['full_path'] = selected_tiles['name'].apply(lambda x: os.path.join(local_tiles_dir,
                                                                                       'USGS_1_{}.tif'.format(x)))

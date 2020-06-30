@@ -10,12 +10,8 @@ import os
 
 import geopandas as gpd
 
-from logging_utils import create_logger
+from misc_utils.logging_utils import create_logger
 
-
-# INPUTS
-# Requried
-AOI_PATH = r'E:\disbr007\UserServicesRequests\Projects\akhan\aoi_pts.shp'
 
 logger = create_logger(os.path.basename(__file__), 'sh')
 
