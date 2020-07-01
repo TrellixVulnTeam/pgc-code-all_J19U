@@ -127,6 +127,7 @@ def create_logger(logger_name, handler_type,
         if not filename:
             print("""Error: Must provide a path to write log file to when using handler_type='fh'""")
         if os.path.exists(filename):
+            # logger.debug('Overwriting previous logfile.')
             os.remove(filename)
         ht = logging.FileHandler(filename)
     else:
@@ -141,7 +142,7 @@ def create_logger(logger_name, handler_type,
 
             if existing_level == desired_level:
                 handler = h
-                # print('handler exists, not adding')
+                print('handler exists, not adding')
                 break
 
     # If no handler of specified type and level was found, create it
@@ -155,7 +156,7 @@ def create_logger(logger_name, handler_type,
         handler.setFormatter(formatter)
         # Add the handler to the logger
         logger.addHandler(handler)
-        # print('created handler', logger_name)
+        # print('created handler', logger_name, handler_type)
         # print(datetime.datetime.now())
 
     # Do not propogate messages from children up to parent

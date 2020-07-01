@@ -100,8 +100,8 @@ def list_danco_db(db, instance='danco.pgc.umn.edu'):
             connection.close()
             connection = None
             logger.debug("PostgreSQL connection closed.")
-            
-                      
+
+
 def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[creds[0], creds[1]], 
                     table=False, sql=False,
                     where=None, columns=None, orderby=None, orderby_asc=False, 

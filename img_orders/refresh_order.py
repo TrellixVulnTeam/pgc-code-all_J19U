@@ -15,20 +15,9 @@ import datetime
 from selection_utils.query_danco import query_footprint, mono_noh, stereo_noh
 from img_orders.img_order_sheets import create_sheets
 from misc_utils.id_parse_utils import date_words, remove_onhand
+from misc_utils.logging_utils import create_logger
 
-
-#### Logging setup
-# create logger
-logger = logging.getLogger('polar_hma_above_refresh')
-logger.setLevel(logging.DEBUG)
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(ch)
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def refresh_region_lut(refresh_region='polar_hma_above'):
@@ -36,7 +25,9 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
     Uses a refresh region shortname to return relevent region names in AOI shapefile.
     refresh_region: string, supported types ['polar_hma_above', 'nonpolar', 'global']
     '''
+    logger.debug('Refresh region: {}'.format(refresh_region))
     supported_refreshes = ['polar_hma_above', 'nonpolar', 'global', 'polar']
+    # TODO: Check refresh_region = nonpolar to make sure it covers everything (HMA etc.)
     if refresh_region in supported_refreshes:
         if refresh_region == 'polar_hma_above':
             regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 
@@ -52,6 +43,7 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
         logger.warning("""Refresh region unrecognized, supported refresh regions 
                           include: {}""".format(supported_refreshes))
         regions = None
+
     return regions
 
 
@@ -81,6 +73,7 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     # Load not on hand footprint -> since last refresh
     logger.info('Performing initial selection...')
     supported_refresh_imagery = ['mono_stereo', 'mono', 'stereo']
+    logger.debug('Refresh imagery: {}'.format(refresh_imagery))
     if refresh_imagery in supported_refresh_imagery:
         if refresh_imagery == 'mono_stereo':
             noh_recent = query_footprint('index_dg', where=where)
@@ -106,6 +99,7 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     ### Identify only those in the region of interest
     # Get regions of interest based on type of refresh
     roi = refresh_region_lut(refresh_region)
+    logger.debug('Regions included: {}'.format(roi))
     # Select region of interest
     noh_recent_roi = noh_recent[noh_recent.loc_name.isin(roi)]
     
@@ -177,9 +171,12 @@ if __name__ == '__main__':
                         help="Use coastline inclusion shapefile.")
     parser.add_argument("--dryrun", action='store_true',
                         help='Make selection and print statistics, but do not write anything.')
+    parser.add_argument('--logfile', type=os.path.abspath,
+                        help='Location to write logfile to.')
 
 
     args = parser.parse_args()
+
     last_refresh = args.last_refresh
     refresh_region = args.refresh_region
     refresh_imagery = args.refresh_imagery
@@ -191,7 +188,12 @@ if __name__ == '__main__':
     drop_onhand = args.drop_onhand
     use_land = args.use_land
     dryrun = args.dryrun
+    logfile = args.logfile
 
+    if not logfile:
+        logfile = os.path.join(os.getcwd(), '{}.log'.format(os.path.basename(os.getcwd())))
+    print('Creating logfile at: {}'.format(logfile))
+    logger = create_logger(__name__, 'fh', 'DEBUG', filename=logfile)
 
     # Do it
     selection = refresh(last_refresh=last_refresh, 
@@ -209,11 +211,11 @@ if __name__ == '__main__':
     
     # Stats for printing to command line
     logger.info('IDs found: {}'.format(len(selection)))
-    agg = {'catalogid':'count', 
-           'acqdate':['min', 'max'], 
-           'cloudcover':['min', 'max'], 
-           'y1':['min', 'max'],
-           'sqkm_utm':'sum'}
+    agg = {'catalogid': 'count',
+           'acqdate': ['min', 'max'],
+           'cloudcover': ['min', 'max'],
+           'y1': ['min', 'max'],
+           'sqkm_utm': 'sum'}
 
     selection_summary = selection.groupby('platform').agg(agg)
     logger.info('Summary:\n{}\n'.format(selection_summary))
