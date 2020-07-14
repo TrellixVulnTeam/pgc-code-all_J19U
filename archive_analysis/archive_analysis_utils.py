@@ -155,7 +155,8 @@ def get_count(geocells, fps, date_col=None):
     if geocells.crs != fps.crs:
         logger.info('Converting crs of grid to match footprint...')
         geocells = geocells.to_crs(fps.crs)
-        
+
+    # TODO: Speed the subsequent spatial join by first intersecting
     logger.info('Performing spatial join...')
     ## Get a column from fps to use to test if sjoin found matches
     fp_col = fps.columns[1]

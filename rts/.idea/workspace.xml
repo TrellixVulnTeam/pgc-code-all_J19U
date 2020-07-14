@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="b9d5cd2c-8602-4f19-8d9f-0bac71fe8ddd" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/../.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.idea/pgc-code-all.iml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/rts.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../archive_analysis/aoi_coverage.py" beforeDir="false" />
-    </list>
+    <list default="true" id="b9d5cd2c-8602-4f19-8d9f-0bac71fe8ddd" name="Default Changelist" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -38,6 +34,7 @@
       <updated>1593377628759</updated>
       <workItem from="1593377630071" duration="131000" />
       <workItem from="1593377905476" duration="4000" />
+      <workItem from="1594404497311" duration="11000" />
     </task>
     <servers />
   </component>
