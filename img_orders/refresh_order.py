@@ -85,7 +85,8 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
         logger.warning("""Refresh imagery type unrecognized, supported refresh imagery 
               options include: {}""".format(supported_refresh_imagery))
    
-    
+    # noh_recent = noh_recent.drop_duplicates(subset='catalogid')
+
     ### Spatial join to identify region
     logger.info('Identifying region of selected imagery...')
     # Calculate centroid
@@ -95,6 +96,7 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     noh_recent = gpd.sjoin(noh_recent, regions, how='left', op='within')
     noh_recent.drop('centroid', axis=1, inplace=True)
     noh_recent.set_geometry('geom', inplace=True)
+
 
     ### Identify only those in the region of interest
     # Get regions of interest based on type of refresh
@@ -208,7 +210,7 @@ if __name__ == '__main__':
     if drop_onhand:
         not_onhand_ids = remove_onhand(selection['catalogid'])
         selection = selection[selection['catalogid'].isin(not_onhand_ids)]
-    
+
     # Stats for printing to command line
     logger.info('IDs found: {}'.format(len(selection)))
     agg = {'catalogid': 'count',
