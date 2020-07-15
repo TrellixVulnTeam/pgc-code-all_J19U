@@ -293,6 +293,8 @@ def stereo_noh(where=None):
     noh = pd.concat([noh_left, noh_right], sort=True)
     del noh_left, noh_right
 
+    noh.drop_duplicates(subset='catalogid', inplace=True)
+
     return noh
 
 

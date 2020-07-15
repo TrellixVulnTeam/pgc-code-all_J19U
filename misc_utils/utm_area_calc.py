@@ -123,6 +123,8 @@ def area_calc(geodataframe, area_col='area_sqkm', units='sqkm', polar=True):
         else:
             logger.error('Unrecognized units argument: {}'.format(units))
 
+        reprj = reprj.to_crs(src_crs)
+
         gdf_area = pd.concat([gdf_area, reprj])
 
     gdf_area = gdf_area[src_cols]

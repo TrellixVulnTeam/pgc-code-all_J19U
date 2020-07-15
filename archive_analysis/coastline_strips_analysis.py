@@ -2,7 +2,6 @@ import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
-# from selection_utils.query_danco import query_footprint, generate_sql
 from selection_utils.db_utils import Postgres, generate_sql
 from misc_utils.logging_utils import create_logger
 from misc_utils.utm_area_calc import area_calc

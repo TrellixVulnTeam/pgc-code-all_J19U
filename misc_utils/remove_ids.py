@@ -36,19 +36,19 @@ def remove_ids(src, oth, out_path=None, src_field=None, oth_field=None):
     src_ids = read_ids(src, field=src_field)
     oth_ids = read_ids(oth, field=oth_field)
     
-    logger.info('Source IDs: {}'.format(len(src_ids)))
+    logger.info('Source IDs: {:,}'.format(len(src_ids)))
     if len(src_ids) != len(list(set(src_ids))):
-        logger.info('Unique source IDs: {}'.format(len(list(set(src_ids)))))
+        logger.info('Unique source IDs: {:,}'.format(len(list(set(src_ids)))))
     
-    logger.info('Other IDs: {}'.format(len(oth_ids)))
+    logger.info('Other IDs: {:,}'.format(len(oth_ids)))
     if len(oth_ids) != len(list(set(oth_ids))):
-        logger.info('Unique source IDs: {}'.format(len(list(set(oth_ids)))))
+        logger.info('Unique source IDs: {:,}'.format(len(list(set(oth_ids)))))
     
     
     # Remove IDs in other from source
     rem_ids = set(src_ids) - set(oth_ids)
     ids_removed = len(src_ids) - len(rem_ids)
-    logger.info('IDs removed: {}'.format(ids_removed))
+    logger.info('IDs removed: {:,}'.format(ids_removed))
     
     # Write source out without other IDs
     if ids_removed != 0:
