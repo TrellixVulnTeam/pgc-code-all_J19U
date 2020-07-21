@@ -26,9 +26,15 @@ def load_db_config(db_conf):
     return params
 
 
+def encode_geom_sql(geom_col, encode_geom_col):
+    geom_sql = """encode(ST_AsBinary({}), 'hex') AS {}""".format(geom_col, encode_geom_col)
+
+    return geom_sql
+
+
 def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False,
                  distinct=False, limit=False, offset=None,
-                 geom_col=None, encode_geom_col='geom'):
+                 geom_col=None, encode_geom_col=None):
     """
     geom_col not needed for PostGIS if loading SQL with geopandas -
         gpd can interpet the geometry column without encoding
@@ -113,9 +119,22 @@ class Postgres(object):
         self.connection.close()
 
     def list_db_tables(self):
-        self.cursor.execute("""SELECT table_name FROM information_schema.tables""")
+        # self.cursor.execute("""SELECT table_name FROM information_schema.tables""")
+        # self.cursor.execute("""SELECT table_schema as schema_name,
+        #                               table_name as view_name
+        #                        FROM information_schema.views
+        #                        WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+        #                        ORDER BY schema_name, view_name""")
+        # # tables = self.cursor.fetchall()
+        # views = self.cursor.fetchall()
+        self.cursor.execute("""SELECT table_schema as schema_name,
+                                      table_name as view_name
+                               FROM information_schema.tables
+                               WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+                               ORDER BY schema_name, view_name""")
         tables = self.cursor.fetchall()
-        tables = [x[0] for x in tables]
+        # tables.extend(views)
+        tables = [x[1] for x in tables]
         tables = sorted(tables)
 
         return tables
@@ -155,11 +174,15 @@ class Postgres(object):
 
         return engine
 
-    def sql2gdf(self, sql, geom_col='geom', crs=4326):
+    def sql2gdf(self, sql, geom_col='geom', crs=4326,):
         gdf = gpd.GeoDataFrame.from_postgis(sql=sql, con=self.get_engine().connect(),
-                                            geom_col=geom_col, crs=crs)
-
+                                                geom_col=geom_col, crs=crs)
         return gdf
+
+    def sql2df(self, sql, columns=None):
+        df = pd.read_sql(sql=sql, con=self.get_engine().connect(), columns=columns)
+
+        return df
 
 
 def insert_new_records(records, table, unique_id=None, dryrun=False):
@@ -196,4 +219,16 @@ def insert_new_records(records, table, unique_id=None, dryrun=False):
             logger.info('No new records to be written.')
 
 
+def intersect_aoi_where(aoi, geom_col):
+    """Create a where statement for a PostGIS intersection between the geometry(s) in
+    the aoi geodataframe and a PostGIS table with geometry in geom_col"""
+    aoi_epsg = aoi.crs.to_epsg()
+    aoi_wkts = [geom.wkt for geom in aoi.geometry]
+    intersect_wheres = ["""ST_Intersects({}, ST_SetSRID('{}'::geometry, {}))""".format(geom_col,
+                                                                                       wkt,
+                                                                                       aoi_epsg,)
+                        for wkt in aoi_wkts]
+    aoi_where = " OR ".join(intersect_wheres)
+
+    return aoi_where
 # TODO: Create overwrite scenes function that removes any scenes in the input before writing them to DB

@@ -155,6 +155,7 @@ def query_footprint(layer, instance='danco.pgc.umn.edu', db='footprint', creds=[
                 else:
                 	# TODO: Fix hard coded epsg
                     logger.debug('SQL: {}'.format(sql))
+                    print(sql)
                     df = gpd.GeoDataFrame.from_postgis(sql, connection, geom_col='geom', crs='epsg:4326')
                 
                 return df

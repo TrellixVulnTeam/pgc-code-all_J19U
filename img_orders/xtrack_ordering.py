@@ -3,6 +3,7 @@
 Created on Mon Jan 27 13:08:08 2020
 
 @author: disbr007
+TODO: Add SQL to not load IDs in xtrack if they are in pgc_imagery_catalogids, then remove any ordered IDs
 """
 # Suppress geopandas crs FutureWarning
 import warnings
@@ -29,7 +30,7 @@ pd.options.mode.chained_assignment = None
 # Inputs
 num_ids = 50_000 # Desired number of IDs
 remove_onhand = True
-update_ordered = False
+update_ordered = True
 combo_sensors = False # Only get WV01-WV01 or WV02-WV02, etc. for each sensor in sensors
 use_land = True
 sensors = ['WV01', 'WV02', 'WV03']
@@ -39,11 +40,12 @@ min_date = None
 max_date = None
 # orderby = 'perc_ovlp'
 # where = "(project = 'EarthDEM')" # AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
-where = "(project IN ('ArcticDEM', 'REMA'))"
+# where = "(project IN ('ArcticDEM', 'REMA'))"
+where = ""
 # aoi_path = r'E:\disbr007\general\US_States\us_no_AK.shp'
 aoi_path = None
 
-out_path = r'E:\disbr007\imagery_orders\PGC_order_2020jun15_polar_xtrack_cc50\PGC_order_2020jun15_polar_xtrack_cc50.txt'
+out_path = r'E:\disbr007\imagery_orders\PGC_order_2020jul21_global_xtrack_cc50'
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 sublogger = create_logger('selection_utils.query_danco', 'sh', 'DEBUG')
@@ -102,7 +104,7 @@ limit = chunk_size
 offset = 0
 while offset < table_total:
     # Load chunk
-    logger.info('Loading chunk: {:,} - {:,}'.format(offset, limit+offset))
+    logger.info('Loading chunk: {:,} - {:,}'.format(offset, limit + offset))
     chunk = query_footprint(xtrack_tbl, columns=columns,
                             # orderby=orderby, orderby_asc=False,
                             where=where, limit=limit, offset=offset,

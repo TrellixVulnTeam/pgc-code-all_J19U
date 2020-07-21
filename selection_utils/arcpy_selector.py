@@ -15,7 +15,7 @@ import sys
 import arcpy
 
 # from misc_utils.id_parse_utils import read_ids, pgc_index_path
-from misc_utils.logging_utils import LOGGING_CONFIG
+from misc_utils.logging_utils import create_logger
 
 
 def pgc_index_path(ids=False):
@@ -109,8 +109,6 @@ def danco_connection(db, layer):
 
 def place_name_AOI(place_name, selector_path):
     """Create a layer of a placename from danco acan DB."""
-#    place_name_formats = ','.join([place_name, place_name.upper(), place_name.lower(), place_name.title()])
-#    where = """Gazatteer Name IN ({})""".format(place_name_formats)
     where = """gaz_name = '{}'""".format(place_name)
     place_name_layer_p = danco_connection('acan', 'ant_gnis_pt')
     aoi = arcpy.MakeFeatureLayer_management(place_name_layer_p, out_layer='place_name_lyr',
@@ -255,6 +253,10 @@ if __name__ == '__main__':
     argdef_max_year         = '9999'
     argdef_months           = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
     argdef_overlap_type     = 'INTERSECT'
+    argdef_overlap_type_choices = ["INTERSECT", "INTERSECT_3D", "WITHIN_A_DISTANCE", "WITHIN_A_DISTANCE_3D",
+                                   "WITHIN_A_DISTANCE_GEODESIC", "CONTAINS", "COMPLETELY_CONTAINS", "CONTAINS_CLEMENTINI",
+                                   "WITHIN", "COMPLETELY_WITHIN", "WITHIN_CLEMENTINI", "ARE_IDENTICAL_TO", "BOUNDARY_TOUCHES",
+                                   "SHARE_A_LINE_SEGMENT_WITH", "CROSSED_BY_THE_OUTLINE_OF", "HAVE_THEIR_CENTER_IN"]
     argdef_search_distance  = 0
     argdef_place_name       = None
     argdef_coordinate_pairs = None
@@ -291,7 +293,7 @@ if __name__ == '__main__':
                         help='Months to include. E.g. 01 02 03')
     parser.add_argument('--max_cc', type=float, help='Max cloudcover to include.')
     parser.add_argument('--max_off_nadir', type=int, help='Max off_nadir angle to include')
-    parser.add_argument('--overlap_type', type=str, default=argdef_overlap_type,
+    parser.add_argument('--overlap_type', type=str, default=argdef_overlap_type, choices=argdef_overlap_type_choices,
                         help='''Type of select by location to perform. Must be one of:
                             the options available in ArcMap. E.g.: 'INTERSECT', 'WITHIN',
                             'CROSSED_BY_OUTLINE_OF', etc.''')
@@ -317,8 +319,10 @@ if __name__ == '__main__':
         handler_level = 'DEBUG'
     else:
         handler_level = 'INFO'
-    logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-    logger = logging.getLogger(__name__)
+
+    logger = create_logger(__name__, 'sh', handler_level)
+    # logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+    # logger = logging.getLogger(__name__)
 
     # Parse args variables
     out_path = args.out_path
@@ -385,7 +389,7 @@ if __name__ == '__main__':
         with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
             unique_selected_ids = set([row[0] for row in cursor])
         logger.info('Unique selected IDs: {}'.format(len(unique_selected_ids)))
-        logger.info('Unique Selected IDs:\n{}'.format('\n'.join(unique_selected_ids)))
+        # logger.info('Unique Selected IDs:\n{}'.format('\n'.join(unique_selected_ids)))
 
         if len(unique_ids) != len(unique_selected_ids):
             logger.warning('Not all IDs found in MFP, missing IDs:\n{}'.format('\n'.join(list(unique_ids-unique_selected_ids))))

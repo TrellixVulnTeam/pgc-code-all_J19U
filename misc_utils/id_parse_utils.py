@@ -645,6 +645,8 @@ def create_s_filepath(scene_id, strip_id, acqdate, prod_code):
 
 #%% Update ordered
 def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA')):
+    # TODO: Add a config file that is a list of filepaths that have already been processed,
+    # TODO: then only read files not in that list
     """Update the text file of ordered IDs by reading from order sheets"""
     from tqdm import tqdm
 
