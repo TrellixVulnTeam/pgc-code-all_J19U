@@ -57,7 +57,7 @@ def remove_ids(src, oth, out_path=None, src_field=None, oth_field=None):
             out = out[out[src_field].isin(rem_ids)]
             if src_type == 'shp':
                 out.to_file(out_path)
-        elif src_type == 'ids_only_txt':
+        elif src_type == 'id_only_txt':
             out = rem_ids
             write_ids(out, out_path)
         else:

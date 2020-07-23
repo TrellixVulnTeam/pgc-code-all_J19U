@@ -22,19 +22,21 @@ from misc_utils.utm_area_calc import area_calc
 from misc_utils.logging_utils import create_logger
 from misc_utils.id_parse_utils import write_ids, get_platform_code, onhand_ids
 from selection_utils.query_danco import query_footprint, count_table
+from selection_utils.danco_utils import create_cid_noh_where
 
 # Turn off pandas warning
-pd.options.mode.chained_assignment = None 
+pd.options.mode.chained_assignment = None
 
 # %% Set up
 # Inputs
-num_ids = 50_000 # Desired number of IDs
+num_ids = 50_000  # Desired number of IDs
+noh = True
 remove_onhand = True
-update_ordered = True
-combo_sensors = False # Only get WV01-WV01 or WV02-WV02, etc. for each sensor in sensors
+update_ordered = False
+combo_sensors = False  # Only get WV01-WV01 or WV02-WV02, etc. for each sensor in sensors
 use_land = True
 sensors = ['WV01', 'WV02', 'WV03']
-# min_date = '2015-01-01'
+min_date = '2015-01-01'
 # max_date = '2020-06-09'
 min_date = None
 max_date = None
@@ -45,7 +47,18 @@ where = ""
 # aoi_path = r'E:\disbr007\general\US_States\us_no_AK.shp'
 aoi_path = None
 
-out_path = r'E:\disbr007\imagery_orders\PGC_order_2020jul21_global_xtrack_cc50'
+out_path = r'E:\disbr007\imagery_orders\PGC_order_2020jul21_global_xtrack_cc20\selected_cids.txt'
+out_areas = r'E:\disbr007\imagery_orders\PGC_order_2020jul21_global_xtrack_cc20\selected_cids_areas.txt'
+temp_out = r'E:\disbr007\imagery_orders\PGC_order_2020jul21_global_xtrack_cc20\temp_ids.txt'
+
+
+# Params
+xtrack_tbl = 'dg_imagery_index_xtrack_cc20'
+chunk_size = 25_000
+area_col = 'area_sqkm'
+columns = ['catalogid1', 'catalogid2', 'region_name', 'pairname', 'acqdate1']
+land_shp = r'E:\disbr007\imagery_orders\coastline_include_fix_geom_dis.shp'
+
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 sublogger = create_logger('selection_utils.query_danco', 'sh', 'DEBUG')
@@ -79,23 +92,25 @@ if combo_sensors:
     if where:
         where += " AND "
     where += "(SUBSTRING(catalogid1, 1, 3) = SUBSTRING(catalogid2, 1, 3))"
+if noh:
+    if where:
+        where += " AND "
+    where += create_cid_noh_where(['catalogid1', 'catalogid2'], xtrack_tbl)
 logger.debug('SQL where: {}'.format(where))
 
 if aoi_path:
     aoi = gpd.read_file(aoi_path)
 
-# Params
-xtrack_tbl = 'dg_imagery_index_xtrack_cc20'
-chunk_size = 25_000
-area_col = 'area_sqkm'
-columns = ['catalogid1', 'catalogid2', 'region_name', 'pairname', 'acqdate1']
-land_shp = r'E:\disbr007\imagery_orders\coastline_include_fix_geom_dis.shp'
 
 table_total = count_table(xtrack_tbl, where=where)
 logger.info('Total table size with query: {:,}'.format(table_total))
 
 # Get all onhand ids
 oh_ids = set(onhand_ids(update=update_ordered))
+
+# Load land shapefile if necessary
+if use_land:
+    land = gpd.read_file(land_shp)
 
 # %% Iterate
 # Iterate chunks of table, calculating area and adding id1, id2, area to dictionary
@@ -132,7 +147,7 @@ while offset < table_total:
 
     if use_land:
         logger.info('Selecting IDs over land only...')
-        land = gpd.read_file(land_shp)
+        # land = gpd.read_file(land_shp)
         poly_geom = chunk.geometry
         chunk.geometry = chunk.geometry.centroid
         if land.crs != chunk.crs:
@@ -157,7 +172,10 @@ while offset < table_total:
                                                                         list(chunk['catalogid2']),
                                                                         list(chunk[area_col]))]
 
+
     logger.info('IDs matching criteria from chunk: {:,}\n'.format(len(chunk_ids)))
+    write_ids(chunk_ids, temp_out, append=True)
+
     all_ids.extend(chunk_ids)
 
     # Increase offset
@@ -216,3 +234,4 @@ if not os.path.exists(os.path.dirname(out_path)):
     os.makedirs(os.path.dirname(out_path))
 logger.info('Writing {:,} IDs to: {}'.format(len(selected_final_ids), out_path))
 write_ids(selected_final_ids, out_path)
+write_ids(kept_areas, out_areas)

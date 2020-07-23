@@ -146,13 +146,16 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
     return ids
 
 
-def write_ids(ids, out_path, header=None, ext='txt'):
+def write_ids(ids, out_path, header=None, ext='txt', append=False):
     if ext == 'txt':
         sep = '\n'
     elif ext == 'csv':
         sep = ',\n'
-    
-    with open(out_path, 'w') as f:
+    if append:
+        read_type = 'a'
+    else:
+        read_type = 'w'
+    with open(out_path, read_type) as f:
         if header:
             f.write('{}{}'.format(header, sep))
         for each_id in ids:

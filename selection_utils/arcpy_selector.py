@@ -64,14 +64,14 @@ def check_where(where):
     return where
 
 
-def determine_input_type(selector_path, id_field):
+def determine_input_type(selector_path, selector_field):
     """
     Determine the type of selector provided (.shp or .txt)
     based on the extension.
     """
     ext = os.path.basename(selector_path).split('.')[1]
 
-    if ext in ['shp', 'geojson'] and not id_field:
+    if ext in ['shp', 'geojson'] and not selector_field:
         input_type = 'location'
     else:
         input_type = 'ids'
@@ -147,7 +147,7 @@ def create_points(coords, shp_path):
 def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field,
                       selector_field):
     """Select footprints from MFP given criteria"""
-    if input_type == 'shp' and not id_field:
+    if input_type == 'shp' and not selector_field:
         # if not id_field:
         # Select by location
         logger.info('Performing selection by location...')
@@ -242,6 +242,8 @@ def write_shp(selection, out_path):
     logger.info('Creating shapefile of selection...')
     out_shp = arcpy.CopyFeatures_management(selection, out_path)
     logger.info('Shapefile of selected features created at: {}'.format(out_path))
+    count = arcpy.GetCount_management(selection)[0]
+    logger.info('Features in shapefile: {}'.format(count))
     return out_shp
 
 
@@ -367,7 +369,7 @@ if __name__ == '__main__':
     #                               id_field=id_field,
     #                               selector_field=selector_field)
 
-    input_type = determine_input_type(selector_path, id_field)
+    input_type = determine_input_type(selector_path, selector_field)
 
     if input_type == 'location':
         selection = select_by_location(aoi_path=selector_path,

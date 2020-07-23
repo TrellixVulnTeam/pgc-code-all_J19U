@@ -31,9 +31,9 @@ def get_stereo_ids(where=None):
     return stereo_ids
 
 
-def create_cid_noh_where(cid_cols, tbl):
+def create_cid_noh_where(cid_cols, tbl, op='OR'):
     wheres = ['catalog_id = {}.{}'.format(tbl, c) for c in cid_cols]
-    wheres_str = ' OR '.join(wheres)
+    wheres_str = ' {} '.format(op).join(wheres)
     not_exists_where = """NOT EXISTS(SELECT FROM {} WHERE {})""".format(pgc_imagery_catalogids, wheres_str)
 
     return not_exists_where
@@ -55,9 +55,8 @@ def xtrack_noh_sql(where=None, cols=None):
         cols_str = '*'
 
     sql_noh = ("""SELECT {0}, {1} FROM {2} 
-                  WHERE {3} 
-                  LIMIT 100""").format(geom_sql, cols_str,
-                                       dg_imagery_index_xtrack_cc20,
-                                       where)
+                  WHERE {3} """).format(geom_sql, cols_str,
+                                        dg_imagery_index_xtrack_cc20,
+                                        where)
 
     return sql_noh
