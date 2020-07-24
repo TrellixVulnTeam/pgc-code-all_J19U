@@ -31,10 +31,11 @@ def get_stereo_ids(where=None):
     return stereo_ids
 
 
-def create_cid_noh_where(cid_cols, tbl, op='OR'):
+def create_cid_noh_where(cid_cols, tbl, op='AND'):
     wheres = ['catalog_id = {}.{}'.format(tbl, c) for c in cid_cols]
-    wheres_str = ' {} '.format(op).join(wheres)
-    not_exists_where = """NOT EXISTS(SELECT FROM {} WHERE {})""".format(pgc_imagery_catalogids, wheres_str)
+    # wheres_str = ' {} '.format(op).join(wheres)
+    not_exists_wheres = ["""NOT EXISTS(SELECT FROM {} WHERE {})""".format(pgc_imagery_catalogids, ws) for ws in wheres]
+    not_exists_where = ' {} '.format(op).join(not_exists_wheres)
 
     return not_exists_where
 
