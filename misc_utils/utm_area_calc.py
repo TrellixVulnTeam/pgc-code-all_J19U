@@ -49,6 +49,7 @@ def area_calc(geodataframe, area_col='area_sqkm', units='sqkm', polar=True):
     return gdf_area
 
 
+
 def find_epsg(point):
     if point.y >= 60:
         epsg = "3413"
