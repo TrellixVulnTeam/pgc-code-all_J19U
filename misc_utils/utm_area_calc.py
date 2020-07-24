@@ -15,7 +15,7 @@ from fiona.crs import from_epsg, from_string
 
 from misc_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 # def area_calc(geodataframe, area_col='area_sqkm'):
@@ -117,7 +117,7 @@ def area_calc(geodataframe, area_col='area_sqkm', units='sqkm', polar=True):
         logger.debug('Calculating areas for epsg: {}, Features: {}'.format(epsg, len(df)))
         reprj = df.to_crs('epsg:{}'.format(epsg))
         if units == 'sqkm':
-            reprj[area_col] = reprj.geometry.area / 10e6
+            reprj[area_col] = reprj.geometry.area / 10e5
         elif units == 'sqm':
             reprj[area_col] = reprj.geometry.area
         else:
