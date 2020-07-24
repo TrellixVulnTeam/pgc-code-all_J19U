@@ -59,7 +59,7 @@ def type_parser(filepath):
     elif isinstance(filepath, gpd.GeoDataFrame):
         return 'df'
     else:
-        print('Unrecognized file type.')
+        print('Unrecognized file type. Type: {}'.format(type(filepath)))
 
 
 def get_stereopair_ids(df):
@@ -113,7 +113,8 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
     elif file_type == 'shp':
         df = gpd.read_file(ids_file)
         if field:
-            ids = list(df[field].unique())
+            # ids = list(df[field].unique())
+            ids = list(df[field])
         else:
             id_fields = ['catalogid', 'catalog_id', 'CATALOGID', 'CATALOG_ID']
             field = [x for x in id_fields if x in list(df)]
@@ -138,8 +139,8 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
     # This assumes single column of IDs with no header row
     elif file_type == 'excel':
         df = pd.read_excel(ids_file, header=None, squeeze=True)
-        if len(df.columns) > 1:
-            logger.warning('Reading only first column of excel file with multiple columns')
+        if isinstance(df, pd.DataFrame):
+            logger.debug('Reading only first column of excel file with multiple columns')
             df = df.iloc[:, 0]
         ids = list(df)
         
@@ -175,16 +176,27 @@ def write_stereopair_ids(catalogids, stereopairs, out_path, header=None, ext='cs
             f.write('{},{}{}'.format(catid, stp, sep))
             
 
-def combine_ids(*id_lists, write_path=None):
+def combine_ids(id_lists, write_path=None, fields=None):
     '''
     Takes lists of ids and combines them into a new txt file
     ids_lists: txt files of one id per line to be combined
     '''
+    if not fields:
+        fields = [None for id_list in id_lists]
+    else:
+        fields = [f if f != 'None' else None for f in fields]
     comb_ids = []
-    for each in id_lists:
-        ids = read_ids(each)
+
+    for i, each in enumerate(id_lists):
+        logger.debug('Reading IDs from: {}'.format(each))
+        ids = read_ids(each, field=fields[i])
+        logger.debug('IDs found: {}'.format(len(ids)))
         for i in ids:
             comb_ids.append(i)
+    
+    comb_ids = set(comb_ids)
+    logger.debug('Total IDs found after removing any dupicates: {}'.format(len(comb_ids)))
+
     if write_path:
         with open(write_path, 'w') as out:
             for x in comb_ids:

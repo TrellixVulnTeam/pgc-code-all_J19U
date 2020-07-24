@@ -12,13 +12,17 @@ import geopandas as gpd
 import argparse, os
 import datetime
 
-from selection_utils.query_danco import query_footprint, mono_noh, stereo_noh
+from selection_utils.query_danco import query_footprint, mono_noh, stereo_noh, generate_rough_aoi_where
 from img_orders.img_order_sheets import create_sheets
-from misc_utils.id_parse_utils import date_words, remove_onhand
+from misc_utils.id_parse_utils import date_words, remove_onhand, onhand_ids
 from misc_utils.logging_utils import create_logger
+from misc_utils.gpd_utils import select_in_aoi
 
-logger = create_logger(__name__, 'sh', 'INFO')
 
+logger = create_logger(__name__, 'sh', 'DEBUG')
+
+# Params
+loc_name_fld = 'loc_name'  # Field in regions layer to select regions based on
 
 def refresh_region_lut(refresh_region='polar_hma_above'):
     '''
@@ -48,7 +52,7 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
 
 
 def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, sensors,
-            use_land=True, refresh_thru=None):
+            aoi_path=None, use_land=True, refresh_thru=None, drop_onhand=True):
     '''
     Select ids for imagery order
     cloudcover: cloudcover <= arg
@@ -62,6 +66,11 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
                                                                                                       min_cc, max_cc)
     if sensors:
         where += " AND (platform IN ({}))".format(str(sensors)[1:-1])
+
+    if aoi_path:
+        aoi_where = generate_rough_aoi_where(aoi_path=aoi_path, x_fld='x1', y_fld='y1', pad=20.0)
+        where += " AND {}".format(aoi_where)
+
     logger.debug('where: {}'.format(where))
         
     # Load regions shp
@@ -78,17 +87,21 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
         if refresh_imagery == 'mono_stereo':
             noh_recent = query_footprint('index_dg', where=where)
         if refresh_imagery == 'mono':
-            noh_recent = mono_noh(where=where)
+            noh_recent = mono_noh(where=where, noh=drop_onhand)
         if refresh_imagery == 'stereo':
-            noh_recent = stereo_noh(where=where)
+            noh_recent = stereo_noh(where=where, noh=drop_onhand)
     else:
         logger.warning("""Refresh imagery type unrecognized, supported refresh imagery 
               options include: {}""".format(supported_refresh_imagery))
-   
+
+    logger.info('Initial IDs found: {:,}'.format(len(noh_recent)))
     # noh_recent = noh_recent.drop_duplicates(subset='catalogid')
 
     ### Spatial join to identify region
     logger.info('Identifying region of selected imagery...')
+    # Save original columns
+    noh_recent_cols = list(noh_recent)
+    noh_recent_cols.append(loc_name_fld)
     # Calculate centroid
     noh_recent['centroid'] = noh_recent.centroid
     noh_recent.set_geometry('centroid', inplace=True)
@@ -97,13 +110,16 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     noh_recent.drop('centroid', axis=1, inplace=True)
     noh_recent.set_geometry('geom', inplace=True)
 
-
     ### Identify only those in the region of interest
     # Get regions of interest based on type of refresh
     roi = refresh_region_lut(refresh_region)
     logger.debug('Regions included: {}'.format(roi))
     # Select region of interest
-    noh_recent_roi = noh_recent[noh_recent.loc_name.isin(roi)]
+    noh_recent_roi = noh_recent[noh_recent[loc_name_fld].isin(roi)]
+    # # Return to original columns
+    # noh_recent_roi = noh_recent_roi[noh_recent_cols]
+
+    logger.info('IDs in region(s) of interest: {:,}'.format(len(noh_recent_roi)))
     
     # Select only those features that intersect land polygons
     if use_land:
@@ -112,10 +128,22 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
         land = gpd.read_file(land_shp)
         # Drop 'index' columns if they exists
         drop_cols = [x for x in list(noh_recent_roi) if 'index' in x]
-        
         noh_recent_roi = noh_recent_roi.drop(columns=drop_cols)
         noh_recent_roi = gpd.sjoin(noh_recent_roi, land, how='left')
-            
+        noh_recent_roi = noh_recent_roi[noh_recent_cols]
+
+        logger.info('IDs over land: {}'.format(len(noh_recent_roi)))
+
+    if aoi_path:
+        # Drop 'index' columns if they exists
+        drop_cols = [x for x in list(noh_recent_roi) if 'index' in x]
+        noh_recent_roi = noh_recent_roi.drop(columns=drop_cols)
+
+        aoi = gpd.read_file(aoi_path)
+        noh_recent_roi = select_in_aoi(noh_recent_roi, aoi)
+        # noh_recent_roi = noh_recent_roi[noh_recent_cols]
+        logger.info('IDs over AOI: {}'.format(len(noh_recent_roi)))
+
     return noh_recent_roi
 
 
@@ -169,6 +197,8 @@ if __name__ == '__main__':
                         help='Sensors to select, default is all sensors. E.g. WV01 WV02')
     parser.add_argument("--drop_onhand", action='store_true',
                         help='Remove ids that have been ordered or are in the master footprint.')
+    parser.add_argument("--aoi", type=os.path.abspath,
+                        help='Path to AOI to subset selection.')
     parser.add_argument("--use_land", action='store_true',
                         help="Use coastline inclusion shapefile.")
     parser.add_argument("--dryrun", action='store_true',
@@ -187,6 +217,7 @@ if __name__ == '__main__':
     max_cc = args.max_cc
     min_cc = args.min_cc
     sensors = args.sensors
+    aoi_path = args.aoi
     drop_onhand = args.drop_onhand
     use_land = args.use_land
     dryrun = args.dryrun
@@ -205,11 +236,14 @@ if __name__ == '__main__':
                         max_cc=max_cc,
                         min_cc=min_cc,
                         sensors=sensors,
-                        use_land=use_land)
+                        use_land=use_land,
+                        aoi_path=aoi_path,
+                        drop_onhand=drop_onhand)
     
     if drop_onhand:
-        not_onhand_ids = remove_onhand(selection['catalogid'])
-        selection = selection[selection['catalogid'].isin(not_onhand_ids)]
+        oh_ids = onhand_ids()
+        # not_onhand_ids = remove_onhand(selection['catalogid'])
+        selection = selection[~selection['catalogid'].isin(oh_ids)]
 
     # Stats for printing to command line
     logger.info('IDs found: {}'.format(len(selection)))

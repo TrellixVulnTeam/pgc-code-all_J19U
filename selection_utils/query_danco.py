@@ -203,8 +203,8 @@ def count_table(layer, db='footprint', distinct=False, distinct_col=None,
         cursor = connection.cursor()
 
         if connection:
-            cols_str = '*' # select all columns
-            sql = generate_sql(layer=layer, columns=cols_str, where=where, noh=noh, table=True)
+            # cols_str = '*' # select all columns
+            sql = generate_sql(layer=layer, where=where, noh=noh, table=True)
             sql = sql.replace('SELECT *', 'SELECT COUNT(*)')
                 
             logger.debug('SQL: {}'.format(sql))
@@ -272,7 +272,7 @@ def layer_crs(layer, db='footprint'):
     return crs
     
     
-def stereo_noh(where=None):
+def stereo_noh(where=None, noh=True):
     '''
     Returns a dataframe with all intrack stereo not on hand as individual rows, 
     rather than as pairs.
@@ -282,24 +282,27 @@ def stereo_noh(where=None):
     left = query_footprint('dg_imagery_index_stereo', where=where)
     right = left.drop(columns=['catalogid'])
     right.rename(index=str, columns={'stereopair': 'catalogid'}, inplace=True)
-    
+
+    stereo = pd.concat([left, right], sort=True)
     # Remove ids on hand
-    pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
-    pgc_ids = list(pgc_archive.catalog_id)
-    del pgc_archive
-    noh_left = left[~left.catalogid.isin(pgc_ids)]
-    noh_right = right[~right.catalogid.isin(pgc_ids)]
-    
+    if noh:
+        logger.debug('Removing on hand IDs')
+        pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
+        oh_ids = list(pgc_archive.catalog_id)
+        del pgc_archive
+        # left = left[~left.catalogid.isin(oh_ids)]
+        # right = right[~right.catalogid.isin(oh_ids)]
+        stereo = stereo[~stereo.catalogid.isin(oh_ids)]
     # Combine columns
-    noh = pd.concat([noh_left, noh_right], sort=True)
-    del noh_left, noh_right
+    # noh = pd.concat([left, right], sort=True)
+    del left, right
 
-    noh.drop_duplicates(subset='catalogid', inplace=True)
+    stereo.drop_duplicates(subset='catalogid', inplace=True)
 
-    return noh
+    return stereo
 
 
-def mono_noh(where=None):
+def mono_noh(where=None, noh=True):
     '''
     To determine mono not on hand, remove all stereo catalogids from all dg ids
     returns a dataframe of just mono imagery not on hand (stereo removed)
@@ -315,12 +318,13 @@ def mono_noh(where=None):
     # Remove stereo
     mono = all_mono_stereo[~all_mono_stereo['catalogid'].isin(all_stereo['catalogid'])]
 
-    # Remove onhand
-    pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
-    pgc_ids = list(pgc_archive.catalog_id)
-    mono_noh = mono[~mono['catalogid'].isin(pgc_ids)]
+    if noh:
+        # Remove onhand
+        pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
+        oh_ids = list(pgc_archive.catalog_id)
+        mono = mono[~mono['catalogid'].isin(oh_ids)]
 
-    return mono_noh
+    return mono
 
 
 def all_noh(where=None, cc20=True):
@@ -331,11 +335,11 @@ def all_noh(where=None, cc20=True):
     '''
     # Get all on hand ids
     pgc_archive = query_footprint(layer='pgc_imagery_catalogids', table=True)
-    pgc_ids = tuple(pgc_archive.catalog_id)
+    oh_ids = tuple(pgc_archive.catalog_id)
     del pgc_archive
     
     # Get all not on hand: ids in database not in pgc archive
-    noh_where = "catalogid NOT IN {}".format(pgc_ids)
+    noh_where = "catalogid NOT IN {}".format(oh_ids)
     all_noh = query_footprint('index_dg', where=noh_where)
     return all_noh
 
@@ -374,7 +378,7 @@ def all_IK01(where=None, onhand=None):
     if onhand == True or onhand == False:
         # Get all on hand ids
         pgc_archive = query_footprint(layer='pgc_imagery_catalogids', table=True)
-        pgc_ids = tuple(pgc_archive.catalog_id)
+        oh_ids = tuple(pgc_archive.catalog_id)
         del pgc_archive
         
         IK01 = query_footprint('index_ge', where=where)
@@ -382,11 +386,11 @@ def all_IK01(where=None, onhand=None):
 #        IK01['catalogid'] = IK01['strip_id'].map(lut)
         
         if onhand == True:
-            df = IK01[IK01.strip_id.isin(pgc_ids)]
+            df = IK01[IK01.strip_id.isin(oh_ids)]
             del IK01
         else:
             # onhand == False
-            df = IK01[~IK01.strip_id.isin(pgc_ids)]
+            df = IK01[~IK01.strip_id.isin(oh_ids)]
             del IK01
     else:
         df = query_footprint('index_ge', where=where)
@@ -399,7 +403,9 @@ def pgc_ids():
 
 
 def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False, distinct=False,
-                 limit=False, offset=None, noh=False, catid_field='catalogid', table=False):
+                 limit=False, offset=None, noh=False, catid_field='catalogid', table=False,
+                 aoi_path=None):
+
     # COLUMNS
     if columns:
         cols_str = ', '.join(columns)
@@ -421,11 +427,26 @@ def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=Fal
             where += " AND {}".format(null_clause)
         else:
             where = null_clause
-    # CUSTOM WHERE CLAUSE
+    # WHERE CLAUSE
+    # Custom where
+    if not where:
+        where = ""
     if where:
-        sql_where = " WHERE {}".format(where)
-        sql = sql + sql_where
-    
+        where = " WHERE {}".format(where)
+        # sql = sql + sql_where
+
+    # Where AOI bounds
+    if aoi_path:
+        aoi_where = generate_aoi_where(aoi_path=aoi_path, x_fld='x1', y_fld='y1')
+        if where:
+            where += " AND "
+        else:
+            where = " WHERE "
+        where += aoi_where
+
+    if where:
+        sql += where
+
     # ORDERBY
     if orderby:
         if orderby_asc:
@@ -442,7 +463,16 @@ def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=Fal
     if offset:
         sql_offset = " OFFSET {}".format(offset)
         sql += sql_offset
-    
-    # logger.debug('Generated SQL:\n{}'.format(sql))
+
+    logger.debug('Generated SQL:\n{}'.format(sql))
     
     return sql
+
+
+def generate_rough_aoi_where(aoi_path, x_fld, y_fld, pad=20.0):
+    aoi = gpd.read_file(aoi_path)
+    minx, miny, maxx, maxy = aoi.total_bounds
+    aoi_where = "({0} >= {1} AND {0} <= {2} AND {3} >= {4} AND {3} <= {5})".format(x_fld, minx - pad, maxx + pad,
+                                                                                   y_fld, miny - pad, maxy + pad)
+
+    return aoi_where

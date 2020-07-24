@@ -17,12 +17,10 @@ from tqdm import tqdm
 
 import multiprocessing
 
-from misc_utils.logging_utils import LOGGING_CONFIG, CustomError
+from misc_utils.logging_utils import create_logger
 
 
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def multiprocess_gdf(fxn, gdf, *args, num_cores=None, **kwargs):
@@ -257,3 +255,28 @@ def remove_unused_geometries(df):
     remove = [x for x in list(df.select_dtypes(include='geometry')) if x != df.geometry.name]
 
     return df.drop(columns=remove)
+
+
+def select_in_aoi(gdf, aoi, centroid=False):
+    gdf_cols = list(gdf)
+    logger.debug('Making selection over AOI')
+    if aoi.crs != gdf.crs:
+        aoi = aoi.to_crs(gdf.crs)
+    if centroid:
+        logger.debug('Using centroid for selection...')
+        poly_geom = gdf.geometry
+        gdf.geometry = gdf.geometry.centroid
+        op = 'within'
+    else:
+        op = 'intersects'
+
+    gdf = gpd.sjoin(gdf, aoi, op=op)
+    # gdf = gpd.overlay(gdf, aoi)
+    if centroid:
+        gdf.geometry = poly_geom
+
+    # gdf = gdf[gdf_cols]
+    # TODO: Confirm if this is needed, does an 'inner' sjoin leave duplicates?
+    gdf.drop_duplicates(subset='pairname')
+
+    return gdf
