@@ -29,209 +29,269 @@ pd.options.mode.chained_assignment = None
 
 # %% Set up
 # Inputs
-num_ids = 50_000  # Desired number of IDs
-noh = True
-remove_onhand = True
-update_ordered = False
-combo_sensors = False  # Only get WV01-WV01 or WV02-WV02, etc. for each sensor in sensors
-use_land = True
-sensors = ['WV01', 'WV02', 'WV03']
-min_date = '2015-01-01'
-# max_date = '2020-06-09'
-min_date = None
-max_date = None
-# orderby = 'perc_ovlp'
-# where = "(project = 'EarthDEM')" # AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
-# where = "(project IN ('ArcticDEM', 'REMA'))"
-where = ""
-# aoi_path = r'E:\disbr007\general\US_States\us_no_AK.shp'
-aoi_path = None
-
-out_path = r'E:\disbr007\imagery_orders\PGC_order_2020jul21_global_xtrack_cc20\selected_cids.txt'
-out_areas = r'E:\disbr007\imagery_orders\PGC_order_2020jul21_global_xtrack_cc20\selected_cids_areas.txt'
-temp_out = r'E:\disbr007\imagery_orders\PGC_order_2020jul21_global_xtrack_cc20\temp_ids.txt'
+# num_ids = 50_000  # Desired number of IDs
+# # remove_onhand = True
+# update_ordered = False
+# within_sensor = False  # Only get WV01-WV01 or WV02-WV02, etc. for each sensor in sensors
+# use_land = True
+# sensors = ['WV01', 'WV02', 'WV03']
+# min_date = None
+# max_date = None
+# # orderby = 'perc_ovlp'
+# # where = "(project = 'EarthDEM')" # AND (region_name IN ('Mexico and Caribbean', 'CONUS', 'Great Lakes'))"
+# # where = "(project IN ('ArcticDEM', 'REMA'))"
+# where = ""
+# aoi_path = None
+# out_path = r'E:\disbr007\imagery_orders\PGC_order_2020jul23_global_xtrack_cc20_test\selected_cids.txt'
 
 
 # Params
+noh = True
 xtrack_tbl = 'dg_imagery_index_xtrack_cc20'
-chunk_size = 25_000
+chunk_size = 100_000
 area_col = 'area_sqkm'
+catid1_fld = 'catalogid1'
+catid2_fld = 'catalogid2'
+cid1_oh_fld = 'catalogid1_oh'
+cid2_oh_fld = 'catalogid2_oh'
 columns = ['catalogid1', 'catalogid2', 'region_name', 'pairname', 'acqdate1']
 land_shp = r'E:\disbr007\imagery_orders\coastline_include_fix_geom_dis.shp'
 
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
-sublogger = create_logger('selection_utils.query_danco', 'sh', 'DEBUG')
-# sublogger = create_logger('misc_utils.area_calc', 'sh', 'DEBUG')
-
-# Check for existence of aoi and out_path directory
-if aoi_path:
-    if not os.path.exists(aoi_path):
-        logger.error('AOI path does not exist: {}'.aoi_path)
-        sys.exit()
-
-# Create where clause
-if sensors:
-    sensor_where = ''
-    for sensor in sensors:
-        if sensor_where:
-            sensor_where += ' OR '
-        sensor_where += """(catalogid1 LIKE '{0}%%' OR catalogid2 LIKE '{0}%%')""".format(get_platform_code(sensor))
-    if where:
-        where += " AND "
-    where += '({})'.format(sensor_where)
-if min_date:
-    if where:
-        where += " AND "
-    where += "(acqdate1 >= '{}')".format(min_date)
-if max_date:
-    if where:
-        where += " AND "
-    where += "(acqdate1 <= '{}')".format(max_date)
-if combo_sensors:
-    if where:
-        where += " AND "
-    where += "(SUBSTRING(catalogid1, 1, 3) = SUBSTRING(catalogid2, 1, 3))"
-if noh:
-    if where:
-        where += " AND "
-    where += create_cid_noh_where(['catalogid1', 'catalogid2'], xtrack_tbl)
-logger.debug('SQL where: {}'.format(where))
-
-if aoi_path:
-    aoi = gpd.read_file(aoi_path)
+logger = create_logger(__name__, 'sh', 'INFO')
+# sublogger = create_logger('selection_utils.query_danco', 'sh', 'INFO')
 
 
-table_total = count_table(xtrack_tbl, where=where)
-logger.info('Total table size with query: {:,}'.format(table_total))
+def create_where(sensors=None, min_date=None, max_date=None, within_sensor=False, noh=True,
+                 projects=None, region_names=None):
+    """Create where clause"""
+    where = ''
+    if sensors:
+        sensor_where = ''
+        for sensor in sensors:
+            if sensor_where:
+                sensor_where += ' OR '
+            sensor_where += """(catalogid1 LIKE '{0}%%' OR catalogid2 LIKE '{0}%%')""".format(get_platform_code(sensor))
+        if where:
+            where += " AND "
+        where += '({})'.format(sensor_where)
+    if min_date:
+        if where:
+            where += " AND "
+        where += "(acqdate1 >= '{}')".format(min_date)
+    if max_date:
+        if where:
+            where += " AND "
+        where += "(acqdate1 <= '{}')".format(max_date)
+    if within_sensor:
+        if where:
+            where += " AND "
+        where += "(SUBSTRING(catalogid1, 1, 3) = SUBSTRING(catalogid2, 1, 3))"
+    if projects:
+        if where:
+            where += " AND "
+        where += "(project in ({})".format(str(projects)[1:-1])
+    if region_names:
+        if where:
+            where += " AND "
+        where += "(region_name in ({})".format(str(region_names)[1:-1])
+    if noh:
+        if where:
+            where += " AND "
+        where += create_cid_noh_where(['catalogid1', 'catalogid2'], xtrack_tbl)
+    logger.debug('SQL where: {}'.format(where))
 
-# Get all onhand ids
-oh_ids = set(onhand_ids(update=update_ordered))
+    return where
 
-# Load land shapefile if necessary
-if use_land:
-    land = gpd.read_file(land_shp)
 
-# %% Iterate
-# Iterate chunks of table, calculating area and adding id1, id2, area to dictionary
-all_ids = []
-limit = chunk_size
-offset = 0
-while offset < table_total:
-    # Load chunk
-    logger.info('Loading chunk: {:,} - {:,}'.format(offset, limit + offset))
-    chunk = query_footprint(xtrack_tbl, columns=columns,
-                            # orderby=orderby, orderby_asc=False,
-                            where=where, limit=limit, offset=offset,
-                            dryrun=False)
+def select_in_aoi(gdf, aoi, centroid=False):
+    # logger.info('Finding IDs in AOI...')
+    gdf_cols = list(gdf)
 
-    # Remove records where both IDs are onhand
-    logger.info('Dropping records where both IDs are on onhand...')
-    chunk = chunk[~((chunk['catalogid1'].isin(oh_ids)) & (chunk['catalogid2'].isin(oh_ids)))]
-    remaining_records = len(chunk)
-    logger.info('Remaining records: {:,}'.format(remaining_records))
-    if remaining_records == 0:
-        continue
+    if aoi.crs != gdf.crs:
+        aoi = aoi.to_crs(gdf.crs)
+    if centroid:
+        poly_geom = gdf.geometry
+        gdf.geometry = gdf.geometry.centroid
+        op = 'within'
+    else:
+        op = 'intersect'
 
-    # Find only IDs in AOI if provided
+    gdf = gpd.sjoin(gdf, aoi, how='inner', op=op)
+    if centroid:
+        gdf.geometry = poly_geom
+
+    gdf = gdf[gdf_cols]
+    # TODO: Confirm if this is needed, does an 'inner' sjoin leave duplicates?
+    gdf.drop_duplicates(subset='pairname')
+
+    return gdf
+
+
+def main(args):
+    # Parse args
+    out_path = args.out_path
+    num_ids = args.number_ids
+    update_ordered = args.update_ordered
+    use_land = args.do_not_use_land
+    sensors = args.sensors
+    within_sensor = args.within_sensor
+    min_date = args.min_date
+    max_date = args.max_date
+    aoi_path = args.aoi
+    projects = args.projects
+    region_names = args.region_names
+    out_footprint = args.out_footprint
+
+    # Check for existence of aoi and out_path directory
     if aoi_path:
-        logger.info('Finding IDs in AOI...')
-        if aoi.crs != chunk.crs:
-            aoi = aoi.to_crs(chunk.crs)
-        chunk_cols = list(chunk)
-        chunk = gpd.sjoin(chunk, aoi, how='inner')
-        chunk = chunk[chunk_cols]
-        # TODO: Confirm if this is needed, does an 'inner' sjoin leave duplicates?
-        chunk.drop_duplicates(subset='pairname')
-        logger.debug('Remaining records in AOI: {:,}'.format(len(chunk)))
+        if not os.path.exists(aoi_path):
+            logger.error('AOI path does not exist: {}'.aoi_path)
+            sys.exit()
+        aoi = gpd.read_file(aoi_path)
+    if not os.path.exists(os.path.dirname(out_path)):
+        logger.warning('Out directory does not exist, creating: {}'.format(os.path.dirname(out_path)))
+        os.makedirs(os.path.dirname(out_path))
+    if out_footprint:
+        if not os.path.exists(os.path.dirname(out_footprint)):
+            logger.warning('Out directory does not exist, creating: {}'.format(os.path.dirname(out_footprint)))
+            os.makedirs(os.path.dirname(out_footprint))
 
+    where = create_where(sensors=sensors, min_date=min_date, max_date=max_date,
+                         within_sensor=within_sensor, noh=noh,
+                         projects=projects, region_names=region_names)
+
+    logger.info('Getting size of table with query...')
+    table_total = count_table(xtrack_tbl, where=where)
+    logger.info('Total table size with query: {:,}'.format(table_total))
+
+    # Get all onhand and ordered ids
+    logger.info('Loading all onhand and ordered IDs...')
+    oh_ids = set(onhand_ids(update=update_ordered))
+    logger.info('Onhand and ordered IDs loaded: {:,}'.format(len(oh_ids)))
+
+    # Load land shapefile if necessary
     if use_land:
-        logger.info('Selecting IDs over land only...')
-        # land = gpd.read_file(land_shp)
-        poly_geom = chunk.geometry
-        chunk.geometry = chunk.geometry.centroid
-        if land.crs != chunk.crs:
-            land = land.to_crs(chunk.crs)
-        chunk_cols = list(chunk)
-        chunk = gpd.sjoin(chunk, land, how='inner', op='within')
-        chunk.geometry = poly_geom
-        chunk = chunk[chunk_cols]
-        chunk.drop_duplicates(subset='pairname')
+        land = gpd.read_file(land_shp)
+
+    # %% Iterate
+    # Iterate chunks of table, calculating area and adding id1, id2, area to dictionary
+    all_ids = []
+    master = gpd.GeoDataFrame()
+    limit = chunk_size
+    offset = 0
+    while offset < table_total:
+        # Load chunk
+        logger.info('Loading chunk: {:,} - {:,}'.format(offset, offset+limit))
+        chunk = query_footprint(xtrack_tbl, columns=columns,
+                                # orderby=orderby, orderby_asc=False,
+                                where=where, limit=limit, offset=offset,
+                                dryrun=False)
+
         remaining_records = len(chunk)
-        logger.debug('Remaining records over land: {:,}'.format(len(chunk)))
+
+        # Remove records where both IDs are onhand
+        logger.info('Dropping records where both IDs are on onhand...')
+        chunk = chunk[~((chunk['catalogid1'].isin(oh_ids)) & (chunk['catalogid2'].isin(oh_ids)))]
+        remaining_records = len(chunk)
+        logger.info('Remaining records: {:,}'.format(remaining_records))
         if remaining_records == 0:
             continue
 
-    # Calculate area for chunk
-    logger.info('Calculating area...')
-    chunk = area_calc(chunk, area_col=area_col)
+        # Find only IDs in AOI if provided
+        if aoi_path:
+            logger.info('Finding IDs in AOI...')
+            chunk = select_in_aoi(chunk, aoi=aoi)
+            remaining_records = len(chunk)
+            logger.debug('Remaining records in AOI: {:,}'.format(remaining_records))
+            if remaining_records == 0:
+                continue
 
-    # Add tuple of (catid1_catid2, area) now done above: (if both ids are not already on hand )
-    # If only one is on hand, it is removed later and the noh id is added to the final list
-    chunk_ids = [("{}_{}".format(c1, c2), area) for c1, c2, area in zip(list(chunk['catalogid1']),
-                                                                        list(chunk['catalogid2']),
-                                                                        list(chunk[area_col]))]
+        if use_land:
+            logger.info('Selecting IDs over land only...')
+            chunk = select_in_aoi(chunk, aoi=land, centroid=True)
+
+            remaining_records = len(chunk)
+            logger.info('Remaining records over land: {:,}'.format(len(chunk)))
+            if remaining_records == 0:
+                continue
+
+        # Calculate area for chunk
+        logger.info('Calculating area...')
+        chunk = area_calc(chunk, area_col=area_col)
+
+        # Combine with master
+        logger.info('Combining chunk with master...')
+        master = pd.concat([master, chunk])
+
+        # Increase offset
+        offset += limit
+
+    # %% Select n records with highest area
+    master = master.sort_values(by=area_col)
+    master[cid1_oh_fld] = master[catid1_fld].isin(oh_ids)
+    master[cid2_oh_fld] = master[catid2_fld].isin(oh_ids)
+    logger.info('Finding {:,} IDs not on hand, starting with largest area...'.format(num_ids))
+    out_ids = set()
+    kept_rows = set()
+    num_kept_ids = len(out_ids)
+    for i, row in master.iterrows():
+        cid1 = row[catid1_fld]
+        cid2 = row[catid2_fld]
+        if row[cid1_oh_fld] and cid1 not in out_ids:
+            out_ids.add(cid1)
+            kept_rows.add(row.name)
+        if row[cid2_oh_fld] and cid2 not in out_ids:
+            out_ids.add(cid2)
+            kept_rows.add(row.name)
+        num_kept_ids = len(out_ids)
+        if num_kept_ids >= num_ids:
+            logger.info('{:,} IDs not on hand located. {:,} sqkm minimum kept.'.format(num_kept_ids, row[area_col]))
+            break
+
+    if num_kept_ids < num_ids:
+        logger.warning('Only {:,} IDs found. {} minimum area kept: {}'.format(num_kept_ids, row[area_col]))
+
+    if out_footprint:
+        kept_pairs = master[master.index.isin(kept_rows)]
+        kept_pairs.to_file(out_footprint)
+
+    #%% Write
+    if not os.path.exists(os.path.dirname(out_path)):
+        os.makedirs(os.path.dirname(out_path))
+    logger.info('Writing {:,} IDs to: {}'.format(len(out_ids), out_path))
+    write_ids(out_ids, out_path)
+    # write_ids(kept_areas, out_areas)
 
 
-    logger.info('IDs matching criteria from chunk: {:,}\n'.format(len(chunk_ids)))
-    write_ids(chunk_ids, temp_out, append=True)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--out_path', type=os.path.abspath, required=True,
+                        help='Path to write list of IDs to.')
+    parser.add_argument('-n', '--number_ids', type=int,
+                        help='The number of output IDs desired.')
+    parser.add_argument('--update_ordered', action='store_true',
+                        help='Rescan directory of order sheets and update list of ordered IDs.')
+    parser.add_argument('--do_not_use_land', action='store_false',
+                        help='Do not select using land shapefile.')
+    parser.add_argument('--sensors', nargs='+', choices=['WV01', 'WV02', 'WV03'],
+                        default=['WV01', 'WV02', 'WV03'],
+                        help='Select only these sesnors.')
+    parser.add_argument('--within_sensor', action='store_true',
+                        help='Only select same-sensor pairs (WV01-WV01, WV02-WV02, etc. not WV01-WV02, etc.')
+    parser.add_argument('--min_date', type=str,
+                        help='Earliest date to include. E.g.: 2020-01-31')
+    parser.add_argument('--max_date', type=str,
+                        help='Latsest date to include. E.g.: 2020-04-21')
+    parser.add_argument('--aoi', type=os.path.abspath,
+                        help='Path to shapefile to select within.')
+    parser.add_argument('--projects', nargs='*', choices=['REMA', 'ArcticDEM', 'EarthDEM'],
+                        help='Projects to include.')
+    parser.add_argument('--region_names', nargs='+',
+                        help='Regions to include.')
+    parser.add_argument('--out_footprint', type=os.path.abspath,
+                        help='Write footprint of pair overlaps for those pairs where at least one ID is kept.')
 
-    all_ids.extend(chunk_ids)
+    args = parser.parse_args()
 
-    # Increase offset
-    offset += limit
-
-# %% Combining
-# Remove any duplicates from different pairs of cid1+cid2, cid1+cid3, etc.
-all_ids = set(list(set(all_ids)))
-
-# Sort by area
-all_ids_dict = collections.OrderedDict(all_ids)
-all_ids_list = sorted(all_ids_dict.items(), key=lambda kv: kv[1], reverse=True)
-
-all_ids = set([pair for i in all_ids_list for pair in i[0].split('_')])
-all_ids_noh = all_ids - oh_ids
-
-# Create final list
-final_ids = set()
-kept_areas = set()
-
-# Check if either ID is on hand, if not add
-logger.info('IDs meeting criteria and not onhand: {:,}'.format(len(all_ids_noh)))
-# logger.info('Removing any onhand ids...')
-i = 0
-step = 50_000
-for c1_c2, area in all_ids_list:
-    if i != 0 and i % step == 0:
-        logger.debug('Final IDs: {}'.format(len(final_ids)))
-        logger.debug('Parsing IDs: {} - {}'.format(i-step, i))
-    c1, c2 = c1_c2.split('_')
-    if remove_onhand:
-        kept = False
-        if c1 in all_ids_noh and c1 not in final_ids:
-            final_ids.add(c1)
-            kept_areas.add(round(area, 2))
-            kept = True
-        if c2 in all_ids_noh and c2 not in final_ids:
-            final_ids.add(c2)
-            if not kept:
-                kept_areas.add(round(area, 2))
-    else:
-        final_ids.add(c1)
-        final_ids.add(c2)
-        kept_areas.add(round(area, 2))
-    i += 1
-    if len(final_ids) >= num_ids:
-        break
-
-# logger.info('Total IDs matching criteria: {:,}'.format(len(final_ids)))
-# logger.info('Selecting {:,} IDs...'.format(num_ids))
-selected_final_ids = list(final_ids)[0:num_ids]
-logger.info('Minimum overlap area kept: {}km^2'.format(min(sorted(kept_areas, reverse=True)[0:num_ids])))
-
-#%% Write
-if not os.path.exists(os.path.dirname(out_path)):
-    os.makedirs(os.path.dirname(out_path))
-logger.info('Writing {:,} IDs to: {}'.format(len(selected_final_ids), out_path))
-write_ids(selected_final_ids, out_path)
-write_ids(kept_areas, out_areas)
+    main(args)
