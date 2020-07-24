@@ -20,7 +20,7 @@ from misc_utils.dataframe_utils import determine_id_col, determine_stereopair_co
 from misc_utils.logging_utils import create_logger
 
 # Set up logging
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # Globals
 # Path to write list of ordered IDs to
@@ -138,6 +138,9 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
     # This assumes single column of IDs with no header row
     elif file_type == 'excel':
         df = pd.read_excel(ids_file, header=None, squeeze=True)
+        if len(df.columns) > 1:
+            logger.warning('Reading only first column of excel file with multiple columns')
+            df = df.iloc[:, 0]
         ids = list(df)
         
     else:
