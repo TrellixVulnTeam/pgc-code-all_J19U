@@ -54,4 +54,6 @@ if __name__ == '__main__':
 
     logger.info('Writing to file: {}'.format(out_sid_list))
     with open(out_sid_list, 'w') as src:
-        src.writelines(sids)
+        for sid in sids:
+            src.write(sid)
+            src.write('\n')

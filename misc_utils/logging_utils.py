@@ -142,7 +142,7 @@ def create_logger(logger_name, handler_type,
 
             if existing_level == desired_level:
                 handler = h
-                print('handler exists, not adding')
+                # print('handler exists, not adding')
                 break
 
     # If no handler of specified type and level was found, create it

@@ -10,7 +10,7 @@ import geopandas as gpd
 import sys, os, logging, argparse, tqdm
 
 from misc_utils.logging_utils import create_logger
-from misc_utils.id_parse_utils import read_ids, remove_mfp
+from misc_utils.id_parse_utils import read_ids, remove_mfp, mfp_ids
 from selection_utils.query_danco import query_footprint, layer_fields
 
 
@@ -209,6 +209,7 @@ def make_selection(selector, src, selection_method, drop_dup=None):
             selector = selector.to_crs(src.crs)
         selection = gpd.sjoin(src, selector, how='inner')
         if drop_dup is not None:
+            logger.debug('Dropping duplicate "{}" records'.format(drop_dup))
             selection.drop_duplicates(subset=drop_dup, inplace=True) # Add field arg?
 #        selection.drop(columns=list(selector), inplace=True)
     elif selection_method == 'ID':
@@ -236,6 +237,26 @@ def remove_mfp_selection(selection):
     return selection
 
 
+def keep_mfp_selection(selection, stereo=True):
+    """Keep only IDs in master footprint from given selection"""
+    logger.debug('Keeping only IDs in the master footprint.')
+    logger.debug('IDs before keeping only MFP: {}'.format(len(selection)))
+    oh_ids = set(mfp_ids())
+    if type(selection) in (list, set):
+        selection = set(selection).intersection(oh_ids)
+    else:
+        catid_field = [f for f in list(selection) if 'catalogid' in f][0]
+        selection = selection[selection[catid_field].isin(oh_ids)]
+        if stereo:
+            logger.debug('Keeping where stereopair also in MFP.')
+            stp_field = [f for f in list(selection) if 'stereopair' in f][0]
+            selection = selection[selection[stp_field].isin(oh_ids)]
+
+
+    logger.debug('IDs after keeping only MFP: {}'.format(len(selection)))
+    return selection
+
+
 def write_selection(selection, destination_path, dst_type):
     """
     Write the selection to destination path, either as shp or txt of IDs
@@ -253,25 +274,12 @@ def write_selection(selection, destination_path, dst_type):
     logger.info('Writing successful.')
 
 
-def select_danco(layer_name,
-                 destination_path=None,
-                 selector_path=None,
-                 dst_type=None,
-                 by_id=None,
-                 remove_mfp=None,
-                 platforms=None,
-                 min_year=None,
-                 max_year=None,
-                 months=None,
-                 min_cc=None,
-                 max_cc=None,
-                 min_x1=None,
-                 max_x1=None,
-                 min_y1=None,
-                 max_y1=None,
-                 columns='*',
-                 drop_dup=None,
-                 add_where=None,
+def select_danco(layer_name, destination_path=None, selector_path=None, dst_type=None,
+                 by_id=None, remove_mfp=None, keep_mfp_ids=False, keep_mfp_stereo=True,
+                 platforms=None, min_year=None, max_year=None, months=None,
+                 min_cc=None, max_cc=None,
+                 min_x1=None, max_x1=None, min_y1=None, max_y1=None,
+                 columns='*', drop_dup=None, add_where=None,
                  use_land=None):
     # Determine selection method - by location or by ID
     selection_method = determine_selection_method(selector_path, by_id)
@@ -295,11 +303,10 @@ def select_danco(layer_name,
         where += """AND {}""".format(add_where)
     logger.debug('Where clause: {}'.format(where))
     # Load footprint layer with where clause
-    # src = load_src(layer_name, where, columns)
-    logger.info('Loaded source layer with SQL clause: {}'.format(len(src)))
+    src = load_src(layer_name, where, columns)
+    logger.info('Loaded source layer with SQL clause: {:,}'.format(len(src)))
     # Make selection if provided
     if selector is not None:
-        logger.debug('Dropping duplicate "{}" records'.format(drop_dup))
         selection = make_selection(selector, src, selection_method, drop_dup=drop_dup)
     else:
         selection = src
@@ -314,10 +321,14 @@ def select_danco(layer_name,
         # noh_recent_roi = noh_recent_roi.drop(columns=drop_cols)
         selection = gpd.sjoin(selection, land, how='left')
 
-    logger.info('Selected features before removing MFP (if requested): {}'.format(len(selection)))
-    if remove_mfp is True:
+
+    if remove_mfp:
+        logger.info('Selected features before removing MFP: {:,}'.format(len(selection)))
         selection = remove_mfp_selection(selection)
         logger.info('Selected features after removing MFP: {}'.format(len(selection)))
+    if keep_mfp_ids:
+        selection = keep_mfp_selection(selection, stereo=keep_mfp_stereo)
+
     if destination_path is not None:
         write_selection(selection, destination_path, dst_type)
 
@@ -369,7 +380,9 @@ if __name__ == '__main__':
     parser.add_argument("--use_land", action='store_true',
                         help="Use coastline inclusion shapefile.")
     parser.add_argument('--remove_mfp_ids', action='store_true',
-                        help='Remove any ids that have are in the master footprint.')
+                        help='Remove any ids that are in the master footprint.')
+    parser.add_argument('--keep_mfp_ids', action='store_true',
+                        help='Keep only IDs that are in the master footprint.')
 
 
     args = parser.parse_args()
@@ -382,6 +395,7 @@ if __name__ == '__main__':
     by_id            = args.by_id
     columns          = args.columns
     remove_mfp_ids   = args.remove_mfp_ids
+    keep_mfp_ids     = args.keep_mfp_ids
     use_land         = args.use_land
 
     platforms = args.platforms
@@ -403,6 +417,7 @@ if __name__ == '__main__':
                  by_id=by_id,
                  columns=columns,
                  remove_mfp=remove_mfp_ids,
+                 keep_mfp_ids=keep_mfp_ids,
                  platforms=platforms,
                  min_year=min_year,
                  max_year=max_year,

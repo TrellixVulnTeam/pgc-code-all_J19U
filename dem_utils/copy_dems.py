@@ -125,6 +125,7 @@ def copy_dems(footprint_path, output_directory, location=None,
     copy_list = create_copy_list(dem_paths, output_directory, meta_file_sfx, flat=flat)
 
     dem_src_list = [pair[0] for pair in copy_list if pair[0].endswith('dem.tif')]
+    print(len(dem_src_list))
     dem_dst_list = [os.path.join(pair[1], os.path.basename(pair[0])) for pair in copy_list if pair[0].endswith('dem.tif')]
 
     logger.info('Located DEMs to copy: {:,}'.format(len(dem_src_list)))
@@ -182,7 +183,7 @@ if __name__ == '__main__':
                         help='Use to skip ortho files, but copy all other meta files.')
     parser.add_argument('-f', '--flat', action='store_true',
                         help='Use to not create DEM subdirectories, just copy to destination directory.')
-    parser.add_argument('--use_symlinks'. action='store_true')
+    parser.add_argument('--use_symlinks', action='store_true')
     parser.add_argument('-dr', '--dryrun', action='store_true',
                         help='Use to check for DEMs existence but do not copy.')
     parser.add_argument('-v', '--verbose', action='store_true',

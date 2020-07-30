@@ -17,16 +17,16 @@ aoi_where = intersect_aoi_where(aoi=aoi, geom_col=geom_col)
 where = ' dem_res < 1 AND {}'.format(aoi_where)
 
 logger.info('Loading DEMs...')
-sql = generate_sql(layer=tbl, where=where, geom_col=geom_col, encode_geom_col='geom')
-logger.debug('SQL: {}'.format(sql))
+sql = generate_sql(layer=tbl, where=where, limit=10, geom_col=geom_col, encode_geom_col='geom')
+# logger.debug('SQL: {}'.format(sql))
 with Postgres(db_name=db) as dem_db:
     # tbls = dem_db.list_db_tables()
     # cols = dem_db.get_layer_columns(layer=tbl)
     dems = dem_db.sql2gdf(sql=sql)
 
-agg = {'scenedemid': 'count'}
-dems_agg = dems.groupby('status').agg(agg)
-print(dems_agg)
-
-logger.info('Writing DEM footprints to file: {}'.format(out_dems))
-dems.to_file(out_dems)
+# agg = {'scenedemid': 'count'}
+# dems_agg = dems.groupby('status').agg(agg)
+# print(dems_agg)
+#
+# logger.info('Writing DEM footprints to file: {}'.format(out_dems))
+# dems.to_file(out_dems)

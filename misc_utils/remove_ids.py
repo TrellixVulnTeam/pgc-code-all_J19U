@@ -49,6 +49,8 @@ def remove_ids(src, oth, out_path=None, src_field=None, oth_field=None):
     rem_ids = set(src_ids) - set(oth_ids)
     ids_removed = len(src_ids) - len(rem_ids)
     logger.info('IDs removed: {:,}'.format(ids_removed))
+
+    logger.info('Remaining IDs: {}'.format(len(rem_ids)))
     
     # Write source out without other IDs
     if ids_removed != 0:
@@ -72,11 +74,11 @@ def remove_ids(src, oth, out_path=None, src_field=None, oth_field=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('-s', '--source_ids', type=os.path.abspath,
+    parser.add_argument('-s', '--source_ids', type=os.path.abspath, required=True,
                         help='Path to source IDs to remove from.')
-    parser.add_argument('-r', '--remove_ids', type=os.path.abspath,
+    parser.add_argument('-r', '--remove_ids', type=os.path.abspath, required=True,
                         help='Path to IDs to remove.')
-    parser.add_argument('-o', '--out_ids', type=os.path.abspath,
+    parser.add_argument('-o', '--out_ids', type=os.path.abspath, required=True,
                         help='Path to write cleaned IDs to.')
     parser.add_argument('-sf', '--source_field', type=str,
                         help='The field in source to pull from, if not text file.')

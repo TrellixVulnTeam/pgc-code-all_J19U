@@ -64,12 +64,12 @@ def check_where(where):
     return where
 
 
-def determine_input_type(selector_path, selector_field):
+def determine_input_type(selector, selector_field):
     """
     Determine the type of selector provided (.shp or .txt)
     based on the extension.
     """
-    ext = os.path.basename(selector_path).split('.')[1]
+    ext = os.path.basename(selector).split('.')[1]
 
     if ext in ['shp', 'geojson'] and not selector_field:
         input_type = 'location'
@@ -107,15 +107,15 @@ def danco_connection(db, layer):
     return '{}.sde.{}'.format(db, layer)
 
 
-def place_name_AOI(place_name, selector_path):
+def place_name_AOI(place_name, selector):
     """Create a layer of a placename from danco acan DB."""
     where = """gaz_name = '{}'""".format(place_name)
     place_name_layer_p = danco_connection('acan', 'ant_gnis_pt')
     aoi = arcpy.MakeFeatureLayer_management(place_name_layer_p, out_layer='place_name_lyr',
                                             where_clause=where)
-    arcpy.CopyFeatures_management(aoi, selector_path)
+    arcpy.CopyFeatures_management(aoi, selector)
 
-    return selector_path
+    return selector
 
 
 def create_points(coords, shp_path):
@@ -144,7 +144,7 @@ def create_points(coords, shp_path):
     logger.debug('Point feature class created from coordinates at: {}'.format(shp_path))
 
 
-def select_footprints(selector_path, input_type, imagery_index, overlap_type, search_distance, id_field,
+def select_footprints(selector, input_type, imagery_index, overlap_type, search_distance, id_field,
                       selector_field):
     """Select footprints from MFP given criteria"""
     if input_type == 'shp' and not selector_field:
@@ -153,8 +153,8 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
         logger.info('Performing selection by location...')
         logger.info('Loading index: {}'.format(imagery_index))
         idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
-        logger.info('Loading AOI: {}'.format(selector_path))
-        aoi_lyr = arcpy.MakeFeatureLayer_management(selector_path)
+        logger.info('Loading AOI: {}'.format(selector))
+        aoi_lyr = arcpy.MakeFeatureLayer_management(selector)
         logger.info('Making selection...')
         selection = arcpy.SelectLayerByLocation_management(idx_lyr,
                                                            overlap_type,
@@ -164,8 +164,8 @@ def select_footprints(selector_path, input_type, imagery_index, overlap_type, se
 
     else:
         # Initial selection by id
-        logger.info('Reading in IDs from: {}...'.format(os.path.basename(selector_path)))
-        ids = sorted(read_ids(selector_path, field=selector_field))
+        logger.info('Reading in IDs from: {}...'.format(os.path.basename(selector)))
+        ids = sorted(read_ids(selector, field=selector_field))
         unique_ids = set(ids)
         logger.info('Total source IDs found: {}'.format(len(ids)))
         logger.info('Unique source IDs found: {}'.format(len(unique_ids)))
@@ -214,7 +214,7 @@ def select_by_location(aoi_path, imagery_index, overlap_type, search_distance):
     logger.info('Performing selection by location...')
     logger.info('Loading index: {}'.format(imagery_index))
     idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
-    logger.info('Loading AOI: {}'.format(selector_path))
+    logger.info('Loading AOI: {}'.format(selector))
     aoi_lyr = arcpy.MakeFeatureLayer_management(aoi_path)
     logger.info('Making selection...')
     selection = arcpy.SelectLayerByLocation_management(idx_lyr,
@@ -267,11 +267,15 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('out_path', type=os.path.abspath, help='Path to write selection shp file.')
-    parser.add_argument('-s', '--selector_path', type=os.path.abspath,
+    parser.add_argument('out_path', type=os.path.abspath,
+                        help='Path to write selection shp file.')
+    parser.add_argument('-s', '--selector', type=os.path.abspath,
                         help='''The path to the selector to use. This can be an AOI .shp file or
                         .txt file of ids. If .txt, --id_field is required. If providing coordinates
-                        or placename, the path to write the created AOI shapefile to.''')
+                        or placename, the path to write the created AOI shapefile to. ''')
+    parser.add_argument('--ids', type=str, nargs='+',
+                        help="""Alternatively, provide IDs seperated by spaces to select. 
+                                Field will be id_field in this case.""")
     parser.add_argument('--id_field', type=str, default=argdef_id_field,
                         help='''If using a .txt file of ids for the selection, specify here the
                         type of ids in the .txt, i.e. the field in the master footprint to select by.:
@@ -328,7 +332,8 @@ if __name__ == '__main__':
 
     # Parse args variables
     out_path = args.out_path
-    selector_path = args.selector_path
+    selector = args.selector
+    input_ids = args.ids
     id_field = args.id_field
     selector_field = args.selector_field
     secondary_selector = args.secondary_selector
@@ -353,32 +358,38 @@ if __name__ == '__main__':
     # If coordinate pairs create shapefile
     if coordinate_pairs:
         logger.info('Using coordinate pairs:\n{}'.format(coordinate_pairs))
-        create_points(coordinate_pairs, selector_path)
+        create_points(coordinate_pairs, selector)
 
     # If place name provided, use as AOI layer
     if place_name is not None:
-        place_name_AOI(place_name, selector_path)
+        place_name_AOI(place_name, selector)
 
     # Inital selection by location or ID
     # logger.info('Making selection...')
-    # selection = select_footprints(selector_path=selector_path,
-    #                               input_type=determine_input_type(selector_path),
+    # selection = select_footprints(selector=selector,
+    #                               input_type=determine_input_type(selector),
     #                               imagery_index=imagery_index,
     #                               overlap_type=overlap_type,
     #                               search_distance=search_distance,
     #                               id_field=id_field,
     #                               selector_field=selector_field)
 
-    input_type = determine_input_type(selector_path, selector_field)
+    if selector:
+        input_type = determine_input_type(selector, selector_field)
+    elif input_ids:
+        input_type = 'ids'
 
     if input_type == 'location':
-        selection = select_by_location(aoi_path=selector_path,
+        selection = select_by_location(aoi_path=selector,
                                        imagery_index=imagery_index,
                                        overlap_type=overlap_type,
                                        search_distance=search_distance)
         
     elif input_type == 'ids':
-        ids = read_ids(selector_path, field=selector_field)
+        if selector:
+            ids = read_ids(selector, field=selector_field)
+        else:
+            ids = input_ids
         unique_ids = set(ids)
         logger.info('Source IDs found: {}'.format(len(ids)))
         logger.info('Unique source IDs: {}'.format(len(unique_ids)))

@@ -278,6 +278,7 @@ def stereo_noh(where=None, noh=True):
     rather than as pairs.
     where: string of SQL query syntax
     '''
+    # TODO: Fix this - geometry is for catalogid/left, not stereopair. Look up stereopair in index_dg?
     # Use all stereo layer, get both catalogid column and stereopair column
     left = query_footprint('dg_imagery_index_stereo', where=where)
     right = left.drop(columns=['catalogid'])

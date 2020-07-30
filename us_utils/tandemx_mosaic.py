@@ -40,10 +40,10 @@ def main(aoi_path, out_mosaic, dryrun=False, verbose=False):
     if platform.system() == 'Windows':
         tandemx_dir = r'V:\pgc\data\elev\dem\tandem-x\90m'
     elif platform.system() == 'Linux':
-        tandemx_dir = r'/mnt/pgc/data/elev/dem/tandem-x'
+        tandemx_dir = r'/mnt/pgc/data/elev/dem/tandem-x/90m'
 
     tiles_dir = os.path.join(tandemx_dir, '1deg_cells')
-    tiles_idx = os.path.join(tandemx_dir, 'tandem-x_90m.shp')
+    tiles_idx = os.path.join(tandemx_dir, 'index', 'tandem-x_90m.shp')
 
     logger.info('Loading tiles index...')
     ti = gpd.read_file(tiles_idx)
