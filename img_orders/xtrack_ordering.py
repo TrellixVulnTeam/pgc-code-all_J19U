@@ -47,9 +47,16 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 # sublogger = create_logger('selection_utils.query_danco', 'sh', 'INFO')
 
 
-def create_where(sensors=None, min_date=None, max_date=None, within_sensor=False, noh=True,
-                 projects=None, region_names=None):
+def create_where(sensors=None, min_date=None, max_date=None, min_ovlp=None, max_datediff=None,
+                 max_suneldiff=None, min_meansunel=None, within_sensor=False,
+                 noh=True, projects=None, region_names=None):
     """Create where clause"""
+    def check_where(where):
+        if where:
+            where += " AND "
+
+        return where
+    
     where = ''
     if sensors:
         sensor_where = ''
@@ -57,60 +64,40 @@ def create_where(sensors=None, min_date=None, max_date=None, within_sensor=False
             if sensor_where:
                 sensor_where += ' OR '
             sensor_where += """(catalogid1 LIKE '{0}%%' OR catalogid2 LIKE '{0}%%')""".format(get_platform_code(sensor))
-        if where:
-            where += " AND "
         where += '({})'.format(sensor_where)
     if min_date:
-        if where:
-            where += " AND "
+        where = check_where(where)
         where += "(acqdate1 >= '{}')".format(min_date)
     if max_date:
-        if where:
-            where += " AND "
+        where = check_where(where)
         where += "(acqdate1 <= '{}')".format(max_date)
+    if min_ovlp:
+        where = check_where(where)
+        where += "(perc_ovlp >= {})".format(min_ovlp)
+    if max_datediff:
+        where = check_where(where)
+        where += "(datediff <= {})".format(max_datediff)
     if within_sensor:
-        if where:
-            where += " AND "
+        where = check_where(where)
         where += "(SUBSTRING(catalogid1, 1, 3) = SUBSTRING(catalogid2, 1, 3))"
+    if max_suneldiff:
+        where = check_where(where)
+        where += "(suneldiff <= {})".format(max_suneldiff)
+    if min_meansunel:
+        where = check_where(where)
+        where += "( ((sunel1 + sunel2)/2) >= {})".format(min_meansunel)
     if projects:
-        if where:
-            where += " AND "
+        where = check_where(where)
         where += "(project in ({}))".format(str(projects)[1:-1])
     if region_names:
-        if where:
-            where += " AND "
+        where = check_where(where)
         where += "(region_name in ({}))".format(str(region_names)[1:-1])
     if noh:
-        if where:
-            where += " AND "
+        where = check_where(where)
         where += create_cid_noh_where(['catalogid1', 'catalogid2'], xtrack_tbl)
     logger.debug('SQL where: {}'.format(where))
 
     return where
-
-
-# def select_in_aoi(gdf, aoi, centroid=False):
-#     # logger.info('Finding IDs in AOI...')
-#     gdf_cols = list(gdf)
-#
-#     if aoi.crs != gdf.crs:
-#         aoi = aoi.to_crs(gdf.crs)
-#     if centroid:
-#         poly_geom = gdf.geometry
-#         gdf.geometry = gdf.geometry.centroid
-#         op = 'within'
-#     else:
-#         op = 'intersects'
-#
-#     gdf = gpd.sjoin(gdf, aoi, how='inner', op=op)
-#     if centroid:
-#         gdf.geometry = poly_geom
-#
-#     gdf = gdf[gdf_cols]
-#     # TODO: Confirm if this is needed, does an 'inner' sjoin leave duplicates?
-#     gdf.drop_duplicates(subset='pairname')
-#
-#     return gdf
 
 
 def main(args):
@@ -124,6 +111,10 @@ def main(args):
     within_sensor = args.within_sensor
     min_date = args.min_date
     max_date = args.max_date
+    min_ovlp = args.min_ovlp
+    max_suneldiff = args.max_suneldiff
+    min_meansunel = args.min_meansunel
+    max_datediff = args.max_datediff
     aoi_path = args.aoi
     projects = args.projects
     region_names = args.region_names
@@ -144,6 +135,8 @@ def main(args):
             os.makedirs(os.path.dirname(out_footprint))
 
     where = create_where(sensors=sensors, min_date=min_date, max_date=max_date,
+                         max_datediff=max_datediff, min_ovlp=min_ovlp,
+                         max_suneldiff=max_suneldiff, min_meansunel=min_meansunel,
                          within_sensor=within_sensor, noh=remove_oh,
                          projects=projects, region_names=region_names)
 
@@ -245,7 +238,7 @@ def main(args):
             break
 
     if num_kept_ids < num_ids:
-        logger.warning('Only {:,} IDs found. Minimum area kept: {}'.format(num_kept_ids, row[area_col]))
+        logger.warning('Only {:,} IDs found. Minimum area kept: {:,.2f}'.format(num_kept_ids, row[area_col]))
 
     # Select kept pairs (rows)
     kept_pairs = master[master.index.isin(kept_rows)]
@@ -262,7 +255,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-o', '--out_path', type=os.path.abspath, required=True,
                         help='Path to write list of IDs to.')
     parser.add_argument('-n', '--number_ids', type=int,
@@ -282,6 +275,14 @@ if __name__ == '__main__':
                         help='Earliest date to include. E.g.: 2020-01-31')
     parser.add_argument('--max_date', type=str,
                         help='Latsest date to include. E.g.: 2020-04-21')
+    parser.add_argument('--min_ovlp', type=float,
+                        help='The minimum percent overlap to include. [0 - 1.0]')
+    parser.add_argument('--max_suneldiff', type=int,
+                        help='Minimum suneldif to include.')
+    parser.add_argument('--min_meansunel', type=int,  default=5,
+                        help='Minimum mean sunel to include')
+    parser.add_argument('--max_datediff', type=int, default=10,
+                        help='Maximum date difference to include. ')
     parser.add_argument('--aoi', type=os.path.abspath,
                         help='Path to shapefile to select within.')
     parser.add_argument('--projects', nargs='*', choices=['REMA', 'ArcticDEM', 'EarthDEM'],

@@ -13,8 +13,8 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-
 arcpy.env.overwriteOutput = True
+
 
 def pgc_index_path(ids=False):
     '''
@@ -31,11 +31,8 @@ def pgc_index_path(ids=False):
 
     return index_path
 
-MFP_PATH = pgc_index_path()
 
-
-
-def load_pgc_index(mfp_path=MFP_PATH, where=None):
+def load_pgc_index(mfp_path=None, where=None):
     """
     Loads the PGC master footprint with an optional where clause and returns 
     it as an arcpy layer object.
@@ -44,6 +41,8 @@ def load_pgc_index(mfp_path=MFP_PATH, where=None):
     mfp_path (str): path to master footprint
     where    (str): SQL query to pass when loading master footprint
     """
+    if not mfp_path:
+        mfp_path = pgc_index_path()
     # Location in memory to save result 
     mem_lyr = r'memory/pgc_index_temp'
     if where:
@@ -168,3 +167,45 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
         print('Unsupported file type... {}'.format(file_type))
 
     return ids
+
+
+def get_unique_ids(table, field, where=None, clean_fxn=None):
+    """
+    Loads unique IDs from the given field in the given table, optionally
+    with the provided where clause, optionally applying a function to
+    each id before returning.
+
+    Parameters:
+    table: os.path.abspath
+        The path to the table to parse.
+    field: str
+        The field in table to parse.
+    where: str
+        SQL WHERE clause to subset table.
+    clean_fxn: function
+        Function to apply to each ID before returning.
+
+    Returns:
+    set: unique values from the given field
+    """
+    if type(table) == str:
+        logger.debug('Loading {} {} WHERE {}'.format(os.path.basename(table), field, where))
+
+    unique_ids = set()
+    logger.info('Field: {}'.format(field))
+    for row in arcpy.da.SearchCursor(in_table=table, field_names=[field], where_clause=where):
+        the_id = row[0]
+        if clean_fxn:
+            the_id = clean_fxn(the_id)
+        unique_ids.add(the_id)
+
+    logger.debug('Unique IDs: {:,}'.format(len(unique_ids)))
+
+    return unique_ids
+
+
+def get_count(layer):
+    result = arcpy.GetCount_management(layer)
+    count = int(result.getOutput(0))
+
+    return count

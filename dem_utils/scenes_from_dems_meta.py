@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 import os
 import re
@@ -9,13 +10,15 @@ from misc_utils.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
-dems_dir = r'V:\pgc\data\scratch\jeff\projects\nasa_planet_geoloc\dems'
+# dems_dir = r'V:\pgc\data\scratch\jeff\projects\nasa_planet_geoloc\dems'
 
-def sceneids_from_dems_dir(dems_dir):
-    meta_files = glob.glob(os.path.join(dems_dir, '*meta.txt'))
+def sceneids_from_dems_dir(dems_dir, multispectral=False):
+    dems_dir = Path(dems_dir)
+    meta_files = dems_dir.rglob('*meta.txt')
+    # meta_files = glob.glob(os.path.join(dems_dir, '*meta.txt'), recursive=True)
 
-    logger.info('Meta files found: {}'.format(len(meta_files)))
-
+    # logger.info('Meta files found: {}'.format(len(meta_files)))
+    #
     reg = re.compile(r"Image \d=(.*)\n")
 
     sids = []
@@ -31,6 +34,12 @@ def sceneids_from_dems_dir(dems_dir):
                         dem_sid = dem_sid[:-5]
                     sids.append(dem_sid)
 
+    if multispectral:
+        logger.info('Adding multispectral scene IDs...')
+        ms_sids = [s.replace('P1BS', 'M1BS') for s in sids
+                   if s.startswith('WV02', 'WV03', 'QB', 'GE01')]
+        sids.extend(ms_sids)
+
     return set(sids)
 
 
@@ -41,6 +50,8 @@ if __name__ == '__main__':
                         help='Directory with DEMs and associated *meta.txt files.')
     parser.add_argument('-o', '--out_sid_list', type=os.path.abspath,
                         help="Path to write list of IDs to.")
+    parser.add_argument('-ms', '--multispectral', action='store_true',
+                        help='Add multispectral IDs by substituting M1BS for P1BS.')
 
     args = parser.parse_args()
 

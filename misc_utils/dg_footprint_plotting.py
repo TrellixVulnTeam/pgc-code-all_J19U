@@ -29,15 +29,20 @@ logger.addHandler(ch)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('dg_footprint')
+    parser.add_argument('--dg_footprint')
     
     args = parser.parse_args()
     
     dg_footprint = args.dg_footprint
     
     dg_footprint = gpd.read_file(dg_footprint)
-    
-    fig, (ax1, ax2) = plt.subplots(1,2)
+
+    try:
+        plt.style.use('pycharm')
+    except:
+        pass
+
+    fig, (ax1, ax2) = plt.subplots(1, 2)
     plot_timeseries_agg(dg_footprint, date_col='acqdate', id_col='catalogid', freq='Y', ax=ax1)
     plot_cloudcover(dg_footprint, cloudcover_col='cloudcover', ax=ax2)
     plt.tight_layout()

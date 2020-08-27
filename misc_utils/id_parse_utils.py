@@ -143,7 +143,10 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
             logger.debug('Reading only first column of excel file with multiple columns')
             df = df.iloc[:, 0]
         ids = list(df)
-        
+    # DataFrame / GeoDataFrame
+    elif file_type == 'df':
+        ids = list(ids_file[field])
+
     else:
         print('Unsupported file type... {}'.format(file_type))
 

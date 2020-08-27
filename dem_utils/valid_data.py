@@ -17,10 +17,10 @@ from misc_utils.logging_utils import create_logger
 
 
 #### Logging setup
-logger = create_logger('valid_data', 'sh', 'INFO')
+logger = create_logger('valid_data', 'sh', 'DEBUG')
 
 
-def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
+def valid_data(gdal_ds, band_number=1, valid_value=None, write_valid=False, out_path=None):
     """
     Takes a gdal datasource and determines the number of
     valid pixels in it. Optionally, writing out the valid
@@ -35,6 +35,7 @@ def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
     Returns
     Tuple:  Count of valid pixels, count of total pixels
     """
+    # TODO: Only check within acutal bounds of image, not edges
     # Check if gdal_ds is a file or already opened datasource
     if isinstance(gdal_ds, gdal.Dataset):
         pass
@@ -53,9 +54,12 @@ def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
     no_data_val = rb.GetNoDataValue()
     arr = rb.ReadAsArray()
     # Create mask showing only valid data as 1's
-    mask = np.where(arr!=no_data_val, 1, 0)
+    if valid_value is not None:
+        mask = np.where(arr == valid_value, 1, 0)
+    else:
+        mask = np.where(arr != no_data_val, 1, 0)
     # Count number of valid
-    valid_pixels = len(mask[mask==1])
+    valid_pixels = len(mask[mask == 1])
     total_pixels = mask.size
     
     # Write mask if desired
@@ -79,6 +83,15 @@ def valid_data(gdal_ds, band_number=1, write_valid=False, out_path=None):
         dst_ds = None
 
     return valid_pixels, total_pixels
+
+
+def valid_percent(gdal_ds, band_number=1, valid_value=None, write_valid=False, out_path=None):
+    valid, total = valid_data(gdal_ds=gdal_ds, band_number=band_number, valid_value=valid_value,
+                              write_valid=write_valid, out_path=out_path)
+    vp = valid / total
+    vp = round(vp*100, 2)
+
+    return vp
 
 
 def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_path=None):

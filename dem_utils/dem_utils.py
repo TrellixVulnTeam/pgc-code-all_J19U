@@ -206,9 +206,38 @@ def get_filepath_field():
     
     return filepath_field
 
+def nunatak2windows(filepath):
+    windows_path = filepath.replace('/mnt', 'V:').replace('/', '\\')
+    
+    return windows_path
 
 def get_dem_path(dem_dir, dem_name):
     return os.path.join(dem_dir, dem_name)
 
+
 def get_matchtag_path(dem_path):
     return dem_path.replace('dem.tif', 'matchtag.tif')
+
+
+def get_bitmask_path(dem_path):
+    bm_p = os.path.join(
+        os.path.dirname(dem_path),
+        os.path.basename(dem_path).replace('dem', 'bitmask')
+    )
+
+    return bm_p
+
+
+def get_aux_file(dem_path, aux_file):
+    # TODO move to seperate dem_utils
+    sfx = {'bitmask': 'bitmask.tif',
+           'dem': 'dem.tif',
+           '10m_shade': 'dem_10m_shade.tif',
+           '10m_shade_masked': 'dem_10m_shade_masked.tif',
+           'matchtag': 'matchtag.tif',
+           'ortho': 'ortho.tif',
+           'meta': 'meta.txt',}
+
+    aux_path = dem_path.replace('dem.tif', sfx[aux_file])
+
+    return aux_path

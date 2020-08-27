@@ -309,20 +309,24 @@ def mono_noh(where=None, noh=True):
     returns a dataframe of just mono imagery not on hand (stereo removed)
     where:    sql query
     '''
-    # All stereo catalogids in one column
-    all_stereo = 'dg_stereo_catalogids_with_pairname'
-    all_stereo = query_footprint(all_stereo, where=where)
-    
+    # TODO: This table is not updating currently - workaround
+    # # All stereo catalogids in one column
+    # all_stereo = 'dg_stereo_catalogids_with_pairname'
+    # all_stereo = query_footprint(all_stereo, where=where)
+
+    # Workaround to get all stereo catids
+    all_stereo = stereo_noh(where=where, noh=True)
+
     # All ids
     all_mono_stereo = query_footprint('index_dg', where=where)
-    
+
     # Remove stereo
     mono = all_mono_stereo[~all_mono_stereo['catalogid'].isin(all_stereo['catalogid'])]
 
     if noh:
         # Remove onhand
         pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
-        oh_ids = list(pgc_archive.catalog_id)
+        oh_ids = set(pgc_archive.catalog_id)
         mono = mono[~mono['catalogid'].isin(oh_ids)]
 
     return mono

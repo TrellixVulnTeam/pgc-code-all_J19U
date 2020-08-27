@@ -15,7 +15,22 @@ import sys
 import arcpy
 
 # from misc_utils.id_parse_utils import read_ids, pgc_index_path
+from arcpy_utils.arcpy_utils import get_unique_ids, get_count
+from arcpy_utils.arcpy_join import table_join
 from misc_utils.logging_utils import create_logger
+
+arcpy.env.qualifiedFieldNames = False
+
+footprint_sde = r'\\files.umn.edu\pgc\trident\db\danco\footprint.sde'
+# danco_catid_table = 'footprint.sde.pgc_imagery_catalogids'
+fp_pgc_stereo_tbl = 'footprint.sde.pgc_imagery_catalogids_stereo'
+dg_stereo_catids_tbl = 'footprint.sde.dg_imagery_index_stereo'
+fp_pgc_stereo_tbl_abs = os.path.join(footprint_sde, fp_pgc_stereo_tbl)
+dg_stereo_catids_tbl_abs = os.path.join(footprint_sde, dg_stereo_catids_tbl)
+
+acan_sde = r'\\files.umn.edu\pgc\trident\db\danco\acan.sde'
+ant_placename_tbl = 'ant_gnis_pt'
+ant_placename_tbl_abs = os.path.join(acan_sde, ant_placename_tbl)
 
 
 def pgc_index_path(ids=False):
@@ -64,6 +79,19 @@ def check_where(where):
     return where
 
 
+def log_where(where, max_length=2000, slice=150):
+    if len(where) < max_length:
+        logger.debug('Where: {}'.format(where))
+    else:
+        logger.debug('Where (AND):')
+        ands = where.split(' AND ')
+        for statement in ands:
+            if len(statement) < slice:
+                logger.debug(statement)
+            else:
+                logger.debug('{} ... {}'.format(statement[:slice], statement[-slice:]))
+
+
 def determine_input_type(selector, selector_field):
     """
     Determine the type of selector provided (.shp or .txt)
@@ -79,39 +107,83 @@ def determine_input_type(selector, selector_field):
     return input_type
 
 
-def danco_connection(db, layer):
-    """Create a connection to danco"""
-    arcpy.env.overwriteOutput = True
+def create_where(max_cc=None, prod_code=None, sensors=None,
+                 min_x=None, max_x=None, min_y=None, max_y=None,
+                 min_year=None, max_year=None, months=None,
+                 max_off_nadir=None, spec_type=None,
+                 status=None, stereo_only=None, omit_ids=None,
+                 argdef_min_year=None, argdef_max_year=None, argdef_months=None):
+    where = ''
+    # CC20 if specified
+    if max_cc:
+        if max_cc > 1:
+            logger.warning('Cloudcovers in MFP are specified as porportions from 0.0 - 1.0. '
+                           'Converting {} to this scale.'.format(max_cc))
+            max_cc = max_cc / 100
+            logger.debug('max_cc: {}'.format(max_cc))
+        where = check_where(where)
+        where += """(cloudcover <= {})""".format(max_cc)
+    # PROD_CODE if sepcified
+    if prod_code:
+        if prod_code != ['any']:
+            where = check_where(where)
+            prod_code_str = str(prod_code)[1:-1]
+            where += """(prod_code IN ({}))""".format(prod_code_str)
+    # Selection by sensor if specified
+    if sensors:
+        where = check_where(where)
+        sensors_str = str(sensors)[1:-1]
+        where += """(sensor IN ({}))""".format(sensors_str)
+    # Time selection
+    if min_year != argdef_min_year or max_year != argdef_max_year or months != argdef_months:
+        where = check_where(where)
+        year_sql = """ acq_time >= '{}-00-00' AND acq_time <= '{}-12-32'""".format(min_year, max_year)
+        month_terms = [""" acq_time LIKE '%-{}-%'""".format(month) for month in months]
+        month_sql = " OR ".join(month_terms)
+        where += """({}) AND ({})""".format(year_sql, month_sql)
+    if min_x:
+        where = check_where(where)
+        where += """(cent_long >= {})""".format(min_x)
+    if max_x:
+        where = check_where(where)
+        where += """(cent_long <= {})""".format(max_x)
+    if min_y:
+        where = check_where(where)
+        where += """(cent_lat >= {})""".format(min_y)
+    if max_y:
+        where = check_where(where)
+        where += """(cent_lat <= {})""".format(max_y)
+    if max_off_nadir:
+        where = check_where(where)
+        off_nadir_sql = """(off_nadir < {})""".format(max_off_nadir)
+        where += off_nadir_sql
+    if spec_type:
+        where = check_where(where)
+        spec_type_str = str(spec_type)[1:-1]
+        spec_type_sql = """(spec_type IN ({}))""".format(spec_type_str)
+        where += spec_type_sql
+    if status:
+        where = check_where(where)
+        where += "(STATUS IN ({}))".format(str(status)[1:-1])
+    if stereo_only:
+        where = check_where(where)
+        stereo_ids = get_unique_ids(dg_stereo_catids_tbl_abs, 'catalogid')
+        stereo_where = "(CATALOG_ID IN ({}))".format(str(stereo_ids)[1:-1])
+        where += stereo_where
+    if omit_ids:
+        where = check_where(where)
+        where += "(CATALOG_ID NOT IN ({}))".format(str(omit_ids)[1:-1])
 
-    # Local variables:
-    arcpy_cxn = "C:\\dbconn\\arcpy_cxn"
-    # arcpy_footprint_MB_sde = arcpy_cxn
+    log_where(where)
 
-    # Process: Create Database Connection
-    cxn = arcpy.CreateDatabaseConnection_management(arcpy_cxn,
-                                                    "{}_arcpy.sde".format(db),
-                                                    "POSTGRESQL",
-                                                    "danco.pgc.umn.edu",
-                                                    "DATABASE_AUTH",
-                                                    "disbr007",
-                                                    "ArsenalFC10",
-                                                    "SAVE_USERNAME",
-                                                    "{}".format(db),
-                                                    "",
-                                                    "TRANSACTIONAL",
-                                                    "sde.DEFAULT",
-                                                    "")
-
-    arcpy.env.workspace = os.path.join("C:\\dbconn\\arcpy_cxn", "{}_arcpy.sde".format(db))
-
-    return '{}.sde.{}'.format(db, layer)
+    return where
 
 
 def place_name_AOI(place_name, selector):
     """Create a layer of a placename from danco acan DB."""
     where = """gaz_name = '{}'""".format(place_name)
-    place_name_layer_p = danco_connection('acan', 'ant_gnis_pt')
-    aoi = arcpy.MakeFeatureLayer_management(place_name_layer_p, out_layer='place_name_lyr',
+    # place_name_layer_p = danco_connection('acan', 'ant_gnis_pt')
+    aoi = arcpy.MakeFeatureLayer_management(ant_placename_tbl_abs, out_layer='place_name_lyr',
                                             where_clause=where)
     arcpy.CopyFeatures_management(aoi, selector)
 
@@ -144,79 +216,80 @@ def create_points(coords, shp_path):
     logger.debug('Point feature class created from coordinates at: {}'.format(shp_path))
 
 
-def select_footprints(selector, input_type, imagery_index, overlap_type, search_distance, id_field,
-                      selector_field):
+def select_footprints(selector, input_type, imagery_index, join_field=None,
+                      overlap_type=None, search_distance=None, id_field=None,
+                      selector_field=None, sjoin=False, where=None):
     """Select footprints from MFP given criteria"""
-    if input_type == 'shp' and not selector_field:
-        # if not id_field:
-        # Select by location
-        logger.info('Performing selection by location...')
-        logger.info('Loading index: {}'.format(imagery_index))
-        idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
-        logger.info('Loading AOI: {}'.format(selector))
-        aoi_lyr = arcpy.MakeFeatureLayer_management(selector)
-        logger.info('Making selection...')
-        selection = arcpy.SelectLayerByLocation_management(idx_lyr,
-                                                           overlap_type,
-                                                           aoi_lyr,
-                                                           selection_type="NEW_SELECTION",
-                                                           search_distance=search_distance)
-
+    if input_type == 'location' and not selector_field:
+        selection = select_by_location(aoi_path=selector, overlap_type=overlap_type,
+                                       imagery_index=imagery_index, search_distance=search_distance,
+                                       where=where)
+        if sjoin:
+            logger.info("Performing spatial join to transfer aoi fields to selection.")
+            selection = arcpy.SpatialJoin_analysis(selection, selector, r'memory\sjoin')
     else:
-        # Initial selection by id
-        logger.info('Reading in IDs from: {}...'.format(os.path.basename(selector)))
-        ids = sorted(read_ids(selector, field=selector_field))
-        unique_ids = set(ids)
-        logger.info('Total source IDs found: {}'.format(len(ids)))
-        logger.info('Unique source IDs found: {}'.format(len(unique_ids)))
-        logger.debug('IDs:\n{}'.format('\n'.join(ids)))
-        ids_str = str(ids)[1:-1]
-        where = """{} IN ({})""".format(id_field, ids_str)
-        logger.debug('Where clause for ID selection: {}\n'.format(where))
+        selection = select_by_id(selector=selector, imagery_index=imagery_index, id_field=id_field,
+                                 selector_field=selector_field, where=where, join_field=join_field)
 
-        logger.info('Making selection...')
-        selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
-
-        # count = int(result.getOutput(0))
-        result = arcpy.GetCount_management(selection)
-        count = int(result.getOutput(0))
+        count = get_count(selection)
         logger.debug('Selected features: {}'.format(count))
         if count == 0:
             logger.warning('No features found, exiting...')
             sys.exit()
 
-        if id_field:
-            with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
-                selected_ids = [row[0] for row in cursor]
-                num_selection_ids = len(set(selected_ids))
-            # TODO: This is not reporting the correct number of unique IDs
-            logger.debug('Selected IDs:\n{}'.format('\n'.join([str((i, each_id)) for i, each_id in enumerate(selected_ids)])))
-            logger.info('Unique {} found in selection: {}'.format(id_field, num_selection_ids))
-
     return selection
 
 
-def select_by_id(ids, imagery_index, id_field='CATALOG_ID'):
+def select_by_id(selector, imagery_index, id_field='CATALOG_ID', where=None,
+                 selector_field=None, join_field=None):
     """Select scene footprints from the master footprint by ID"""
     logger.info('Selecting by IDs...')
+    # Initial selection by id
+    if type(selector) == str:
+        logger.info('Reading in IDs from: {}'.format(os.path.basename(selector)))
+        # ids = sorted(read_ids(selector, field=selector_field))
+        if selector.endswith('.txt'):
+            ids = read_ids(selector)
+        else:
+            ids = get_unique_ids(table=selector, field=selector_field)
+
+    else:
+        ids = selector
+    unique_ids = set(ids)
+    logger.info('Total source IDs found: {}'.format(len(ids)))
+    logger.info('Unique source IDs found: {}'.format(len(unique_ids)))
+    logger.debug('IDs:\n{}'.format('\n'.join(ids)))
+
     ids_str = str(ids)[1:-1]
-    where = """{} IN ({})""".format(id_field, ids_str)
+    where = check_where(where)
+    where += """({} IN ({}))""".format(id_field, ids_str)
     logger.debug('Where clause for ID selection: {}\n'.format(where))
 
-    logger.info('Making selection...')
+    logger.info('Making selection by IDs...')
     selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
+
+    if join_field:
+        selection = table_join(layer=selection, layer_field=id_field,
+                               join_table=selector, join_field=join_field,)
+
+    selected_ids = set([row[0] for row in arcpy.da.SearchCursor(selection, [id_field])])
+    logger.info('Selected IDs: {}'.format(len(selected_ids)))
+    missing_ids = unique_ids - selected_ids
+    logger.info('Missing IDs:\n{}'.format('\n'.join(missing_ids)))
+    logger.info('Missing IDs: {}'.format(len(missing_ids)))
 
     return selection
 
 
-def select_by_location(aoi_path, imagery_index, overlap_type, search_distance):
+def select_by_location(aoi_path, imagery_index, overlap_type, search_distance, where=None):
     """Select scene footprints from master footprint by location with AOI"""
     logger.info('Performing selection by location...')
     logger.info('Loading index: {}'.format(imagery_index))
-    idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index)
-    logger.info('Loading AOI: {}'.format(selector))
+    log_where(where)
+    idx_lyr = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
+    logger.info('Loading AOI: {}'.format(aoi_path))
     aoi_lyr = arcpy.MakeFeatureLayer_management(aoi_path)
-    logger.info('Making selection...')
+    logger.info('Making selection by location...')
     selection = arcpy.SelectLayerByLocation_management(idx_lyr,
                                                        overlap_type,
                                                        aoi_lyr,
@@ -228,7 +301,7 @@ def select_by_location(aoi_path, imagery_index, overlap_type, search_distance):
 
 def select_dates(src, min_year, max_year, months):
     """Select by years and months"""
-    year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
+    year_sql = """ "acq_time" >= '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
     month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
     month_sql = " OR ".join(month_terms)
     sql = """({}) AND ({})""".format(year_sql, month_sql)
@@ -242,8 +315,8 @@ def write_shp(selection, out_path):
     logger.info('Creating shapefile of selection...')
     out_shp = arcpy.CopyFeatures_management(selection, out_path)
     logger.info('Shapefile of selected features created at: {}'.format(out_path))
-    count = arcpy.GetCount_management(selection)[0]
-    logger.info('Features in shapefile: {}'.format(count))
+    count = get_count(selection)
+    logger.info('Features in shapefile: {:,}'.format(count))
     return out_shp
 
 
@@ -264,71 +337,104 @@ if __name__ == '__main__':
     argdef_coordinate_pairs = None
     # argdef_id_field         = 'CATALOG_ID'
     argdef_id_field         = None
+    argdef_status           = ['online', 'tape']
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+    search_type_group = parser.add_argument_group('Search Type Specification')
+    attributes_group = parser.add_argument_group('Attribute Selection')
+    search_group = parser.add_argument_group('Search Parameters')
+    misc_group = parser.add_argument_group('Misc.')
+
     parser.add_argument('out_path', type=os.path.abspath,
                         help='Path to write selection shp file.')
-    parser.add_argument('-s', '--selector', type=os.path.abspath,
-                        help='''The path to the selector to use. This can be an AOI .shp file or
-                        .txt file of ids. If .txt, --id_field is required. If providing coordinates
-                        or placename, the path to write the created AOI shapefile to. ''')
-    parser.add_argument('--ids', type=str, nargs='+',
-                        help="""Alternatively, provide IDs seperated by spaces to select. 
-                                Field will be id_field in this case.""")
-    parser.add_argument('--id_field', type=str, default=argdef_id_field,
-                        help='''If using a .txt file of ids for the selection, specify here the
-                        type of ids in the .txt, i.e. the field in the master footprint to select by.:
-                        e.g.: CATALOG_ID, SCENE_ID, etc.''')
-    parser.add_argument('--selector_field', type=str,
-                        help='If selector is shp, and select by ID desired, the field name to pull IDs from.')
-    parser.add_argument('--secondary_selector', type=os.path.abspath,
-                        help='Path to an AOI layer to combine with an initial ID selection.')
-    parser.add_argument('--prod_code', type=str, nargs='+', default=argdef_prod_code,
-                        help='Prod code to select. E.g. P1BS, M1BS')
-    parser.add_argument('--sensors', nargs='+', default=argdef_sensors,
-                        help='Sensors to include.')
-    parser.add_argument('--spec_type', nargs='+',
-                        help='spec_type to include. eg. SWIR Multispectral')
-    parser.add_argument('--min_year', type=str, default=argdef_min_year,
-                        help='Earliest year to include.')
-    parser.add_argument('--max_year', type=str, default=argdef_max_year,
-                        help='Latest year to include')
-    parser.add_argument('--months', nargs='+',
-                        default=argdef_months,
-                        help='Months to include. E.g. 01 02 03')
-    parser.add_argument('--max_cc', type=float, help='Max cloudcover to include.')
-    parser.add_argument('--max_off_nadir', type=int, help='Max off_nadir angle to include')
-    parser.add_argument('--overlap_type', type=str, default=argdef_overlap_type, choices=argdef_overlap_type_choices,
+
+    # Specifying search type (IDs, location)
+    search_type_group.add_argument('-s', '--selector', type=os.path.abspath,
+                                   help='''The path to the selector to use. 
+                                   This can be an AOI .shp file or .txt file 
+                                   of ids. If .txt, --id_field is required. 
+                                   If providing coordinates or placename, 
+                                   the path to write the created AOI shapefile to.''')
+    search_type_group.add_argument('--ids', type=str, nargs='+',
+                                   help="""Alternatively, provide IDs seperated by spaces 
+                                   to select. Field will be id_field in this case.""")
+    search_type_group.add_argument('--id_field', type=str, default=argdef_id_field,
+                                   help='''If using a .txt file of ids for the selection, 
+                                   specify here the type of ids in the .txt, i.e. the field
+                                   in the master footprint to select by.: 
+                                   e.g.: CATALOG_ID, SCENE_ID, etc.''')
+    search_type_group.add_argument('--selector_field', type=str,
+                                   help="""If selector is shp, and select by ID desired, 
+                                   the field name to pull IDs from.""")
+    search_type_group.add_argument('--join_field', type=str,
+                                   help='Field in selector to join selector to MFP selection.')
+    search_type_group.add_argument('--secondary_selector', type=os.path.abspath,
+                                   help='Path to an AOI layer to combine with an initial ID selection.')
+    search_type_group.add_argument('--coordinate_pairs', nargs='*', default=argdef_coordinate_pairs,
+                                   help='Longitude, latitude pairs. x1,y1 x2,y2 x3,y3, etc.')
+    search_type_group.add_argument('--place_name', type=str, default=argdef_place_name,
+                                   help='Select by Antarctic placename from acan danco DB.')
+
+    # Attribute based arguments
+    attributes_group.add_argument('--prod_code', type=str, nargs='+', default=argdef_prod_code,
+                                  help='Prod code to select. E.g. P1BS, M1BS')
+    attributes_group.add_argument('--sensors', nargs='+', default=argdef_sensors,
+                                  help='Sensors to include. E.g. WV01 WV02')
+    attributes_group.add_argument('--spec_type', nargs='+',
+                                  help='spec_type to include. eg. SWIR Multispectral')
+    attributes_group.add_argument('--min_year', type=str, default=argdef_min_year,
+                                  help='Earliest year to include.')
+    attributes_group.add_argument('--max_year', type=str, default=argdef_max_year,
+                                  help='Latest year to include')
+    attributes_group.add_argument('--months', nargs='+',
+                                  default=argdef_months,
+                                  help='Months to include. E.g. 01 02 03')
+    attributes_group.add_argument('--min_x', type=float,
+                                  help='Minimum longitude to include (centroid)')
+    attributes_group.add_argument('--max_x', type=float,
+                                  help='Maximum longitude to include (centroid)')
+    attributes_group.add_argument('--min_y', type=float,
+                                  help='Minimum latitude to include (centroid)')
+    attributes_group.add_argument('--max_y', type=float,
+                                  help='Maximum latitude to include (centroid)')
+    attributes_group.add_argument('--max_cc', type=float, help='Max cloudcover to include.')
+    attributes_group.add_argument('--max_off_nadir', type=int, help='Max off_nadir angle to include')
+    attributes_group.add_argument('--status', nargs='+', default=argdef_status,
+                                  help='Status: online, offline, tape.')
+
+    # Search parameter arguments
+    search_group.add_argument('--overlap_type', type=str, default=argdef_overlap_type, choices=argdef_overlap_type_choices,
                         help='''Type of select by location to perform. Must be one of:
                             the options available in ArcMap. E.g.: 'INTERSECT', 'WITHIN',
                             'CROSSED_BY_OUTLINE_OF', etc.''')
-    parser.add_argument('--search_distance', type=str, default=argdef_search_distance,
+    search_group.add_argument('--search_distance', type=str, default=argdef_search_distance,
                         help='''Search distance for overlap_types that support.
                         E.g. "10 Kilometers"''')
-    parser.add_argument('--coordinate_pairs', nargs='*', default=argdef_coordinate_pairs,
-                        help='Longitude, latitude pairs. x1,y1 x2,y2 x3,y3, etc.')
-    parser.add_argument('--place_name', type=str, default=argdef_place_name,
-                        help='Select by Antarctic placename from acan danco DB.')
-    parser.add_argument('--override_defaults', action='store_true',
-                        help="""Use this flag to not use any default attribute selection
-                                parameters: prod_code, sensors, spec_type, max_cc,
-                                max_off_nadir""")
-    parser.add_argument('--dryrun', action='store_true',
-                        help='Print information about selection, but do not write.')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Set logging level to DEBUG.')
+
+    # Misc Args
+    misc_group.add_argument('--sjoin', action='store_true',
+                            help='Use to join attributes from an AOI layer. Useful for use with ir.py --opf')
+    misc_group.add_argument('--stereo_only', action='store_true',
+                            help='Select only stereo IDs (using footprint.pgc_imagery_catalogids_stereo')
+    misc_group.add_argument('--omit_ids', type=os.path.abspath,
+                            help='Path to text file of IDs to not include in final selection.')
+    misc_group.add_argument('--override_defaults', action='store_true',
+                            help="""Use this flag to not use any default attribute selection 
+                            parameters: prod_code, sensors, spec_type, max_cc, max_off_nadir""")
+    misc_group.add_argument('--dryrun', action='store_true',
+                            help='Print information about selection, but do not write.')
+    misc_group.add_argument('-v', '--verbose', action='store_true',
+                            help='Set logging level to DEBUG.')
 
     args = parser.parse_args()
 
+    # Logging
     if args.verbose:
         handler_level = 'DEBUG'
     else:
         handler_level = 'INFO'
-
     logger = create_logger(__name__, 'sh', handler_level)
-    # logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-    # logger = logging.getLogger(__name__)
 
     # Parse args variables
     out_path = args.out_path
@@ -336,15 +442,24 @@ if __name__ == '__main__':
     input_ids = args.ids
     id_field = args.id_field
     selector_field = args.selector_field
+    join_field = args.join_field
     secondary_selector = args.secondary_selector
+    sjoin = args.sjoin
     prod_code = args.prod_code
     sensors = args.sensors
     spec_type = args.spec_type
     min_year = args.min_year
     max_year = args.max_year
     months = args.months
+    min_x = args.min_x
+    max_x = args.max_x
+    min_y = args.min_y
+    max_y = args.max_y
     max_cc = args.max_cc
     max_off_nadir = args.max_off_nadir
+    status = args.status
+    stereo_only = args.stereo_only
+    omit_ids_path = args.omit_ids
     overlap_type = args.overlap_type
     search_distance = args.search_distance
     coordinate_pairs = args.coordinate_pairs
@@ -364,49 +479,32 @@ if __name__ == '__main__':
     if place_name is not None:
         place_name_AOI(place_name, selector)
 
-    # Inital selection by location or ID
-    # logger.info('Making selection...')
-    # selection = select_footprints(selector=selector,
-    #                               input_type=determine_input_type(selector),
-    #                               imagery_index=imagery_index,
-    #                               overlap_type=overlap_type,
-    #                               search_distance=search_distance,
-    #                               id_field=id_field,
-    #                               selector_field=selector_field)
-
     if selector:
         input_type = determine_input_type(selector, selector_field)
     elif input_ids:
         input_type = 'ids'
+        selector = set(input_ids)
+    logger.debug('Selection type: {}'.format(input_type))
 
-    if input_type == 'location':
-        selection = select_by_location(aoi_path=selector,
-                                       imagery_index=imagery_index,
-                                       overlap_type=overlap_type,
-                                       search_distance=search_distance)
-        
-    elif input_type == 'ids':
-        if selector:
-            ids = read_ids(selector, field=selector_field)
-        else:
-            ids = input_ids
-        unique_ids = set(ids)
-        logger.info('Source IDs found: {}'.format(len(ids)))
-        logger.info('Unique source IDs: {}'.format(len(unique_ids)))
-        logger.debug('\n{}'.format('\n'.join(unique_ids)))
+    if omit_ids_path:
+        omit_ids = read_ids(omit_ids_path)
+    else:
+        omit_ids = None
 
-        selection = select_by_id(ids=unique_ids,
-                                 imagery_index=imagery_index,
-                                 id_field=id_field)
+    where = create_where(max_cc=max_cc, prod_code=prod_code, sensors=sensors,
+                         min_year=min_year, max_year=max_year, months=months,
+                         max_off_nadir=max_off_nadir, spec_type=spec_type,
+                         min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y,
+                         status=status, stereo_only=stereo_only, omit_ids=omit_ids,
+                         argdef_min_year=argdef_min_year, argdef_max_year=argdef_max_year,
+                         argdef_months=argdef_months)
 
-        with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
-            unique_selected_ids = set([row[0] for row in cursor])
-        logger.info('Unique selected IDs: {}'.format(len(unique_selected_ids)))
-        # logger.info('Unique Selected IDs:\n{}'.format('\n'.join(unique_selected_ids)))
+    selection = select_footprints(selector=selector, input_type=input_type,
+                                  imagery_index=imagery_index, join_field=join_field,
+                                  selector_field=selector_field,
+                                  overlap_type=overlap_type, search_distance=search_distance,
+                                  id_field=id_field, sjoin=sjoin, where=where)
 
-        if len(unique_ids) != len(unique_selected_ids):
-            logger.warning('Not all IDs found in MFP, missing IDs:\n{}'.format('\n'.join(list(unique_ids-unique_selected_ids))))
-        
     if secondary_selector:
         logger.info('Selecting within secondary selector...')
         aoi_lyr = arcpy.MakeFeatureLayer_management(secondary_selector)
@@ -419,55 +517,12 @@ if __name__ == '__main__':
         count = int(result.getOutput(0))
         logger.debug('Selected features: {}'.format(count))
 
-    # Initialize an empty where clause
-    where = ''
-    if not override_defaults:
-        # CC20 if specified
-        if max_cc:
-            if max_cc > 1:
-                logger.warning('Cloudcovers in MFP are specified as porportions from 0.0 - 1.0. Converting {} to this scale.'.format(max_cc))
-                max_cc = max_cc / 100
-                logger.debug('max_cc: {}'.format(max_cc))
-            where = check_where(where)
-            where += """(cloudcover <= {})""".format(max_cc)
-        # PROD_CODE if sepcified
-        if prod_code:
-            if prod_code != ['any']:
-                where = check_where(where)
-                prod_code_str = str(prod_code)[1:-1]
-                where += """(prod_code IN ({}))""".format(prod_code_str)
-        # Selection by sensor if specified
-        if sensors:
-            where = check_where(where)
-            sensors_str = str(sensors)[1:-1]
-            where += """(sensor IN ({}))""".format(sensors_str)
-        # Time selection
-        if min_year != argdef_min_year or max_year != argdef_max_year or months != argdef_months:
-            where = check_where(where)
-            year_sql = """ "acq_time" > '{}-00-00' AND "acq_time" < '{}-12-32'""".format(min_year, max_year)
-            month_terms = [""" "acq_time" LIKE '%-{}-%'""".format(month) for month in months]
-            month_sql = " OR ".join(month_terms)
-            where += """({}) AND ({})""".format(year_sql, month_sql)
-        if max_off_nadir:
-            where = check_where(where)
-            off_nadir_sql = """(off_nadir < {})""".format(max_off_nadir)
-            where += off_nadir_sql
-        if spec_type:
-            where = check_where(where)
-            spec_type_str = str(spec_type)[1:-1]
-            spec_type_sql = """(spec_type IN ({}))""".format(spec_type_str)
-            where += spec_type_sql
-    logger.debug('Where clause for non-ID attribute selection: {}'.format(where))
-    # Subset selection by attributes.
-    selection = arcpy.MakeFeatureLayer_management(selection, where_clause=where)
-
-    # Selection by date if specified
-    selection = select_dates(selection, min_year=min_year, max_year=max_year, months=months)
-
+    # Logging final selection statistics and writing
     # Print number of selected features
-    result = arcpy.GetCount_management(selection)
-    count = int(result.getOutput(0))
-    logger.info('Selected features: {}'.format(count))
+    count = get_count(selection)
+    logger.info('Selected features: {:,}'.format(count))
+
+    # Reporting number of unique IDs in final selction
     if id_field:
         with arcpy.da.SearchCursor(selection, [id_field]) as cursor:
             selected_ids = [row[0] for row in cursor]
@@ -477,6 +532,7 @@ if __name__ == '__main__':
             'Selected IDs:\n{}'.format('\n'.join([str((i, each_id)) for i, each_id in enumerate(selected_ids)])))
         logger.info('Unique {} found in selection: {}'.format(id_field, num_selection_ids))
 
+    # Stats about final selection
     stats_fields_dict = {'cloudcover': [max_cc],
                          'acq_time':   [min_year, max_year],
                          'off_nadir':  [max_off_nadir],

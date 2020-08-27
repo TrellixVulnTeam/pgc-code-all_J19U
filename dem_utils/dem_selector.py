@@ -15,32 +15,24 @@ import geopandas as gpd
 from shapely.geometry import Point
 from tqdm import tqdm
 
-# from dem_utils.valid_data import valid_percent_clip
+from dem_utils import get_aux_file, nunatak2windows
 from valid_data import valid_percent
 from selection_utils.db_utils import Postgres, generate_sql, intersect_aoi_where
 # from selection_utils.query_danco import query_footprint
-from misc_utils.id_parse_utils import write_ids
+from misc_utils.id_parse_utils import read_ids, write_ids
 from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
-
 
 # TODO: speed up by reprojecting once when warping/checking valid percentage (workaround impl.)
 # TODO: change writing of dem FP with valid percents to actual location, not scratch
 # TODO: Double check duplicate DEMS for each AOI
 
 
-def get_bitmask_path(dem_path):
-    bm_p = os.path.join(
-        os.path.dirname(dem_path),
-        os.path.basename(dem_path).replace('dem', 'bitmask')
-    )
-
-    return bm_p
-
-
 def dem_selector(AOI_PATH=None, 
                  COORDS=None,
+                 SELECT_IDS_PATH=None,
+                 select_field=None,
                  strips=True,
                  DEM_FP=None,
                  INTRACK=None,
@@ -51,6 +43,8 @@ def dem_selector(AOI_PATH=None,
                  RES=None,
                  DENSITY_THRESH=None,
                  LOCATE_DEMS=False,
+                 CALC_VALID=False,
+                 VALID_ON='dem',
                  VALID_THRESH=None,
                  OUT_DEM_FP=None,
                  OUT_ID_LIST=None,
@@ -66,6 +60,12 @@ def dem_selector(AOI_PATH=None,
         Path to AOI shapefile.
     COORDS : tuple
         Lon, Lat to use instead of aoi.
+    SELECT_IDS_PATH : os.path.abspath
+        Path to text file of DEM IDs to select.
+    select_field : str
+        Name of field in DEM database to select IDs in SELECT_IDS_PATH from
+    strips : bool
+        True to select from strip DEM database, False to use scenes database
     DEM_FP : os.path.abspath, optional
         Path to a footprint of DEMs. The default is None.
     MONTHS : LIST, optional
@@ -107,11 +107,15 @@ def dem_selector(AOI_PATH=None,
     fields = {
         'DEMS_GEOM': 'wkb_geometry',  # Sandwich DEMs geometry name
         # Used only for writing catalogids to text file if requested
+        'SCENEDEMID': 'scenedemid',
+        'STRIPDEMID': 'stripdemid',
         'CATALOGID1': 'catalogid1',  # field name in danco DEM footprint for catalogids
         'CATALOGID2': 'catalogid2',
         'DEM_ID': 'dem_id',
         'PAIRNAME': 'pairname',
-        'FULLPATH': 'LOCATION',  # field name in footprint with path to dem file
+        'LOCATION': 'LOCATION',  # field name in footprint with path to dem file
+        'PLATFORM_PATH': 'PLATFORM_PATH', # ceated field with platform specfic path to dem file
+        'VALID_ON': 'VALID_ON', # created field name to hold path to file to calc valid on (bitmask, 10m, etc)
         'BITMASK': 'bitmask',  # created field name in footprint to hold path to bitmask
         'DATE_COL': 'acqdate1',  # name of date field in dems footprint
         'DENSITY_COL': 'density',  # name of density field in dems footprint
@@ -121,11 +125,10 @@ def dem_selector(AOI_PATH=None,
     if strips:
         fields = {k: v.upper() for k, v in fields.items()}
 
-
-    VALID_PERC = 'valid_perc'  # created field name in footprint to store valid %
+    # Created fields
+    VALID_PERC = 'valid_perc'  # created field name in footprint to store valid percent
     MONTH_COL = 'month' # name of field to create in dems footprint if months are requested
 
-    
     #### SETUP ####
     def check_where(where):
         """Checks if the input string exists already,
@@ -134,7 +137,6 @@ def dem_selector(AOI_PATH=None,
         if where:
             where += ' AND '
         return where
-    
 
     #### LOAD INPUTS ####
     # Load AOI
@@ -147,10 +149,13 @@ def dem_selector(AOI_PATH=None,
         lat = float(COORDS[1])
         loc = Point(lon, lat)
         aoi = gpd.GeoDataFrame(geometry=[loc], crs="EPSG:4326")
+    else:
+        aoi = None
 
 
     # Load DEM footprints from either local strips GDB or sandwich table
     if DEM_FP or strips:
+        # Load DEM index or footprint
         if not DEM_FP:
             logger.info('Loading DEMs footprint from: {}'.format(DEM_STRIP_GDB))
             dems = gpd.read_file(DEM_STRIP_GDB, layer=DEM_STRIP_LYR, driver='OpenFileGDB',
@@ -160,6 +165,12 @@ def dem_selector(AOI_PATH=None,
             logger.info('Reading provided DEM footprint...')
             dems = gpd.read_file(DEM_FP)
             logger.debug('DEMs loaded: {;,}'.format(len(dems)))
+
+        # Subset by parameters provided
+        if SELECT_IDS_PATH:
+            select_ids = read_ids(SELECT_IDS_PATH)
+            dems = dems[dems[select_field].isin(select_ids)]
+            logger.debug('DEMs remaining after: {} in {}'.format(select_field, select_ids))
         if MIN_DATE:
             dems = dems[dems[fields['DATE_COL']] > MIN_DATE]
             logger.debug('DEMs remaining after min_date > {}: {:,}'.format(MIN_DATE, len(dems)))
@@ -181,6 +192,10 @@ def dem_selector(AOI_PATH=None,
             logger.debug('DEMs remaining after selecting only intrack: {:,}'.format(len(dems)))
 
         logger.debug('Remaining DEMs after initial subsetting: {:,}'.format(len(dems)))
+        if len(dems) == 0:
+            logger.warning('No DEMS found.')
+            # sys.exit()
+
         if aoi is not None:
             # Check coordinate system match and if not reproject AOI
             if aoi.crs != dems.crs:
@@ -215,6 +230,10 @@ def dem_selector(AOI_PATH=None,
             dems_where = intersect_aoi_where(aoi=aoi, geom_col=fields['DEMS_GEOM'])
 
         # Add date constraints to SQL
+        if SELECT_IDS_PATH:
+            select_ids = read_ids(SELECT_IDS_PATH)
+            dems_where = check_where(dems_where)
+            dems_where += """{} IN ({})""".format(select_field, str(select_ids)[1:-1])
         if MIN_DATE:
             dems_where = check_where(dems_where)
             dems_where += """{} > '{}'""".format(fields['DATE_COL'], MIN_DATE)
@@ -248,7 +267,7 @@ def dem_selector(AOI_PATH=None,
     
     # If only certain months requested, reduce to those
     if MONTHS:
-        dems['temp_date'] = pd.to_datetime(dems[DATE_COL])
+        dems['temp_date'] = pd.to_datetime(dems[fields['DATE_COL']])
         dems[MONTH_COL] = dems['temp_date'].dt.month
         dems.drop(columns=['temp_date'], inplace=True)
         dems = dems[dems[MONTH_COL].isin(MONTHS)]
@@ -264,29 +283,32 @@ def dem_selector(AOI_PATH=None,
     if LOCATE_DEMS:
         OS = platform.system()
         if OS == WINDOWS_OS:
-            server_loc = WINDOWS_LOC
+            dems[fields['PLATFORM_PATH']] = dems[fields['LOCATION']].\
+                apply(lambda x: nunatak2windows(x))
         elif OS == LINUX_OS:
-            server_loc = LINUX_LOC
-        dems[fields['FULLPATH']] = dems.apply(lambda x: os.path.join(x[server_loc], x[DEM_FNAME]), axis=1)
+            dems[fields['PLATFORM_PATH']] = dems[fields['LOCATION']]
+
         # This was removed after DEMs moved to tape
         # # Subset to only those DEMs that actually can be found
         # logger.info('Checking for existence on file-system...')
-        # dems = dems[dems[FULLPATH].apply(lambda x: os.path.exists(x))==True]
+        # dems = dems[dems[fields['PLATFORM_PATH']].apply(lambda x: os.path.exists(x))==True]
     
     
     #### GET VALID DATA PERCENT ####
-    if VALID_THRESH:
-        logger.info('Determining percent of non-NoData pixels over AOI for each DEM...')
-        dems[fields['BITMASK']] = dems[fields['FULLPATH']].apply(lambda x: get_bitmask_path(x))
+    if CALC_VALID:
+        # TODO: convert to valid aoi w/in bounds of footprint
+        logger.info('Determining percent of non-NoData pixels over AOI for each DEM using {}...'.format(VALID_ON))
+        dems[fields['VALID_ON']] = dems[fields['PLATFORM_PATH']].\
+            apply(lambda x: get_aux_file(dem_path=x, aux_file=VALID_ON))
 
         dems[VALID_PERC] = -9999.0
-        for row in tqdm(dems[[fields['FULLPATH'], VALID_PERC]].itertuples(index=True),
+        for row in tqdm(dems[[fields['VALID_ON'], VALID_PERC]].itertuples(index=True),
                         total=len(dems)):
-            vp = valid_data_percent(gdal_ds=row[1])
+            vp = valid_percent(gdal_ds=row[1])
             # vp = valid_percent_clip(AOI_PATH, row[1]) # Index is row[0], then passed columns
             dems.at[row.Index, VALID_PERC] = vp
-    
-        dems = dems[dems[VALID_PERC] > VALID_THRESH]
+        if VALID_THRESH:
+            dems = dems[dems[VALID_PERC] > VALID_THRESH]
 
     #### WRITE FOOTPRINT AND TXT OF MATCHES ####
     # Write footprint out
@@ -303,7 +325,7 @@ def dem_selector(AOI_PATH=None,
     # Write list of filepaths to DEMs
     if OUT_FILEPATH_LIST:
         logger.info('Writing selected DEM system filepaths to: {}'.format(OUT_FILEPATH_LIST))
-        filepaths = list(dems[fields['FULLPATH']])
+        filepaths = list(dems[fields['PLATFORM_PATH']])
         write_ids(filepaths, OUT_FILEPATH_LIST)
 
     #### Summary Statistics ####
@@ -336,12 +358,19 @@ def dem_selector(AOI_PATH=None,
 
 
 if __name__ == '__main__':
+    aux_files = ['dem', 'bitmask', '10m_shade',
+                 '10m_shade_masked', 'matchtag', 'ortho']
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--aoi_path', type=os.path.abspath,
                         help='Path to AOI to select DEMs over.')
     parser.add_argument('--coords', nargs='+',
                         help='Coordinates to use rather than AOI shapefile. Lon Lat')
+    parser.add_argument('--select_ids', type=os.path.abspath,
+                        help='List of IDs to select. Specify field in DEM index to select from using "--select_field"')
+    parser.add_argument('--select_field', type=str,
+                        help='Field in DEM index to select IDs in --select_ids from.')
     # parser.add_argument('--dem_source', type=str, choices=['scene_dem', ])
     parser.add_argument('--out_dem_footprint', type=os.path.abspath,
                         help="Path to write shapefile of selected DEMs.")
@@ -367,16 +396,24 @@ if __name__ == '__main__':
                         help='Use to select only DEMs from multispectral sources.')
     parser.add_argument('--density_threshold', type=float,
                         help='Minimum density to include in selection.')
-    parser.add_argument('--valid_aoi_threshold', type=float,
-                        help="""Threshold percent of non-Nodata pixels over AOI for each DEM.
+    parser.add_argument('--valid_threshold', type=float,
+                        help="""Threshold percent of non-Nodata pixels for each DEM.
                                 Not recommended for large selections.""")
+    parser.add_argument('--calc_valid', action='store_true',
+                        help='Use to calculate percent non-NoData pixels for each DEM.')
+    parser.add_argument('--valid_on', type=str, choices=aux_files,
+                        help='DEM or auxillary file to calculate percent valid on.')
     parser.add_argument('--scenes', action='store_true',
                         help="Use to select scenes from sandwich-pool.scene_dem rather than strips.")
+    parser.add_argument('--locate_dems', action='store_true',
+                        help='Use to verify existence of DEMs.')
 
     args = parser.parse_args()
 
     AOI_PATH = args.aoi_path
     COORDS = args.coords
+    select_ids_path = args.select_ids
+    select_field = args.select_field
     OUT_DEM_FP = args.out_dem_footprint
     OUT_ID_LIST = args.out_id_list
     BOTH_IDS = args.both_ids
@@ -389,11 +426,16 @@ if __name__ == '__main__':
     RES = args.resolution
     MULTISPEC = args.multispectral
     DENSITY_THRESH = args.density_threshold
-    VALID_THRESH = args.valid_aoi_threshold
+    CALC_VALID = args.calc_valid
+    VALID_ON = args.valid_on
+    VALID_THRESH = args.valid_threshold
+    LOCATE_DEMS = args.locate_dems
     strips = not args.scenes
 
     dems = dem_selector(AOI_PATH=AOI_PATH,
                         COORDS=COORDS,
+                        SELECT_IDS_PATH=select_ids_path,
+                        select_field=select_field,
                         OUT_DEM_FP=OUT_DEM_FP,
                         OUT_ID_LIST=OUT_ID_LIST,
                         BOTH_IDS=BOTH_IDS,
@@ -406,5 +448,8 @@ if __name__ == '__main__':
                         RES=RES,
                         MULTISPEC=MULTISPEC,
                         DENSITY_THRESH=DENSITY_THRESH,
+                        CALC_VALID=CALC_VALID,
+                        VALID_ON=VALID_ON,
                         VALID_THRESH=VALID_THRESH,
+                        LOCATE_DEMS=LOCATE_DEMS,
                         strips=strips)

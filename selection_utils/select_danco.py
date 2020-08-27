@@ -281,12 +281,15 @@ def select_danco(layer_name, destination_path=None, selector_path=None, dst_type
                  min_x1=None, max_x1=None, min_y1=None, max_y1=None,
                  columns='*', drop_dup=None, add_where=None,
                  use_land=None):
-    # Determine selection method - by location or by ID
-    selection_method = determine_selection_method(selector_path, by_id)
-    # Create selector - geodataframe or list of IDs, or None
-    logger.debug('Creating selector...')
-    selector = create_selector(selector_path, selection_method)
-    # Build where clause
+    if selector_path:
+        # Determine selection method - by location or by ID
+        selection_method = determine_selection_method(selector_path, by_id)
+        # Create selector - geodataframe or list of IDs, or None
+        logger.debug('Creating selector...')
+        selector = create_selector(selector_path, selection_method)
+        # Build where clause
+    else:
+        selector = None
     logger.debug('Building where clause')
     where = build_where(platforms=platforms,
                         min_year=min_year,
@@ -300,11 +303,14 @@ def select_danco(layer_name, destination_path=None, selector_path=None, dst_type
                         max_y1=max_y1,
                         layer_name=layer_name)
     if add_where:
-        where += """AND {}""".format(add_where)
+        where += """ AND {}""".format(add_where)
     logger.debug('Where clause: {}'.format(where))
     # Load footprint layer with where clause
     src = load_src(layer_name, where, columns)
     logger.info('Loaded source layer with SQL clause: {:,}'.format(len(src)))
+    if len(src) == 0:
+        logger.warning('No features selected. Exiting.')
+        sys.exit()
     # Make selection if provided
     if selector is not None:
         selection = make_selection(selector, src, selection_method, drop_dup=drop_dup)

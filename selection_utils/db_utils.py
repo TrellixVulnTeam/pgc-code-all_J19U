@@ -162,9 +162,9 @@ class Postgres(object):
     def get_values(self, layer, columns, distinct=False):
         if isinstance(columns, str):
             columns = [columns]
-        sql = generate_sql(layer=layer, columns=columns, distinct=distinct, table=True)
+        sql = generate_sql(layer=layer, columns=columns, distinct=distinct)
         values = self.execute_sql(sql)
-        # values = [a[0] for a in r]
+        values = [a[0] for a in values]
 
         return values
 

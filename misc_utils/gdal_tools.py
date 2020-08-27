@@ -8,6 +8,7 @@ import os
 import glob
 import logging
 import posixpath
+from pathlib import Path
 
 from osgeo import gdal, ogr, osr
 
@@ -222,8 +223,8 @@ def auto_detect_ogr_driver(ogr_ds):
     OGR driver.
     """
     # OGR driver lookup table
-    driver_lut = {'json': 'GeoJSON',
-                  'shp' : 'ESRI Shapefile',
+    driver_lut = {'.geojson': 'GeoJSON',
+                  '.shp' : 'ESRI Shapefile',
                   # TODO: Add more
                   }
     
@@ -235,7 +236,8 @@ def auto_detect_ogr_driver(ogr_ds):
     else:
         # Check if extension in look up table
         try:
-            ext = os.path.basename(ogr_ds).split('.')[1]
+            # ext = os.path.basename(ogr_ds).split('.')[1]
+            ext = Path(ogr_ds).suffix
             if ext in driver_lut.keys():
                 driver_name = driver_lut[ext]
             else:

@@ -62,6 +62,7 @@ def split_combined(combined, splitters, coord_order):
 def coord_conv(in_coord, coord_format, coord_order):
     if coord_format == 'ddm': # D DM N
         if coord_order in ['lat-lon-dir', 'lon-lat-dir']:
+            logger.debug(in_coord.split(' '))
             deg, dec_min, direction = in_coord.split(' ')
         elif coord_order in ['dir-lat-lon', 'dir-lon-lat']:
             direction, deg, dec_min = in_coord.split(' ')
@@ -224,7 +225,8 @@ if __name__ == '__main__':
     logger.debug('Converting...')
     coord_cols = [lat, lon]
     logger.debug('Columns: {}'.format(list(sites)))
-    print(list(sites))
+    # print(list(sites))
+    logger.debug('Coordinate columns: {}'.format(coord_cols))
     for col in coord_cols:
         col_name = '{}_DD'.format(col)
         sites[col_name] = sites[col]

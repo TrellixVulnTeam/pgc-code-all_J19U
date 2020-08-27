@@ -13,7 +13,7 @@ import argparse, os
 import datetime
 
 from selection_utils.query_danco import query_footprint, mono_noh, stereo_noh, generate_rough_aoi_where
-from img_orders.img_order_sheets import create_sheets
+# from img_orders.img_order_sheets import create_sheets
 from misc_utils.id_parse_utils import date_words, remove_onhand, onhand_ids
 from misc_utils.logging_utils import create_logger
 from misc_utils.gpd_utils import select_in_aoi
