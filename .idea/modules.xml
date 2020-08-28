@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../pgcdemtools/.idea/pgcdemtools.iml" filepath="$PROJECT_DIR$/../pgcdemtools/.idea/pgcdemtools.iml" />
       <module fileurl="file://$PROJECT_DIR$/../planet_stereo/.idea/planet_stereo.iml" filepath="$PROJECT_DIR$/../planet_stereo/.idea/planet_stereo.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/rts.iml" filepath="$PROJECT_DIR$/.idea/rts.iml" />
       <module fileurl="file://V:/pgc/data/scratch/jeff/code/tn_tools/.idea/tn_tools.iml" filepath="V:/pgc/data/scratch/jeff/code/tn_tools/.idea/tn_tools.iml" />

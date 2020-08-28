@@ -6,6 +6,7 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="planet_stereo" />
     <orderEntry type="module" module-name="tn_tools" />
+    <orderEntry type="module" module-name="pgcdemtools" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />
