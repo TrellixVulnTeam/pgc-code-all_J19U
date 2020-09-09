@@ -29,7 +29,8 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-def select_AHAP(PHOTO_IDS=None, AOI_P=None, repeat=False, write=None):
+def select_AHAP(PHOTO_IDS=None, AOI_P=None, resolution=None,
+                repeat=False, write=None):
     # String literals
     LAYER = 'usgs_index_aerial_image_archive'
     DB = 'imagery'
@@ -39,12 +40,18 @@ def select_AHAP(PHOTO_IDS=None, AOI_P=None, repeat=False, write=None):
     PHOTO_ID = 'PHOTO_ID'
     # Identified in AHAP photos table
     UNIQUE_ID = 'unique_id'
+    SERIES = 'series'
             
     
     # Load danco AHAP imagery table
-    logger.info('Reading AHAP danco table and shapefile...')
+    logger.info('Reading AHAP danco table')
+    where = "campaign = 'AHAP"
+    if resolution:
+        where += "series = '{}'".format(resolution)
     aia = query_footprint(LAYER, db=DB, table=True, where="campaign = 'AHAP'")
+
     # Load photo extents
+    logger.info("Loading AHAP photo extent shapefile...")
     PHOTO_EXT = gpd.read_file(PHOTO_EXT_P)
     
     if AOI_P:
@@ -73,7 +80,9 @@ def select_AHAP(PHOTO_IDS=None, AOI_P=None, repeat=False, write=None):
     selection = pd.merge(selection, aia, how='left', 
                          left_on=PHOTO_ID, right_on=UNIQUE_ID)
     
-    
+
+    logger.info('Selected features found: {:,}'.format(len(selection)))
+
     # Write out shapefile
     if write is not None:
         logger.info('Writing AHAP selection to: {}'.format(write))
@@ -91,6 +100,8 @@ if __name__ == '__main__':
                         help='Path to AOI shapefile.')
     parser.add_argument('-o', '--output', type=os.path.abspath,
                         help='''Output selection of AHAP photo extents.''')
+    parser.add_argument('-res', '--resolution', type=str, choices=['high_res', 'medium_res'],
+                        help='Resolution to select.')
     parser.add_argument('-r', '--repeat', action='store_true',
                         help='''Use flag to specify repeat extents should be 
                                 included, in the case of an extent overlapping 
@@ -98,4 +109,6 @@ if __name__ == '__main__':
                                 
     args = parser.parse_args()
     
-    select_AHAP(PHOTO_IDS=args.PHOTO_IDS, AOI_P=args.AOI, repeat=args.repeat, write=args.output)
+    select_AHAP(PHOTO_IDS=args.PHOTO_IDS, AOI_P=args.AOI,
+                resolution=args.resolution,
+                repeat=args.repeat, write=args.output)

@@ -29,7 +29,7 @@ from misc_utils.logging_utils import create_logger
 #SERIES = 'both' #'both' # 'high_res', 'medium_res'
 
 
-def main(selection, destination, source_loc, high_res, med_res,
+def main(selection, destination, source_loc, high_res, med_res, tm,
          list_drives, list_missing_paths, write_copied, 
          write_footprint, exclude_list, dryrun, verbose):
     
@@ -76,6 +76,10 @@ def main(selection, destination, source_loc, high_res, med_res,
     DST_PATH = 'dst'
     DST_EXISTS = 'dst_exists'
     SRC_PATH = 'src'
+
+    # transfer methods
+    tm_copy = 'copy'
+    tm_link = 'link'
     
         
     def get_active_drives():
@@ -325,7 +329,10 @@ def main(selection, destination, source_loc, high_res, med_res,
         if not os.path.exists(dst):
             logger.debug('Copying \n{} -> \n{}\n'.format(src, dst))
             if not dryrun:
-                shutil.copyfile(src, dst)
+                if tm == tm_copy:
+                    shutil.copyfile(src, dst)
+                elif tm == tm_link:
+                    os.symlink(src, dst)
                 if write_copied:
                     wc.write(os.path.basename(src).split('.')[0])
                     wc.write('\n')
@@ -346,28 +353,7 @@ def main(selection, destination, source_loc, high_res, med_res,
         aia_footprints.to_file(write_footprint)
     
     logger.debug('Done')
-    
-    # aia.to_excel(r'C:\temp\aia.xlsx')
-    # aia_mounted.to_excel(r'C:\temp\aia_mnt.xlsx')
 
-
-# selection = r'E:\disbr007\UserServicesRequests\Projects\jclark\4056\AHAP_PHOTO_IDs.txt'
-# d = r'E:\disbr007\UserServicesRequests\Projects\jclark\4056\AHAP_imagery\high_res'
-# s = 'server'
-# hr = True
-# dryrun = True
-
-# test = main(selection=selection,
-#             destination=d,
-#             source_loc=s,
-#             high_res=hr,
-#             dryrun=dryrun,
-#             med_res=False,
-#             list_drives=False,
-#             list_missing_paths=False,
-#             write_copied=None,
-#             exclude_list=None,
-#             verbose=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -385,6 +371,9 @@ if __name__ == '__main__':
     parser.add_argument('-mr', '--medium_resolution', action='store_true',
                         help='''Flag to specify copying high-resolution series. 
                                 CANNOT be used in conjunction with -hr''')
+    parser.add_argument('-tm', '--transfer_method', choices=['copy', 'link'],
+                        default='link',
+                        help='Method to use for transfering files.')
     parser.add_argument('-l', '--list_drives', action='store_true',
                         help='List offline drive names and exit.')
     parser.add_argument('--list_missing_paths', action='store_true',
@@ -413,6 +402,7 @@ if __name__ == '__main__':
     write_copied = args.write_copied
     write_footprint = args.write_footprint
     exclude_list = args.exclude_list
+    tm = args.transfer_method
     dryrun = args.dryrun
     verbose = args.verbose
     
@@ -421,6 +411,7 @@ if __name__ == '__main__':
          source_loc=source_loc,
          high_res=high_res,
          med_res=med_res,
+         tm=tm,
          list_drives=list_drives,
          list_missing_paths=list_missing_paths,
          write_copied=write_copied,

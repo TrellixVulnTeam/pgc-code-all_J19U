@@ -159,7 +159,7 @@ def get_count(geocells, fps, date_col=None):
     # TODO: Speed the subsequent spatial join by first intersecting
     logger.info('Performing spatial join...')
     ## Get a column from fps to use to test if sjoin found matches
-    fp_col = fps.columns[1]
+    fp_col = fps.columns[0]
     sj = gpd.sjoin(geocells, fps, how='left', op='intersects')
     sj.index.names = ['count']
     sj.reset_index(inplace=True)

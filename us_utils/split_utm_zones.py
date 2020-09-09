@@ -27,6 +27,17 @@ def create_epsg(zone, hemi):
     return epsg
 
 
+def create_utm_zone(geometry):
+    centroid = geometry.centroid
+    zone_number = int(math.ceil((centroid.X + 180)/6))
+    if centroid.Y <= 0:
+        utm_epsg = "327%s" % str(zone_number).zfill(2)
+    else:
+        utm_epsg = "326%s" % str(zone_number).zfill(2)
+
+    return utm_epsg
+
+
 def split_epsg(fp_p, utm_p, out_dir, out_name, dryrun):
     logger.info('Loading footprints: {}'.format(os.path.basename(fp_p)))
     logger.info('Loading UTM zones: {}'.format(os.path.basename(utm_p)))

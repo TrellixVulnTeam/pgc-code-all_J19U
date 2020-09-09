@@ -62,6 +62,7 @@ def get_footprint_dems(footprint_path, filepath=get_filepath_field(),
     num_fps = len(fp)
     logger.info('Records found: {:,}'.format(num_fps))
 
+    logger.info('Verifying DEMs existence at location indicated...')
     fp[dem_exist_fld] = fp.apply(lambda x: os.path.exists(x[dem_path_fld]), axis=1)
 
     dem_paths = list(fp[fp[dem_exist_fld] == True][dem_path_fld])

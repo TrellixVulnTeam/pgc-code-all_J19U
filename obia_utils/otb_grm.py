@@ -129,7 +129,7 @@ def otb_grm(img,
     if run_time < too_fast:
         logger.warning("""Execution completed quickly, likely due to an error. Did you activate
                           OTB env first?
-                          "C:\OSGeo4W64\OTB-6.6.1-Win64\OTB-6.6.1-Win64\otbenv.bat" or
+                          "C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat" or
                           module load otb/6.6.1
                           """)
     logger.info('GenericRegionMerging finished. Runtime: {}'.format(str(run_time)))

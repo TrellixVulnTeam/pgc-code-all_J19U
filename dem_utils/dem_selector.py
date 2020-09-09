@@ -92,8 +92,9 @@ def dem_selector(AOI_PATH=None,
     # TODO: Make this an arg: scenes or strips (if strips use Eriks gdb)
     DEM_SCENE_DB = 'sandwich-pool.dem'  # Sandwich DEM database
     DEM_SCENE_LYR =  'dem.scene_dem_master'  # Sandwich DEM footprint tablename
-    DEM_STRIP_GDB = r'E:\disbr007\dem\setsm\footprints\dem_strips_v4_20200724.gdb'
-    DEM_STRIP_LYR = 'dem_strips_v4_20200724'
+    # TODO: Move this to a config file with MFP location
+    DEM_STRIP_GDB = r'E:\disbr007\dem\setsm\footprints\dem_strips_v4_20200825.gdb'
+    DEM_STRIP_LYR = 'dem_strips_v4_20200825.gdb'
 
     # These are only used when verifying that DEMs exist - not necessary for sandwich or Eriks gdb)
     WINDOWS_OS = 'Windows' # value returned by platform.system() for windows

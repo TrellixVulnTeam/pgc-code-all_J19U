@@ -46,7 +46,6 @@ def calculate_density(grid_p, footprint_p, out_path=None, date_col=None, rasteri
         else:
             footprint = gpd.read_file(footprint_p)
 
-
     logger.info('Calculating density...')
     density = get_count(grid, footprint, date_col=date_col)
     # Convert any tuple columns to strings (occurs with agg-ing same column multiple ways)
