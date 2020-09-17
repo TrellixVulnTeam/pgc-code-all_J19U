@@ -66,12 +66,13 @@ def img_coreg(im_ref: pathlib.PurePath, im_tar: pathlib.PurePath,
     im_ref, im_tar, out_dir, *others = make_paths(im_ref, im_tar, out_dir, *others)
 
     # Coregistration
-    tar_out = add_suffix(out_dir / im_tar, suffix)
-    logger.info('Reference: {}'.format(im_ref))
-    logger.info('Target: {}'.format(im_tar))
+    tar_out = add_suffix(out_dir / im_tar.name, suffix)
+    logger.info('Reference:   {}'.format(im_ref))
+    logger.info('Target:      {}'.format(im_tar))
+    logger.info('Destination: {}'.format(tar_out))
     logger.info('Determining shifts...')
     if method == 'global':
-        cr = arosics.COREG(str(im_ref), str(im_tar), window_size=window_size,
+        cr = arosics.COREG(str(im_ref), str(im_tar), ws=window_size,
                            max_shift=max_shift, max_iter=max_iter,
                            path_out=str(tar_out), **kwargs)
         logger.info('Applying shifts...')
@@ -98,7 +99,7 @@ def img_coreg(im_ref: pathlib.PurePath, im_tar: pathlib.PurePath,
     if others:
         for o in others:
             logger.info('Applying same shift to: {}'.format(o))
-            o_out = add_suffix(out_dir / o, suffix)
+            o_out = add_suffix(out_dir / o.name, suffix)
             other_ds = arosics.DESHIFTER(str(o),
                                          cr.coreg_info,
                                          path_out=str(o_out)).correct_shifts()
@@ -131,7 +132,7 @@ if __name__ == '__main__':
                         help='Maximum shift to allow as valid, in pixels.')
     parser.add_argument('--max_iter', type=int, default=5,
                         help='Maximum number of iterations for matching.')
-    parser.add_argument('--others', type=os.path.abspath, nargs='+',
+    parser.add_argument('--others', type=os.path.abspath, nargs='+', default=[],
                         help='Other files to apply the same shift to.')
 
     args = parser.parse_args()
@@ -148,6 +149,6 @@ if __name__ == '__main__':
     others = [Path(o) for o in args.others]
 
     img_coreg(im_ref, im_tar, method=coreg_method, suffix=suffix,
-              local_grid_res=local_grid_res,
+              local_grid_res=local_grid_res, out_dir=out_directory,
               window_size=window_size, max_shift=max_shift, max_iter=max_iter,
               others=others)

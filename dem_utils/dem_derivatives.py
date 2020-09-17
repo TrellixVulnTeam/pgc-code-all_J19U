@@ -51,7 +51,6 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
     gdal.DEMProcessing(output_path, input_dem, derivative, **args)
 
     if return_array:
-        from RasterWrapper import Raster
         array = Raster(output_path).Array
 
         return array

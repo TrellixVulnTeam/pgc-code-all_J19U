@@ -426,3 +426,44 @@ def gdal_polygonize(img, out_vec, band=1, fieldname='label', overwrite=True):
         logger.error('GDAL exit code: {}'.format(status))
         
     return status
+
+
+def match_pixel_size(rasters, dst_dir=None, sfx=None, resampleAlg='cubic', in_mem=False):
+
+    rasters = [Path(r) for r in rasters]
+    rasters_res = {}
+    for r in rasters:
+        src = gdal.Open(str(r))
+        gt = src.GetGeoTransform()
+        rasters_res[r] = (gt[1], gt[5])
+        src1 = None
+
+    max_x_raster = max(rasters_res.keys(), key=lambda k: abs(rasters_res[k][0]))
+    max_y_raster = max(rasters_res.keys(), key=lambda k: abs(rasters_res[k][1]))
+    outputs = [max_x_raster]
+    if max_x_raster != max_y_raster:
+        logger.error('Could not locate a raster with both maximum x-resolution and y-resolution.')
+        print(rasters_res)
+    else:
+        logger.info('Maximum pixel size raster located: {}'.format(max_x_raster))
+        rasters.remove(max_x_raster)
+        max_x = rasters_res[max_x_raster][0]
+        max_y = rasters_res[max_y_raster][1]
+        logger.info('({}, {})'.format(max_x, max_y))
+        for r in rasters:
+            if in_mem == True:
+                dst_dir = Path(r'/vsimem/')
+            if not dst_dir:
+                dst_dir = r.parent
+            if not sfx:
+                sfx = 'match_px_sz'
+            dst = dst_dir / '{}_{}{}'.format(r.stem, sfx, r.suffix)
+            if in_mem:
+                dst = dst.as_posix()
+            logger.info('Translating: {}'.format(r))
+            logger.info('Destination: {}'.format(dst))
+            trans_opts = gdal.TranslateOptions(xRes=max_x, yRes=max_y, resampleAlg=resampleAlg)
+            output = gdal.Translate(destName=str(dst), srcDS=str(r), options=trans_opts)
+            outputs.append(dst)
+
+    return outputs

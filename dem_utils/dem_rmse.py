@@ -22,15 +22,7 @@ from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
 from misc_utils.gdal_tools import clip_minbb
 
 
-# INPUTS
-# dem1_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20130629_1030010023174900_103001002452E500_seg2_2m_dem_clip.tif')
-# dem2_p = r'E:\disbr007\umn\ms\dems\10\clip\WV02_20170410_1030010067C5FE00_1030010068B87F00_seg1_2m_dem_clip.tif')
-
-
-logger = create_logger(__name__, 'sh', 'INFO')
-
-# logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
-# logger = logging.getLogger(__name__)
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 # TODO: Add shape1 == shape2 checking and 
@@ -86,6 +78,7 @@ def dem_rmse(dem1_path, dem2_path, max_diff=10, outfile=None, out_diff=None, plo
     
     sq_diff = diffs**2
     mean_sq = sq_diff.sum() / sq_diff.count()
+    logger.debug('Mean square error: {}'.format(mean_sq))
     rmse = np.sqrt(mean_sq)
 
     # Report differences

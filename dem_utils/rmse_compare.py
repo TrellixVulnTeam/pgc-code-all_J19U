@@ -11,12 +11,11 @@ from shapely.geometry import Point
 
 
 from misc_utils.RasterWrapper import Raster
-from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
-from misc_utils.gdal_tools import clip_minbb
+from misc_utils.logging_utils import create_logger
+from misc_utils.gdal_tools import clip_minbb, match_pixel_size
 
 
-logging.config.dictConfig(LOGGING_CONFIG('INFO'))
-logger = logging.getLogger(__name__)
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, plot=False,
@@ -28,24 +27,45 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
     dem2pca = Raster(dem2pca_path)
 
     if dem1.geotransform != dem2.geotransform or dem1.geotransform != dem2pca.geotransform:
-        logger.warning('''DEM geotransforms do not match. 
-                          Clipping to minimum bounding box in memory....''')
-        dem1 = None
-        dem2 = None
-        clipped = clip_minbb(rasters=[dem1_path, dem2_path, dem2pca_path],
-                             in_mem=True,
-                             out_format='vrt')
-        logger.debug('Clipping complete. Reloading DEMs...')
-        dem1 = Raster(clipped[0])
+        logger.warning('DEM geotransforms do not match.')
+        # Check for pixel size match
+        if (((dem1.geotransform[1] != dem2.geotransform[1]) or (dem1.geotransform[1] != dem2pca.geotransform[1]) or
+                (dem1.geotransform[5] != dem2.geotransform[5]) or (dem2.geotransform[5] != dem2pca.geotransform[5]))):
+            logger.info('DEM pixel sizes do not match, translating to match.')
+            p1 = dem1.src_path
+            p2 = dem2.src_path
+            dem1 = None
+            dem2 = None
+            max = match_pixel_size([p1, p2], r'/vsimem/matching_px.tif', resampleAlg='cubic', in_mem=True)
+            dem1 = Raster(p1)
+            dem2 = Raster(output)
+            logger.info('DEM1 sz: {} {}'.format(dem1.x_sz, dem1.y_sz))
+            logger.info('DEM2 sz: {} {}'.format(dem2.x_sz, dem2.y_sz))
+
+        # Check for size match
+        if ((dem1.x_sz != dem2.x_sz) or (dem1.x_sz != dem2pca.x_sz) or
+                (dem1.y_sz != dem2.y_sz) or (dem1.y_sz != dem2pca.y_sz)):
+            logger.info('DEM sizes do not match. Clipping to minimum bounding box in memory....')
+            dem1 = None
+            dem2 = None
+            clipped = clip_minbb(rasters=[dem1_path, dem2_path, dem2pca_path],
+                                 in_mem=True,
+                                 out_format='vrt')
+            logger.debug('Clipping complete. Reloading DEMs...')
+            dem1 = Raster(clipped[0])
+            logger.debug('DEM1 loaded and array extracted...')
+            dem2 = Raster(clipped[1])
+            logger.debug('DEM2 loaded and array extracted...')
+            dem2pca = Raster(clipped[2])
+
+            logger.info('DEM1 sz: {} {}'.format(dem1.x_sz, dem1.y_sz))
+            logger.info('DEM2 sz: {} {}'.format(dem2.x_sz, dem2.y_sz))
+
         arr1 = dem1.MaskedArray
         dem1 = None
-        logger.debug('DEM1 loaded and array extracted...')
-        dem2 = Raster(clipped[1])
         arr2 = dem2.MaskedArray
         dem2 = None
-        logger.debug('DEM2 loaded and array extracted...')
-        dem2pca = Raster(clipped[2])
-        arr2pca = dem2pca.MaskedArray
+
 
     else:
         arr1 = dem1.MaskedArray
