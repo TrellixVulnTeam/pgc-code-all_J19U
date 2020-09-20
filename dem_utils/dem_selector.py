@@ -7,6 +7,7 @@ import argparse
 import logging.config
 import os
 import platform
+from pathlib import Path
 import re
 import sys
 
@@ -94,7 +95,7 @@ def dem_selector(AOI_PATH=None,
     DEM_SCENE_LYR =  'dem.scene_dem_master'  # Sandwich DEM footprint tablename
     # TODO: Move this to a config file with MFP location
     DEM_STRIP_GDB = r'E:\disbr007\dem\setsm\footprints\dem_strips_v4_20200825.gdb'
-    DEM_STRIP_LYR = 'dem_strips_v4_20200825.gdb'
+    DEM_STRIP_LYR = Path(DEM_STRIP_GDB).stem #'dem_strips_v4_20200825'
 
     # These are only used when verifying that DEMs exist - not necessary for sandwich or Eriks gdb)
     WINDOWS_OS = 'Windows' # value returned by platform.system() for windows
@@ -170,7 +171,12 @@ def dem_selector(AOI_PATH=None,
         # Subset by parameters provided
         if SELECT_IDS_PATH:
             select_ids = read_ids(SELECT_IDS_PATH)
-            dems = dems[dems[select_field].isin(select_ids)]
+            try:
+                dems = dems[dems[select_field].isin(select_ids)]
+            except KeyError:
+                logger.error("Field '{}' not found in DEM footprint. "
+                             "Available fields:\n{}".format(select_field,
+                                                            '\n'.join(list(dems))))
             logger.debug('DEMs remaining after: {} in {}'.format(select_field, select_ids))
         if MIN_DATE:
             dems = dems[dems[fields['DATE_COL']] > MIN_DATE]

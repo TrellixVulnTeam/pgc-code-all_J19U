@@ -13,7 +13,7 @@ import geopandas as gpd
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(os.path.basename(__file__), 'sh')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def open_datasource(x):
@@ -111,8 +111,10 @@ def utm_zone_locater(aoi_in, utm_zones_in=None, aoi_out_path=None):
 
     if not utm_zones_in:
         utm_zones_in = r'E:\disbr007\general\UTM_Zone_Boundaries\UTM_Zone_Boundaries.shp'
-    
+
+    logger.info('Reading source...')
     aoi = open_datasource(aoi_in)
+    logger.info('Features found: {}'.format(len(aoi)))
 
     utm_zones = open_datasource(utm_zones_in)
     
@@ -130,7 +132,7 @@ def utm_zone_locater(aoi_in, utm_zones_in=None, aoi_out_path=None):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Adds a field to AOI with the UTM zone for each feature.")
     
     parser.add_argument('aoi', type=os.path.abspath,
                         help='Path to the AOI shapefile to locate UTM zones for.')

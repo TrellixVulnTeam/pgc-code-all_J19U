@@ -13,13 +13,10 @@ from osgeo import gdal, osr  # ogr
 # from shapely.geometry import Polygon
 from shapely.geometry import box
 
-from misc_utils.logging_utils import create_logger  # LOGGING_CONFIG
+from misc_utils.logging_utils import create_logger
 from misc_utils.gdal_tools import clip_minbb
 
 logger = create_logger(__name__, 'sh')
-
-# logging.config.dictConfig(LOGGING_CONFIG('DEBUG'))
-# logger = logging.getLogger(__name__)
 
 gdal.UseExceptions()
 
@@ -133,13 +130,14 @@ class Raster():
         np.ndarray
 
         """
-        band_arr = self.Maske
-        # TODO: add masking support
-        # band_nodata_val = band.GetNoDataValue()
-        # band_mask = band_arr == band_nodataval
+        band = self.data_src.GetRasterBand(band_num)
+        band_arr = band.ReadAsArray()
+        if mask:
+            band_no_data = self.data_src
+            mask = band_arr == band.GetNoDataValue()
+            band_arr = ma.masked_array(band_arr, mask=mask)
 
         return band_arr
-
 
     def ndvi_array(self, red_num, nir_num):
         """Calculate NDVI from multispectral bands"""
@@ -258,9 +256,13 @@ class Raster():
         as new raster.
         """
         # Get dimensions of input array
-        try:
+        dims = len(array.shape)
+
+        # try:
+        if dims == 3:
             rows, cols, depth = array.shape
-        except ValueError:
+        elif dims == 2:
+        # except ValueError:
             rows, cols = array.shape
             depth = 1
 
@@ -284,16 +286,25 @@ class Raster():
 
         dst_ds = None
 
-
     def NDVI(self, out_path, red_num, nir_num):
         ndvi_arr = self.ndvi_array(red_num, nir_num)
         self.WriteArray(ndvi_arr, out_path, stacked=False)
 
-
     def mNDWI(self, out_path, green_num, swir_num):
             mndwi_arr = self.mndwi_array(green_num, swir_num)
             self.WriteArray(mndwi_arr, out_path, stacked=False)
-# 
+
+    def extract_bands(self, bands, out_path):
+        arrs = []
+        for b in bands:
+            b_arr = self.GetBandAsArray(b, mask=True)
+            arrs.append(b_arr)
+        
+        stacked = np.dstack([arrs])
+        
+        self.WriteArray(stacked, out_path=out_path, stacked=True)
+
+        return stacked
 
     def SamplePoint(self, point):
         '''
@@ -312,7 +323,6 @@ class Raster():
             logger.warning(e)
             point_value = None
         return point_value
-
 
     def SampleWindow(self, center_point, window_size, agg='mean', grow_window=False, max_grow=100000):
         """

@@ -9,13 +9,16 @@ import argparse
 import logging.config
 import os
 import subprocess
-
+import platform
 
 import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
+
+tiles_path_win = r'E:\disbr007\general\geocell\us_one_degree_geocells_named.shp'
+tiles_path_linux = r'/mnt/pgc/data/scratch/jeff/general/geocell/us_one_degree_geocells_named.shp'
 
 
 def main(aoi_path, out_mosaic, local_tiles_dir, tile_index=None):
@@ -34,7 +37,12 @@ def main(aoi_path, out_mosaic, local_tiles_dir, tile_index=None):
     if tile_index:
         tiles_path = tile_index
     else:
-        tiles_path = r'E:\disbr007\general\geocell\us_one_degree_geocells_named.shp'
+        if platform.system() == 'Windows':
+            tiles_path = tiles_path_win
+        elif platform.system() == 'Linux':
+            tiles_path = tiles_path_linux
+        else:
+            logger.error('Unknown platform: {}'.format(platform.system()))
 
     logger.info('Reading in tile index...')
     tiles = gpd.read_file(tiles_path)

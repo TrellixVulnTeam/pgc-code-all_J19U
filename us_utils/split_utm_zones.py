@@ -60,7 +60,7 @@ def split_epsg(fp_p, utm_p, out_dir, out_name, dryrun):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Split an input footprint into subfootprints by UTM zone.")
 
     parser.add_argument('-i', '--input_footprint', type=os.path.abspath,
                         help='Footprint to split.')
