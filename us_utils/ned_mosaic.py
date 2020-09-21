@@ -26,8 +26,8 @@ def main(aoi_path, out_mosaic, local_tiles_dir, tile_index=None):
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         output, error = proc.communicate()
         logger.info('Output: {}'.format(output))
-        if error:
-            logger.info('Err: {}'.format(error))
+        # if error:
+            # logger.info('Err: {}'.format(error))
 
     # Parameters
     tile_id = 'name'
@@ -79,6 +79,7 @@ def main(aoi_path, out_mosaic, local_tiles_dir, tile_index=None):
     logger.info('Tiles to be downloaded: {}'.format(len(selected_tiles[selected_tiles['downloaded']==False])))
 
     # Full paths included provided local tiles download directory as strings
+    logger.debug('DEM paths for mosaicking:\n{}'.format('\n'.join(list(selected_tiles['full_path']))))
     dems_paths = ' '.join(list(selected_tiles['full_path']))
     # dems_dl = ' '.join([x for x in list(selected_tiles['full_path']) if not os.path.exists(x)])
 

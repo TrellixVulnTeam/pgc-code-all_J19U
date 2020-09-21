@@ -63,8 +63,8 @@ def dem_selector(AOI_PATH=None,
         Lon, Lat to use instead of aoi.
     SELECT_IDS_PATH : os.path.abspath
         Path to text file of DEM IDs to select.
-    select_field : str
-        Name of field in DEM database to select IDs in SELECT_IDS_PATH from
+    select_field : list
+        Name of field(s) in DEM database to select IDs in SELECT_IDS_PATH from
     strips : bool
         True to select from strip DEM database, False to use scenes database
     DEM_FP : os.path.abspath, optional
@@ -239,8 +239,10 @@ def dem_selector(AOI_PATH=None,
         # Add date constraints to SQL
         if SELECT_IDS_PATH:
             select_ids = read_ids(SELECT_IDS_PATH)
+            ids_where = ["""{} IN ({})""".format(sf, str(select_ids)[1:-1]) for sf in select_field]
+            ids_where = "({})".format(" OR ".join(ids_where))
             dems_where = check_where(dems_where)
-            dems_where += """{} IN ({})""".format(select_field, str(select_ids)[1:-1])
+            dems_where += ids_where
         if MIN_DATE:
             dems_where = check_where(dems_where)
             dems_where += """{} > '{}'""".format(fields['DATE_COL'], MIN_DATE)
@@ -376,7 +378,7 @@ if __name__ == '__main__':
                         help='Coordinates to use rather than AOI shapefile. Lon Lat')
     parser.add_argument('--select_ids', type=os.path.abspath,
                         help='List of IDs to select. Specify field in DEM index to select from using "--select_field"')
-    parser.add_argument('--select_field', type=str,
+    parser.add_argument('--select_field', type=str, action='append',
                         help='Field in DEM index to select IDs in --select_ids from.')
     # parser.add_argument('--dem_source', type=str, choices=['scene_dem', ])
     parser.add_argument('--out_dem_footprint', type=os.path.abspath,
