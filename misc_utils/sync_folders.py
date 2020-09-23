@@ -38,10 +38,22 @@ def sync_folders(src_dir, dst_dir, mod_date=True, dryrun=False):
 
     logger.info('Syncing files...')
     if not dryrun:
+        error_files = []
         pbar = tqdm(copy_list)
         for src, dst in pbar:
+            if not dst.parent.exists():
+                os.makedirs(dst.parent)
             pbar.write('Copying to: {}'.format(dst))
-            shutil.copy2(src, dst)
+            try:
+                shutil.copy2(src, dst)
+            except Exception as e:
+                logger.error('Error copying file: {}'.format(src))
+                logger.error(e)
+                error_files = []
+    if len(error_files) > 0:
+        logger.warning('Errors during file copy: {}'.format(len(error_files)))
+        logger.debug('Error files:\n{}'.format('\n'.join(error_files)))
+
 
 
 if __name__ == '__main__':
