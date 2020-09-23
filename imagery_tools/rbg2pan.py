@@ -24,7 +24,7 @@ def main():
     parser.add_argument("--dstdir", help="destination directory")
     parser.add_argument("--dst_suffix", default=default_suffix,
                         help="Suffix to add to destination files.")
-    parser.add_argument("--rgb_order",
+    parser.add_argument("--rgb_order", nargs=3, default=[3, 2, 1],
                         help='Red, green, blue band numbers, e.g.: 3 2 1')
     parser.add_argument('--src_suffix', help='Filename suffix to match when '
                                              'searching for files, including extension. '
@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
-                        help="qsub script to use in PBS submission (default is qsub_resample.sh in script root folder)")
+                        help="qsub script to use in PBS submission (default is qsub_rgb2pan.sh in script root folder)")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
     pos_arg_keys = ['srcdir']

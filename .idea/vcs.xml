@@ -5,5 +5,7 @@
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/logging_utils" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../pgcdemtools" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../planet_stereo" vcs="Git" />
+    <mapping directory="V:/pgc/data/scratch/jeff/code/pgcdemtools_jeff" vcs="Git" />
   </component>
 </project>

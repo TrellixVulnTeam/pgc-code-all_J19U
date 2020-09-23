@@ -672,23 +672,34 @@ def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA')):
     from tqdm import tqdm
 
     if not ordered_loc:
-        global ordered_p
+        # global ordered_p
         ordered_loc = ordered_path
     if not ordered_dir:
-        global ordered_directory
+        # global ordered_directory
         ordered_dir = ordered_directory
+
+    # Get last modified time for ordered list
+    last_update = os.path.getmtime(ordered_loc)
+
+    # List for all IDs
+    logger.info('Reading existing list of ordered ids...')
+    ordered = read_ids(ordered_loc)
+    logger.info('Ordered IDs found: {:,}'.format(len(ordered)))
 
     # Progress bar set up
     total_len = sum([len(files) for r, d, files in os.walk(ordered_dir)])
     pbar = tqdm(total=total_len, desc='Iterating imagery order sheets...')
 
-    # List for all IDs
     logger.debug('Reading sheets from: {}'.format(ordered_dir))
-    ordered = []
     for root, dirs, files in os.walk(ordered_dir):
         dirs = [d for d in dirs if not any(ex in d for ex in exclude)]
         last_dir = None
         for f in files:
+            f_path = os.path.join(root, f)
+            # Check if file newer than last update
+            if not os.path.getmtime(f_path) > last_update:
+                # print('skipping already read file.')
+                continue
             cur_dir = os.path.basename(os.path.dirname(os.path.join(root, f)))
             if exclude and not any(ex in cur_dir for ex in exclude):
                 if cur_dir != last_dir:
@@ -697,7 +708,7 @@ def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA')):
                 if ext in ['.txt', '.csv', '.xls', '.xlsx']:
                     try:
                         # logger.info('Reading; {}'.format(f))
-                        sheet_ids = read_ids(os.path.join(root, f))
+                        sheet_ids = read_ids(f_path)
                         ordered.extend(sheet_ids)
                     except Exception as e:
                         print('failed to read: {}'.format(f))
@@ -706,6 +717,7 @@ def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA')):
                 pbar.update(1)
                 last_dir = cur_dir
 
-    logger.debug('Writing ordered IDs to: {}'.format(ordered_loc))
+
     ordered = list(set(ordered))
+    logger.info('Writing {:,} ordered IDs to: {}'.format(len(ordered), ordered_loc))
     write_ids(ordered, ordered_loc)

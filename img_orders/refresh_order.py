@@ -22,7 +22,8 @@ from misc_utils.gpd_utils import select_in_aoi
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # Params
-loc_name_fld = 'loc_name'  # Field in regions layer to select regions based on
+# loc_name_fld = 'loc_name'  # Field in regions layer to select regions based on
+loc_name_fld = 'project'
 
 def refresh_region_lut(refresh_region='polar_hma_above'):
     '''
@@ -32,21 +33,25 @@ def refresh_region_lut(refresh_region='polar_hma_above'):
     logger.debug('Refresh region: {}'.format(refresh_region))
     supported_refreshes = ['polar_hma_above', 'nonpolar', 'global', 'polar']
     # TODO: Check refresh_region = nonpolar to make sure it covers everything (HMA etc.)
-    if refresh_region in supported_refreshes:
-        if refresh_region == 'polar_hma_above':
-            regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 
-                       'ABoVE Nonpolar', 'HMA']
-        elif refresh_region == 'nonpolar':
-            regions = ['Nonpolar', 'Nonpolar Ice']
-        elif refresh_region == 'global':
-            regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'HMA', 
-                       'Nonpolar', 'ABoVE Nonpolar', 'Nonpolar Ice']
-        elif refresh_region == 'polar':
-            regions = ['Antarctica', 'Arctic', 'ABoVE Polar']
-    else:
+    if refresh_region not in supported_refreshes:
         logger.warning("""Refresh region unrecognized, supported refresh regions 
                           include: {}""".format(supported_refreshes))
         regions = None
+
+    if refresh_region == 'polar_hma_above':
+        # regions = ['Antarctica', 'Arctic', 'ABoVE Polar',
+        #            'ABoVE Nonpolar', 'HMA']
+        regions = ['ArcticDEM', 'REMA']
+    elif refresh_region == 'nonpolar':
+        # regions = ['Nonpolar', 'Nonpolar Ice']
+        regions = ['EarthDEM']
+    elif refresh_region == 'global':
+        # regions = ['Antarctica', 'Arctic', 'ABoVE Polar', 'HMA',
+        #            'Nonpolar', 'ABoVE Nonpolar', 'Nonpolar Ice']
+        regions = ['ArcticDEM', 'EarthDEM', 'REMA']
+    elif refresh_region == 'polar':
+        # regions = ['Antarctica', 'Arctic', 'ABoVE Polar']
+        regions = ['ArcticDEM', 'REMA']
 
     return regions
 
@@ -76,7 +81,8 @@ def refresh(last_refresh, refresh_region, refresh_imagery, max_cc, min_cc, senso
     # Load regions shp
     regions_path = r"E:\disbr007\imagery_orders\all_regions.shp"
     logger.debug('Regions path: {}'.format(regions_path))
-    regions = gpd.read_file(regions_path, driver='ESRI_Shapefile')
+    # regions = gpd.read_file(regions_path, driver='ESRI_Shapefile')
+    regions = query_footprint('pgc_earthdem_regions')
     
 
     # Load not on hand footprint -> since last refresh

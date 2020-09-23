@@ -11,3 +11,5 @@ def test_bigtiff():
 	except Exception as e:
 		print('BigTIFF Unsupported')
 		print(e)
+
+test_bigtiff()

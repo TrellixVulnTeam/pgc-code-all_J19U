@@ -17,6 +17,11 @@ except Exception as e:
 	raise(e)
 logger.info('GDAL imported successfully...')
 
+# OpenFileGDB
+logger.info('Testing OpenFileGDB support...')
+
+
+
 logger.info('Testing BigTIFF support...')
 from bigtiff_support import test_bigtiff
 test_bigtiff()

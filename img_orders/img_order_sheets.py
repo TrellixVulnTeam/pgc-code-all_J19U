@@ -228,9 +228,9 @@ def write_master(dataframe, outpath, outnamebase, output_suffix, order_date, kee
         dataframe = dataframe[dataframe['platform'] != 'WV03-SWIR']
         len_after = len(dataframe)
         if len_b4 != len_after:
-            logger.info('\nRemoved SWIR: {:,}\n'.format(len_b4-len_after))
-    dataframe.sort_index(inplace=True)
-    dataframe.sort_values(by='catalogid', inplace=True)
+            logger.info('Removed SWIR: {:,}'.format(len_b4-len_after))
+    dataframe = dataframe.sort_index()
+    dataframe = dataframe.sort_values(by='catalogid')
     dataframe.to_csv(txt_path, sep='\n', columns=['catalogid'], index=False, header=False)
 
 

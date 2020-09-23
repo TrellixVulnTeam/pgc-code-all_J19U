@@ -17,7 +17,7 @@ from misc_utils.logging_utils import create_logger
 
 
 logger = create_logger(__name__, 'sh',
-                       handler_level='DEBUG')
+                       handler_level='INFO')
 
 
 ogr.UseExceptions()

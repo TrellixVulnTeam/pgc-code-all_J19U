@@ -24,7 +24,7 @@ ogr.UseExceptions()
 
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
-sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'DEBUG')
+sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'INFO')
 
 
 def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
@@ -92,7 +92,7 @@ def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
             gdal.Warp(raster_op, raster_ds, options=warp_options)
             # Close the raster
             raster_ds = None
-            logger.debug('Clipped raster created at {}'.format(raster_op))
+            logger.info('Clipped raster created at {}'.format(raster_op))
             # Add clipped raster path to list of clipped rasters to return
             warped.append(raster_op)
 
@@ -206,9 +206,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('shape_path', type=os.path.abspath, help='Shape to clip rasters to.')
-    parser.add_argument('rasters', nargs='*', type=os.path.abspath,
+    parser.add_argument('--rasters', nargs='*', type=os.path.abspath,
                         help='Rasters to clip. Either paths directly to, directory, or text file of paths.')
-    parser.add_argument('out_dir', type=os.path.abspath, help='Directory to write clipped rasters to.')
+    parser.add_argument('-o', '--out_dir', type=os.path.abspath, help='Directory to write clipped rasters to.')
     parser.add_argument('--out_suffix', type=str, help='Suffix to add to clipped rasters.')
     parser.add_argument('--raster_ext', type=str, default='.tif', help='Ext of input rasters.')
     parser.add_argument('--move_meta', action='store_true',
@@ -230,12 +230,14 @@ if __name__ == '__main__':
         if not raster_ext:
             logger.warning('Directory provided, but no extension to identify rasters. Provide raster_ext.')
         r_ps = os.listdir(rasters[0])
+        print(r_ps)
         rasters = [os.path.join(rasters[0], r_p) for r_p in r_ps if r_p.endswith(raster_ext)]
         if len(rasters) == 0:
             logger.error('No rasters provided.')
             raise Exception
     elif rasters[0].endswith('.txt'):
         rasters = read_ids(rasters[0])
+    # If list passed as args, no need to parse paths
 
     if args.dryrun:
         print('Input shapefile:\n{}'.format(shp_path))
