@@ -15,7 +15,7 @@ import cv2
 from osgeo import gdal
 
 from misc_utils.RasterWrapper import Raster
-from misc_utils.raster_clip import warp_rasters
+from misc_utils.raster_clip import clip_rasters
 from misc_utils.logging_utils import LOGGING_CONFIG
 
 

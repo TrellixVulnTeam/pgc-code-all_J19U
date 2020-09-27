@@ -11,7 +11,7 @@ import numpy as np
 
 from osgeo import gdal, ogr, osr
 
-from misc_utils.raster_clip import warp_rasters
+from misc_utils.raster_clip import clip_rasters
 from misc_utils.gdal_tools import auto_detect_ogr_driver, remove_shp
 from misc_utils.logging_utils import create_logger
 
@@ -232,7 +232,7 @@ def valid_percent_clip(aoi, raster, out_dir=None):
         in_mem = True
         out_dir = r'/vsimem'
         
-    clipped_path = warp_rasters(aoi, rasters=raster, in_mem=in_mem, out_dir=out_dir)[0]
+    clipped_path = clip_rasters(aoi, rasters=raster, in_mem=in_mem, out_dir=out_dir)[0]
     clipped_raster = gdal.Open(clipped_path)
     valid_perc = valid_data_aoi(aoi=aoi, raster=clipped_raster, out_dir=out_dir)
     valid_perc = round(valid_perc, 2)

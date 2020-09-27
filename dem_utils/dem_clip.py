@@ -10,7 +10,7 @@ import logging.config
 import os
 import sys
 
-from misc_utils.raster_clip import warp_rasters
+from misc_utils.raster_clip import clip_rasters
 from misc_utils.logging_utils import LOGGING_CONFIG
 
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         logger.error('Could not find DEM(s):\n{}'.format('\n'.join(does_not_exist)))
         sys.exit(-1)
         
-    warp_rasters(AOI_PATH,
+    clip_rasters(AOI_PATH,
                  rasters=DEMS,
                  out_dir=OUT_DIR,
                  out_suffix=OUT_SUFFIX)

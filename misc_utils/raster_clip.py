@@ -27,82 +27,6 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'INFO')
 
 
-def warp_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
-                 out_prj_shp=None, in_mem=False, overwrite=False):
-    """
-    Take a list of rasters and warps (clips) them to the shapefile feature
-    bounding box.
-    rasters : LIST or STR
-        List of rasters to clip, or if STR, path to single raster.
-    out_prj_shp : os.path.abspath
-        Path to create the projected shapefile if necessary to match raster prj.
-        ** CURRENTLY MUST PROVIDE THIS ARG **
-    """
-    # TODO: Fix permission error if out_prj_shp not supplied -- create in-mem OGR?
-    # Use in memory directory if specified
-    if out_dir is None:
-        in_mem = True
-    if in_mem:
-        out_dir = r'/vsimem'
-
-    # Check that spatial references match, if not reproject (assumes all rasters have same projection)
-    # TODO: support different extension (slow to check all of them in the loop below)
-    # Check if list of rasters provided or if single raster
-    if isinstance(rasters, list):
-        check_raster = rasters[0]
-    else:
-        check_raster = rasters
-        rasters = [rasters]
-
-    logger.debug('Checking spatial reference match:\n{}\n{}'.format(shp_p, check_raster))
-    sr_match = check_sr(shp_p, check_raster)
-    if not sr_match:
-        logger.debug('Spatial references do not match.')
-        if not out_prj_shp:
-            out_prj_shp = shp_p.replace('.shp', '_prj.shp')
-        shp_p = ogr_reproject(shp_p,
-                              to_sr=get_raster_sr(check_raster),
-                              output_shp=out_prj_shp)
-
-    # Do the 'warping' / clipping
-    warped = []
-    for raster_p in rasters:
-        raster_p = raster_p.replace(r'\\', os.sep)
-        raster_p = raster_p.replace(r'/', os.sep)
-
-        if not out_dir:
-            out_dir == os.path.dirname(raster_p)
-        # print('od: {}'.format(out_dir))
-
-        # Clip to shape
-        logger.debug('Clipping {}...'.format(os.path.basename(raster_p)))
-        # Create outpath
-        if not out_suffix:
-            out_suffix = ''
-        raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
-        raster_op = os.path.join(out_dir, raster_out_name)
-        if os.path.exists(raster_op) and not overwrite:
-            pass
-        else:
-            raster_ds = gdal.Open(raster_p)
-            x_res = raster_ds.GetGeoTransform()[1]
-            y_res = raster_ds.GetGeoTransform()[5]
-            warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True,
-                                            targetAlignedPixels=True, xRes=x_res, yRes=y_res)
-            gdal.Warp(raster_op, raster_ds, options=warp_options)
-            # Close the raster
-            raster_ds = None
-            logger.info('Clipped raster created at {}'.format(raster_op))
-            # Add clipped raster path to list of clipped rasters to return
-            warped.append(raster_op)
-
-    # Remove projected shp
-    if in_mem is True:
-        remove_shp(out_prj_shp)
-
-    return warped
-
-
 def move_meta_files(raster_p, out_dir, raster_ext=None):
     """Move metadata files associted with raster, skipping files with
        raster_ext if specified"""
@@ -118,7 +42,7 @@ def move_meta_files(raster_p, out_dir, raster_ext=None):
         shutil.copy(src, out_dir)
 
 
-def clip_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
+def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip',
                  out_prj_shp=None, raster_ext=None, move_meta=False, 
                  in_mem=False, overwrite=False):
     """
@@ -158,20 +82,21 @@ def clip_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
     # Do the 'warping' / clipping
     warped = []
     for raster_p in rasters:
+        # TODO: Handle this with platform.sys and pathlib.Path objects
         raster_p = raster_p.replace(r'\\', os.sep)
         raster_p = raster_p.replace(r'/', os.sep)
 
-        if not out_dir:
-            out_dir == os.path.dirname(raster_p)
-
-        # Create outpath
-        raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
-        raster_op = os.path.join(out_dir, raster_out_name)
+        # Create out_path if not provided
+        if not out_path:
+            if not out_dir:
+                out_dir == os.path.dirname(raster_p)
+            # Create outpath
+            raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
+            out_path = os.path.join(out_dir, raster_out_name)
 
         # Clip to shape
-        logger.debug('Clipping: {}\nto: {}'.format(os.path.basename(raster_p), raster_op))
-
-        if os.path.exists(raster_op) and not overwrite:
+        logger.debug('Clipping: {}\nto: {}'.format(os.path.basename(raster_p), out_path))
+        if os.path.exists(out_path) and not overwrite:
             pass
         else:
             raster_ds = gdal.Open(raster_p, gdal.GA_ReadOnly)
@@ -179,12 +104,12 @@ def clip_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
             y_res = raster_ds.GetGeoTransform()[5]
             warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True,
                                             targetAlignedPixels=True, xRes=x_res, yRes=y_res)
-            gdal.Warp(raster_op, raster_ds, options=warp_options)
+            gdal.Warp(out_path, raster_ds, options=warp_options)
             # Close the raster
             raster_ds = None
-            logger.debug('Clipped raster created at {}'.format(raster_op))
+            logger.debug('Clipped raster created at {}'.format(out_path))
             # Add clipped raster path to list of clipped rasters to return
-            warped.append(raster_op)
+            warped.append(out_path)
         # Move meta-data files if specified
         if move_meta:
             logger.debug('Moving metadata files to clip destination...')

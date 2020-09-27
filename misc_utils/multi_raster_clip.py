@@ -13,7 +13,7 @@ import os
 import geopandas as gpd
 from tqdm import tqdm
 
-from raster_clip import warp_rasters
+from raster_clip import clip_rasters
 from logging_utils import create_logger
 
 
@@ -98,7 +98,7 @@ def multi_clip2shp(aoi_master, raster_parent_dir, subfolder_field,
         # Perform clipping for current subdirectory
         pbar.set_description('Clipping {} rasters to {}'.format(len(rasters), os.path.basename(aoi_outpath)))
         if not dryrun:
-            clipped_subdir_rasters = warp_rasters(aoi_outpath, rasters=rasters, out_dir=out_subdir)
+            clipped_subdir_rasters = clip_rasters(aoi_outpath, rasters=rasters, out_dir=out_subdir)
         else:
             logger.info('Clipping to aoi: {}'.format(aoi_outpath))
             logger.info('Clipping {} rasters'.format(len(rasters)))

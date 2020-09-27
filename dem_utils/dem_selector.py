@@ -307,7 +307,7 @@ def dem_selector(AOI_PATH=None,
     #### GET VALID DATA PERCENT ####
     if CALC_VALID:
         # TODO: convert to valid aoi w/in bounds of footprint
-        logger.info('Determining percent of non-NoData pixels over AOI for each DEM using {}...'.format(VALID_ON))
+        logger.info('Determining percent of non-NoData pixels over AOI for each DEM using *_{}...'.format(VALID_ON))
         dems[fields['VALID_ON']] = dems[fields['PLATFORM_PATH']].\
             apply(lambda x: get_aux_file(dem_path=x, aux_file=VALID_ON))
 
