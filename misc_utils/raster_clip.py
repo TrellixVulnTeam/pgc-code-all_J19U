@@ -164,13 +164,13 @@ def clip_rasters(shp_p, rasters, out_dir=None, out_suffix='_clip',
         if not out_dir:
             out_dir == os.path.dirname(raster_p)
 
-        # Clip to shape
-        logger.debug('Clipping {}...'.format(os.path.basename(raster_p)))
         # Create outpath
         raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
-        # print('ron: {}'.format(raster_out_name))
         raster_op = os.path.join(out_dir, raster_out_name)
-        # print('rop: {}'.format(raster_op))
+
+        # Clip to shape
+        logger.debug('Clipping: {}\nto: {}'.format(os.path.basename(raster_p), raster_op))
+
         if os.path.exists(raster_op) and not overwrite:
             pass
         else:

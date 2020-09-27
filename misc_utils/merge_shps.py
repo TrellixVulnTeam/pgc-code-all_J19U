@@ -29,10 +29,14 @@ if __name__ == '__main__':
     logger = create_logger(__name__, 'sh', log_lvl)
 
     logger.info('Reading in shapefiles...')
-    gdf = [gpd.read_file(g) for g in args.shapefiles]
-    for i, g in enumerate(gdf):
+    gdfs = []
+    for shp in args.shapefiles:
+        gdf = gpd.read_file(shp)
+        gdf['name'] = os.path.splitext(os.path.basename(shp))[0]
+        gdfs.append(gdf)
+    for i, g in enumerate(gdfs):
         logger.debug('Shapefile {}: {} features'.format(i, len(g)))
-    merged = merge_gdfs(gdf)
+    merged = merge_gdfs(gdfs)
     logger.debug('Merged shapefile length: {}'.format(len(merged)))
 
     if args.remove_dup:

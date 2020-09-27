@@ -17,7 +17,7 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-tiles_path_win = r'E:\disbr007\general\geocell\us_one_degree_geocells_named.shp'
+tiles_path_win = r'E:\disbr007\general\geocell\one_degree_geocells_named_north_america.shp'
 tiles_path_linux = r'/mnt/pgc/data/scratch/jeff/general/geocell/us_one_degree_geocells_named.shp'
 
 
@@ -63,14 +63,14 @@ def main(aoi_path, out_mosaic, local_tiles_dir, tile_index=None):
     logger.debug('Tiles selected: {}'.format(len(selected_tiles)))
 
     # Overlay results in duplicates, so remove
-    selected_tiles = selected_tiles.drop_duplicates(subset=['name'])
+    selected_tiles = selected_tiles.drop_duplicates(subset=[tile_id])
     logger.info('Total number of tiles needed for selection: {}'.format(len(selected_tiles)))
 
     # Create local path
-    selected_tiles['full_path'] = selected_tiles['name'].apply(lambda x: os.path.join(local_tiles_dir,
+    selected_tiles['full_path'] = selected_tiles[tile_id].apply(lambda x: os.path.join(local_tiles_dir,
                                                                                       'USGS_1_{}.tif'.format(x)))
     # Create https address to download from
-    selected_tiles['ftp_path'] = selected_tiles['name'].apply(lambda x: '{}/{}/USGS_1_{}.tif'.format(ftp_dir,
+    selected_tiles['ftp_path'] = selected_tiles[tile_id].apply(lambda x: '{}/{}/USGS_1_{}.tif'.format(ftp_dir,
                                                                                                      x,x))
     # Create BOOL field that identifies if tile is already present in local directory
     selected_tiles['downloaded'] = selected_tiles['full_path'].apply(lambda x: os.path.exists(x))

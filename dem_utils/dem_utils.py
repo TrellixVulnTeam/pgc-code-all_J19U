@@ -5,8 +5,10 @@ Created on Thu Apr 23 11:35:49 2020
 @author: disbr007
 """
 import numpy as np
-import platform
+from pathlib import Path
 import os
+import platform
+import re
 
 from osgeo import gdal
 import geopandas as gpd
@@ -229,7 +231,6 @@ def get_bitmask_path(dem_path):
 
 
 def get_aux_file(dem_path, aux_file):
-    # TODO move to seperate dem_utils
     sfx = {'bitmask': 'bitmask.tif',
            'dem': 'dem.tif',
            '10m_shade': 'dem_10m_shade.tif',
@@ -241,3 +242,24 @@ def get_aux_file(dem_path, aux_file):
     aux_path = dem_path.replace('dem.tif', sfx[aux_file])
 
     return aux_path
+
+
+def get_dem_image1_id(meta_path):
+    image1_ids = set()
+    with open(meta_path) as src:
+        content = src.readlines()
+        for line in content:
+            if 'Image 1=' in line:
+                pat = re.compile('Image 1=(.*)')
+                match = pat.search(line)
+                if match:
+                    scene1_path = Path(match.group(1))
+                    image1_id = (scene1_path.stem.split('_')[2])
+                    image1_ids.add(image1_id)
+    if len(image1_ids) > 1:
+        logger.warning('Multiple values found for Image 1 in {}'.format(meta_path))
+    elif len(image1_ids) == 0:
+        logger.warning('No values found for Image 1 in {}'.format(meta_path))
+    else:
+        return image1_id
+

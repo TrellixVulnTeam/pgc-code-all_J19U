@@ -16,7 +16,7 @@ import geopandas as gpd
 from shapely.geometry import Point
 from tqdm import tqdm
 
-from dem_utils import get_aux_file, nunatak2windows
+from dem_utils import get_aux_file, nunatak2windows, get_dem_image1_id
 from valid_data import valid_percent
 from selection_utils.db_utils import Postgres, generate_sql, intersect_aoi_where
 # from selection_utils.query_danco import query_footprint
@@ -50,6 +50,7 @@ def dem_selector(AOI_PATH=None,
                  OUT_DEM_FP=None,
                  OUT_ID_LIST=None,
                  BOTH_IDS=False,
+                 IMAGE1_IDS=False,
                  OUT_FILEPATH_LIST=None):
     """
     Select DEMs over an AOI, either from a passed DEM_FP, or from
@@ -292,8 +293,8 @@ def dem_selector(AOI_PATH=None,
     if LOCATE_DEMS:
         OS = platform.system()
         if OS == WINDOWS_OS:
-            dems[fields['PLATFORM_PATH']] = dems[fields['LOCATION']].\
-                apply(lambda x: nunatak2windows(x))
+
+            dems[fields['PLATFORM_PATH']] = dems[fields['LOCATION']].apply(lambda x: nunatak2windows(x))
         elif OS == LINUX_OS:
             dems[fields['PLATFORM_PATH']] = dems[fields['LOCATION']]
 
@@ -327,9 +328,16 @@ def dem_selector(AOI_PATH=None,
     # Write list of IDs out
     if OUT_ID_LIST:
         logger.info('Writing list of DEM catalogids to file: {}'.format(OUT_ID_LIST))
-        dem_ids = list(dems[fields['CATALOGID1']])
-        if BOTH_IDS:
-            dem_ids += list(dems[fields['CATALOGID2']])
+        if IMAGE1_IDS:
+            logger.info('Locating Image 1 IDs for each DEM...')
+            dems['META_TXT'] = dems[fields['PLATFORM_PATH']]. \
+                apply(lambda x: get_aux_file(dem_path=x, aux_file='meta'))
+            dems['Image1_cid'] = dems['META_TXT'].apply(lambda x: get_dem_image1_id(x))
+            dem_ids = list(set(dems['Image1_cid']))
+        else:
+            dem_ids = list(dems[fields['CATALOGID1']])
+            if BOTH_IDS:
+                dem_ids += list(dems[fields['CATALOGID2']])
         write_ids(dem_ids, OUT_ID_LIST)
     # Write list of filepaths to DEMs
     if OUT_FILEPATH_LIST:
@@ -372,6 +380,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
+    id_write_group = parser.add_mutually_exclusive_group()
+
     parser.add_argument('--aoi_path', type=os.path.abspath,
                         help='Path to AOI to select DEMs over.')
     parser.add_argument('--coords', nargs='+',
@@ -385,8 +395,10 @@ if __name__ == '__main__':
                         help="Path to write shapefile of selected DEMs.")
     parser.add_argument('--out_id_list', type=os.path.abspath,
                         help="Path to write text file of selected DEM's catalogids.")
-    parser.add_argument('--both_ids', action='store_true',
+    id_write_group.add_argument('--both_ids', action='store_true',
                         help="Write both source IDs out.")
+    id_write_group.add_argument('--image1_ids', action='store_true',
+                        help='Write Image1 Ids out using *_meta.txt file.')
     parser.add_argument('--out_filepath_list', type=os.path.abspath,
                         help="Path to write text file of DEM's full paths.")
     parser.add_argument('--dems_footprint', type=os.path.abspath,
@@ -426,6 +438,7 @@ if __name__ == '__main__':
     OUT_DEM_FP = args.out_dem_footprint
     OUT_ID_LIST = args.out_id_list
     BOTH_IDS = args.both_ids
+    IMAGE1_IDS = args.image1_ids
     OUT_FILEPATH_LIST = args.out_filepath_list
     DEM_FP = args.dems_footprint
     INTRACK = args.intrack
@@ -448,6 +461,7 @@ if __name__ == '__main__':
                         OUT_DEM_FP=OUT_DEM_FP,
                         OUT_ID_LIST=OUT_ID_LIST,
                         BOTH_IDS=BOTH_IDS,
+                        IMAGE1_IDS=IMAGE1_IDS,
                         OUT_FILEPATH_LIST=OUT_FILEPATH_LIST,
                         DEM_FP=DEM_FP,
                         INTRACK=INTRACK,

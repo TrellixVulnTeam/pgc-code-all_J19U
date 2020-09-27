@@ -20,16 +20,6 @@ def run_subprocess(command):
     logger.debug('Err: {}'.format(error.decode()))
 
 
-# Args
-dem = Path(r'V:\pgc\data\scratch\jeff\ms\2020sep17\dems\raw_clip\WV02_20130627_1030010024B36B00_1030010024807800_2m_lsf_seg2_dem_masked_clip.tif')
-out_dir = None
-out_mag = None
-out_scale = None
-min_scale = 1
-max_scale = 50
-step = 5
-
-
 def wbt_mdfm(dem, out_dir=None, out_mag=None, out_scale=None,
              min_scale=1, max_scale=50, step=5, vw=False,
              dryrun=False):

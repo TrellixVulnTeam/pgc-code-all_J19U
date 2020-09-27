@@ -33,6 +33,7 @@ if __name__ == '__main__':
 
         gdf = gpd.GeoDataFrame(geometry=points, crs='epsg:{}'.format(crs))
         print('Points read in: {}'.format(len(gdf)))
+        print(gdf)
 
     if bbs:
         boxes = [box(ulx, lry, lrx, uly) for ulx, lry, lrx, uly in bbs]

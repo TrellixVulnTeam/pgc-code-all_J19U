@@ -8,9 +8,12 @@ import argparse
 import datetime
 import logging.config
 import os
+import re
 import subprocess
 from subprocess import PIPE
 import sys
+
+from tqdm import tqdm
 
 from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 # from misc_utils.RasterWrapper import Raster
@@ -23,10 +26,45 @@ from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 
 
 #### Function definition
-def run_subprocess(command):
+def run_subprocess(command, debug_filters=None, return_lines=None):
+    """Run the commmand passed as a subprocess.
+    Optionally use debug_filter to route specific messages from the
+    subprocess to the debug logging level.
+    Optionally matching specific messages and returning them.
+
+    Parameters
+    ----------
+    command : str
+        The command to run.
+    debug_filters : list
+        List of strings, where if any of the strings are in
+        the subprocess message, the message will be routed to
+        debug.
+    return_lines : list
+        List of tuples of (string, int) where the strings are
+        regex patterns and int are group number within match to
+        return.
+
+    Returns
+    ------
+    return_lines : list / None
+    """
+    message_values = []
     proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
     for line in iter(proc.stdout.readline, b''):  # replace '' with b'' for Python 3
-        logger.info(line.decode())
+        message = line.decode()
+        if any([f in message.lower() for f in debug_filters]):
+            logger.debug(message)
+        else:
+            logger.info(message)
+        if return_lines:
+            for pattern, group_num in return_lines:
+                pat = re.compile(pattern)
+                match = pat.search(message)
+                if match:
+                    value = match.group(group_num)
+                    message_values.append(value)
+
     proc_err = ""
     for line in iter(proc.stderr.readline, b''):
         proc_err += line.decode()
@@ -36,12 +74,15 @@ def run_subprocess(command):
     logger.debug('Output: {}'.format(output.decode()))
     logger.debug('Err: {}'.format(error.decode()))
 
+    return message_values
+
 
 def otb_lsms(img, mode='vector',
              spatialr=5, ranger=15, minsize=50,
              tilesize_x=500, tilesize_y=500,
              out=None,
-             ram=256):
+             ram=256,
+             overwrite=False):
     """
     Run the Orfeo Toolbox LargeScaleMeanShift command via the command
     line. Requires that OTB environment is activated.
@@ -114,7 +155,14 @@ def otb_lsms(img, mode='vector',
                 Tilesizey: {}
                 Output mode: {}
                 Output segmentation: {}""".format(img, spatialr, ranger, minsize,
-                                                  tilesize_x, tilesize_y, mode, out))
+                                                  tilesize_x, tilesize_y, mode, out).strip('\t'))
+    # Check if output segmentation exists
+    if os.path.exists(out):
+        if not overwrite:
+            logger.warning('Output segmentation exists. Exiting.')
+            sys.exit()
+        else:
+            logger.warning('Output segmentation exists, will be overwritten.')
 
     # Build command
     cmd = """otbcli_LargeScaleMeanShift
@@ -131,19 +179,35 @@ def otb_lsms(img, mode='vector',
     cmd = ' '.join(cmd.split())
     logger.info(cmd)
 
+    # Messages from OTB to filter to DEBUG
+    debug_filters = ['estimat', ' will be written in ',
+                     'Unable to remove file']
     run_time_start = datetime.datetime.now()
-    run_subprocess(cmd)
+    temp_files = run_subprocess(cmd, debug_filters=debug_filters,
+                                return_lines=[('Unable to remove file (.*)', 1)])
     run_time_finish = datetime.datetime.now()
     run_time = run_time_finish - run_time_start
     too_fast = datetime.timedelta(seconds=5)
     if run_time < too_fast:
         logger.warning("""Execution completed quickly, likely due to an error. Did you activate
                           OTB env first?
-                          "C:\OSGeo4W64\OTB-6.6.1-Win64\OTB-6.6.1-Win64\otbenv.bat" or
+                          "C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat" or
                           module load otb/6.6.1
                           """)
 
     logger.info('Large-Scale-Mean-Shift finished. Runtime: {}'.format(str(run_time)))
+
+    if temp_files:
+        logger.info('Removing unremoved temporary files...')
+        for tf in tqdm(temp_files):
+            tf_path = tf.strip()
+            logger.debug('Removing: {}'.format(tf_path))
+            try:
+                os.remove(tf_path)
+            except Exception as e:
+                logger.error('Unable to remove temp file: {}'.format(tf_path))
+                logger.error(e)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -205,6 +269,9 @@ if __name__ == '__main__':
                         type=os.path.abspath,
                         help="""Directory to write log to, with standardized name following
                                 out vector naming convention.""")
+    parser.add_argument('--overwrite', action='store_true',
+                        help='Overwrite output segmentation if it exists. (Warning message'
+                             'will appear)')
 
     args = parser.parse_args()
 
@@ -217,6 +284,7 @@ if __name__ == '__main__':
     minsize = args.minsize
     tilesize_x = args.tilesize_x
     tilesize_y = args.tilesize_y
+    overwrite = args.overwrite
 
     # Set up console logger
     handler_level = 'INFO'
@@ -270,4 +338,5 @@ if __name__ == '__main__':
              ranger=ranger,
              minsize=minsize,
              tilesize_x=tilesize_x,
-             tilesize_y=tilesize_y)
+             tilesize_y=tilesize_y,
+             overwrite=overwrite)
