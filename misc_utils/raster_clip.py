@@ -11,7 +11,7 @@ import shutil
 from osgeo import ogr, gdal
 import os, logging, argparse
 
-# import geopandas as gpd
+import geopandas as gpd
 # import shapely
 
 from misc_utils.gdal_tools import check_sr, ogr_reproject, get_raster_sr, remove_shp
@@ -69,8 +69,6 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
         check_raster = rasters
         rasters = [rasters]
 
-
-
     logger.debug('Checking spatial reference match:\n{}\n{}'.format(shp_p, check_raster))
     sr_match = check_sr(shp_p, check_raster)
     if not sr_match:
@@ -80,6 +78,14 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
         shp_p = ogr_reproject(shp_p,
                               to_sr=get_raster_sr(check_raster),
                               output_shp=out_prj_shp)
+
+    shp = gpd.read_file(shp_p)
+    if len(shp) > 1:
+        logger.debug('Dissolving clipping shape with multiple features...')
+        shp['dissolve'] = 1
+        shp = shp.dissolve(by='dissolve')
+        shp_p = r'/vsimem/clip_shp_dissolve.shp'
+        shp.to_file(shp_p)
 
     # Do the 'warping' / clipping
     warped = []
@@ -142,6 +148,8 @@ if __name__ == '__main__':
     parser.add_argument('--raster_ext', type=str, default='.tif', help='Ext of input rasters.')
     parser.add_argument('--move_meta', action='store_true',
                         help='Use this flag to move associated metadata files to clip destination.')
+    parser.add_argument('--overwrite', action='store_true',
+                        help='Overwrite output files.')
     parser.add_argument('--dryrun', action='store_true', help='Prints inputs without running.')
 
     args = parser.parse_args()
@@ -152,6 +160,8 @@ if __name__ == '__main__':
     out_suffix = args.out_suffix
     raster_ext = args.raster_ext
     move_meta = args.move_meta
+    overwrite = args.overwrite
+    dryrun = args.dryrun
 
     # Check if list of rasters given or directory
     if os.path.isdir(args.rasters[0]):
@@ -173,6 +183,6 @@ if __name__ == '__main__':
     logger.info('Input rasters:\n{}'.format('\n'.join(rasters)))
     logger.info('Output directory:\n{}'.format(out_dir))
 
-    if not args.dryrun:
+    if not dryrun:
         clip_rasters(shp_path, rasters, out_dir=out_dir, out_suffix=out_suffix, raster_ext=raster_ext,
-                     move_meta=move_meta)
+                     move_meta=move_meta, overwrite=overwrite)
