@@ -69,6 +69,8 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
         check_raster = rasters
         rasters = [rasters]
 
+
+
     logger.debug('Checking spatial reference match:\n{}\n{}'.format(shp_p, check_raster))
     sr_match = check_sr(shp_p, check_raster)
     if not sr_match:
@@ -85,18 +87,20 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
         # TODO: Handle this with platform.sys and pathlib.Path objects
         raster_p = raster_p.replace(r'\\', os.sep)
         raster_p = raster_p.replace(r'/', os.sep)
+        logger.info(raster_p)
 
         # Create out_path if not provided
         if not out_path:
             if not out_dir:
-                out_dir == os.path.dirname(raster_p)
+                logger.debug('NO OUT_DIR')
             # Create outpath
             raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
-            out_path = os.path.join(out_dir, raster_out_name)
+            raster_out_path = os.path.join(out_dir, raster_out_name)
 
         # Clip to shape
-        logger.debug('Clipping: {}\nto: {}'.format(os.path.basename(raster_p), out_path))
-        if os.path.exists(out_path) and not overwrite:
+        logger.info('Clipping: {}\n{}---> {}'.format(os.path.basename(raster_p), (' ' * 49), raster_out_path))
+        if os.path.exists(raster_out_path) and not overwrite:
+            logger.warning('Outpath exists, skipping: {}'.format(raster_out_path))
             pass
         else:
             raster_ds = gdal.Open(raster_p, gdal.GA_ReadOnly)
@@ -104,12 +108,12 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
             y_res = raster_ds.GetGeoTransform()[5]
             warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True,
                                             targetAlignedPixels=True, xRes=x_res, yRes=y_res)
-            gdal.Warp(out_path, raster_ds, options=warp_options)
+            gdal.Warp(raster_out_path, raster_ds, options=warp_options)
             # Close the raster
             raster_ds = None
-            logger.debug('Clipped raster created at {}'.format(out_path))
+            logger.debug('Clipped raster created at {}'.format(raster_out_path))
             # Add clipped raster path to list of clipped rasters to return
-            warped.append(out_path)
+            warped.append(raster_out_path)
         # Move meta-data files if specified
         if move_meta:
             logger.debug('Moving metadata files to clip destination...')
@@ -155,7 +159,7 @@ if __name__ == '__main__':
         if not raster_ext:
             logger.warning('Directory provided, but no extension to identify rasters. Provide raster_ext.')
         r_ps = os.listdir(rasters[0])
-        print(r_ps)
+        # logger.info(r_ps)
         rasters = [os.path.join(rasters[0], r_p) for r_p in r_ps if r_p.endswith(raster_ext)]
         if len(rasters) == 0:
             logger.error('No rasters provided.')
@@ -164,11 +168,11 @@ if __name__ == '__main__':
         rasters = read_ids(rasters[0])
     # If list passed as args, no need to parse paths
 
-    if args.dryrun:
-        print('Input shapefile:\n{}'.format(shp_path))
-        print('Input rasters:\n{}'.format('\n'.join(rasters)))
-        print('Output directory:\n{}'.format(out_dir))
 
-    else:
-        clip_rasters(shp_path, rasters, out_dir, out_suffix, raster_ext=raster_ext,
+    logger.info('Input shapefile:\n{}'.format(shp_path))
+    logger.info('Input rasters:\n{}'.format('\n'.join(rasters)))
+    logger.info('Output directory:\n{}'.format(out_dir))
+
+    if not args.dryrun:
+        clip_rasters(shp_path, rasters, out_dir=out_dir, out_suffix=out_suffix, raster_ext=raster_ext,
                      move_meta=move_meta)

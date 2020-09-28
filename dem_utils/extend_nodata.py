@@ -1,3 +1,5 @@
+import argparse
+import os
 from pathlib import Path
 
 import rasterio
@@ -6,16 +8,17 @@ import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger
 from misc_utils.raster_clip import clip_rasters
+from misc_utils.gdal_tools import check_sr, get_raster_sr
 
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # Args
-img = Path(r'E:\disbr007\umn\2020sep25_her\dems\WV02_20180621_1030010081ADA100_10300100800B1300_2m_lsf_v030400\WV02_20180621_1030010081ADA100_10300100800B1300_2m_lsf_seg5_dem_masked.tif')
+img = r'E:\disbr007\umn\2020sep25_her\dems\WV02_20180621_1030010081ADA100_10300100800B1300_2m_lsf_v030400\WV02_20180621_1030010081ADA100_10300100800B1300_2m_lsf_seg5_dem_masked.tif'
 distance = 2500
 
 
-def extend_no_data(img, distance, out_path=None, out_dir=None, out_suffix=None):
+def extend_no_data(img, distance, out_path=None, out_dir=None, out_suffix=None, dryrun=False):
     """Extend the no-border boundary of the passed img raster by
     distance in units of img CRS
     Useful for extending DEM boundaries to ensure entire image is
@@ -66,4 +69,49 @@ def extend_no_data(img, distance, out_path=None, out_dir=None, out_suffix=None):
     logger.debug('Writing extended bounding box to in-memory dataset: {}'.format(ext_bb_mem))
     extended_bb.to_file(ext_bb_mem)
 
-    clip_rasters(ext_bb_mem, str(img), out_path=out_path)
+    if not dryrun:
+        clip_rasters(ext_bb_mem, str(img), out_path=out_path)
+
+
+shp_p = r'V:\pgc\data\scratch\jeff\ms\2020sep27_eureka\img\raw_WV02_20140703.shp'
+if shp_p:
+    gdf = gpd.read_file(shp_p)
+
+    # Check for crs match, if not reproject shape
+    crs_match = check_sr(shp_p, img)
+    if not crs_match:
+        raster_crs = get_raster_sr(img).ExportToWkt()
+        gdf = gdf.to_crs(raster_crs)
+
+    shp_left, shp_bottom, shp_right, shp_top = gdf.total_bounds
+
+
+
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+#
+#     parser.add_argument('-i', '--input', type=os.path.abspath,
+#                         help='Input image to be extended.')
+#     parser.add_argument('-d', '--distance', type=int,
+#                         help='Distance to extend input by, in units'
+#                              'of input CRS.')
+#     parser.add_argument('-o', '--out_path', type=os.path.abspath,
+#                         help='Path to write extended raster to.')
+#     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
+#                         help='Directory to write extended raster to,'
+#                              'with out_suffix.')
+#     parser.add_argument('-os', '--out_suffix', type=str,
+#                         help='Suffix to append to input file name'
+#                              'if providing out_dir.')
+#     parser.add_argument('--dryrun', action='store_true',
+#                         help='Print extended bounds without creating new file.')
+#
+#     args = parser.parse_args()
+#
+#     if not args.out_suffix:
+#         out_suffix = 'ext{}'.format(args.distance)
+#     else:
+#         out_suffix = args.out_suffix
+#
+#     extend_no_data(img=args.input, distance=args.distance, out_path=args.out_path,
+#                    out_dir=args.out_dir, out_suffix=out_suffix, dryrun=args.dryrun)
