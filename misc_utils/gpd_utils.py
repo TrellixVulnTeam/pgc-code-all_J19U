@@ -4,15 +4,16 @@ Created on Fri Jun 21 11:30:25 2019
 
 @author: disbr007
 """
-
-import geopandas as gpd
-import pandas as pd
-import numpy as np
-import fiona
-from shapely.geometry import Point, LineString, Polygon
-from shapely.ops import split
 import matplotlib.pyplot as plt
 import copy, logging, os
+import numpy as np
+import random
+
+import fiona
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import Point, LineString, Polygon
+from shapely.ops import split
 from tqdm import tqdm
 
 import multiprocessing
@@ -278,5 +279,18 @@ def select_in_aoi(gdf, aoi, centroid=False):
     # gdf = gdf[gdf_cols]
     # TODO: Confirm if this is needed, does an 'inner' sjoin leave duplicates?
     gdf.drop_duplicates(subset='pairname')
+
+    return gdf
+
+
+def dissolve_gdf(gdf):
+    dissolve_field = 'dissolve'
+    if dissolve_field in list(gdf):
+        dissolve_field += random.randint(0,1000)
+    if len(gdf) > 1:
+        gdf[dissolve_field] = 1
+        gdf = gdf.dissolve(by=dissolve_field)
+        gdf = gdf.reset_index()
+        gdf = gdf.drop(columns=dissolve_field)
 
     return gdf

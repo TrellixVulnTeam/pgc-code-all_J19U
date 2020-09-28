@@ -8,6 +8,7 @@ import argparse
 import os
 
 from osgeo import gdal
+import numpy as np
 
 from misc_utils.RasterWrapper import Raster, stack_rasters
 from misc_utils.logging_utils import create_logger, create_module_loggers
@@ -24,14 +25,18 @@ def main(args):
     out_path = args.out_path
     minbb = args.minbb
     rescale = args.rescale
-    
-    
-    logger.info('Stacking rasters...')
+
+    logger.info('Stacking rasters:\n{}'.format('\n'.join(rasters)))
     stacked = stack_rasters(rasters, minbb=minbb, rescale=rescale,)
-    
+
+    if rescale:
+        nodata_val = -9999
+    else:
+        nodata_val = None
+    np.ma.set_fill_value(stacked, -9999)
     logger.info('Writing multiband raster...')
     ref = Raster(rasters[0])
-    ref.WriteArray(stacked, out_path, stacked=True)
+    ref.WriteArray(stacked, out_path, stacked=True, dtype=gdal.GDT_Float64, nodata_val=nodata_val)
     
     ref = None
     

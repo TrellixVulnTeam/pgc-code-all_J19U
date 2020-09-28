@@ -162,6 +162,7 @@ if __name__ == "__main__":
                         help='Format of output segmentation.')
     parser.add_argument('-t', '--threshold',
                         type=float,
+                        default=100,
                         help='Threshold within which to merge.')
     parser.add_argument('-c', '--criterion',
                         type=str,

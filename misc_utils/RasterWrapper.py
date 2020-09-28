@@ -16,7 +16,7 @@ from shapely.geometry import box
 from misc_utils.logging_utils import create_logger
 from misc_utils.gdal_tools import clip_minbb
 
-logger = create_logger(__name__, 'sh')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 gdal.UseExceptions()
 
@@ -250,7 +250,8 @@ class Raster():
     #     return stacked
 
 
-    def WriteArray(self, array, out_path, stacked=False, fmt='GTiff'):
+    def WriteArray(self, array, out_path, stacked=False, fmt='GTiff',
+                   dtype=None, nodata_val=None):
         """
         Writes the passed array with the metadata of the current raster object
         as new raster.
@@ -266,9 +267,17 @@ class Raster():
             rows, cols = array.shape
             depth = 1
 
+        # Handle dtype
+        if not dtype:
+            # Use original dtype
+            dtype = self.dtype
+        # Handle NoData value
+        if not nodata_val:
+            nodata_val = self.nodata_val
+
         # Create output file
         driver = gdal.GetDriverByName(fmt)
-        dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, bands=depth, eType=self.dtype)
+        dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, bands=depth, eType=dtype)
         dst_ds.SetGeoTransform(self.geotransform)
         dst_ds.SetProjection(self.prj.ExportToWkt())
 
@@ -278,11 +287,12 @@ class Raster():
                 lyr = array[:, :, i]
                 band = i + 1
                 dst_ds.GetRasterBand(band).WriteArray(lyr)
-                dst_ds.GetRasterBand(band).SetNoDataValue(self.nodata_val)
+                dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
             else:
+                logger.info(array.dtype)
                 band = i + 1
                 dst_ds.GetRasterBand(band).WriteArray(array)
-                dst_ds.GetRasterBand(band).SetNoDataValue(self.nodata_val)
+                dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
 
         dst_ds = None
 
@@ -441,7 +451,7 @@ def same_srs(raster1, raster2):
     return same
 
 
-def stack_rasters(rasters, minbb=False, rescale=False):
+def stack_rasters(rasters, minbb=True, rescale=False):
     """
     Stack single band rasters into a multiband raster.
 
@@ -460,21 +470,30 @@ def stack_rasters(rasters, minbb=False, rescale=False):
     """
     # TODO: Add default clipping to reference window
     if minbb:
+        logger.info('Clipping to overlap area...')
         rasters = clip_minbb(rasters, in_mem=True, out_format='vrt')
 
-    # Determine which raster to use for reference
+    # Determine a raster to use for reference
     ref = Raster(rasters[0])
 
     # Check for SRS match between reference and other rasters
     srs_matches = [same_srs(rasters[0], r) for r in rasters[1:]]
     if not all(srs_matches):
         logger.warning("""Spatial references do not match, match status between
-                          references and rest:\n{}""".format('\n'.join(srs_matches)))
+                          reference and rest:\n{}""".format('\n'.join(srs_matches)))
 
     # Initialize the stacked array with just the reference array
-    stacked = ref.MaskedArray
-    if rescale:
-        stacked = (stacked - stacked.min()) / (stacked.max() - stacked.min())
+    if ref.depth > 1:
+        stacked = ref.GetBandAsArray(1, mask=True)
+        if rescale:
+            stacked = (stacked - stacked.min()) / (stacked.max() - stacked.min())
+
+        for i in range(ref.depth-1):
+            band = ref.GetBandAsArray(i+2, mask=True)
+            if rescale:
+                band = (band - band.min()) / (band.max() - band.min())
+            stacked = np.ma.dstack([stacked, band])
+
     for i, rast in enumerate(rasters[1:]):
         ma = Raster(rast).MaskedArray
         if np.ma.isMaskedArray(ma):
@@ -488,11 +507,11 @@ def stack_rasters(rasters, minbb=False, rescale=False):
             # ma = ma.filled(ma.fill_value)
 
         stacked = np.ma.dstack([stacked, ma])
-        
+
         ma = None
 
     # Revert to original NoData value (stacking changes)
-    stacked.set_fill_value(ref.nodata_val)
+    # stacked.set_fill_value(ref.nodata_val)
     ref = None
 
     return stacked

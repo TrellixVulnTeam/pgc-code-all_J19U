@@ -189,11 +189,10 @@ def otb_lsms(img, mode='vector',
     run_time = run_time_finish - run_time_start
     too_fast = datetime.timedelta(seconds=5)
     if run_time < too_fast:
-        logger.warning("""Execution completed quickly, likely due to an error. Did you activate
-                          OTB env first?
-                          "C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat" or
-                          module load otb/6.6.1
-                          """)
+        logger.warning('Execution completed quickly, likely due to an error. '
+                       'Did you activate OTB env first? '
+                       'C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat or '
+                       'module load otb/6.6.1')
 
     logger.info('Large-Scale-Mean-Shift finished. Runtime: {}'.format(str(run_time)))
 

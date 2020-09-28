@@ -28,6 +28,7 @@ def run_subprocess(command):
 otb_env_loc = r"C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat"
 
 run_subprocess(otb_env_loc)
+logger.info('Setting OTB_MAX_RAM_HINT={}'.format(otb_max_ram_hint))
 run_subprocess('set OTB_MAX_RAM_HINT={}'.format(otb_max_ram_hint))
 logger.info('OTB Max Ram:')
 run_subprocess('echo %OTB_MAX_RAM_HINT%')
