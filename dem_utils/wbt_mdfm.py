@@ -83,11 +83,19 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    dem = Path(args.dem)
+    out_mag = args.out_mag
+    out_scale = args.out_scale
+    min_scale = args.min_scale
+    max_scale = args.max_scale
+    step = args.step
+
     if args.verbose:
         log_lvl = 'DEBUG'
     else:
         log_lvl = 'INFO'
     logger = create_logger(__name__, 'sh', log_lvl)
+
 
     # Determine out_dir if not provided
     if not args.out_dir:
@@ -102,8 +110,8 @@ if __name__ == '__main__':
                            filename=log_file)
 
     # Run
-    wbt_mdfm(dem=Path(args.dem), out_dir=out_dir,
-             out_mag=args.out_mag, out_scale=args.out_scale,
-             min_scale=args.min_scale, max_scale=args.max_scale,
-             step=args.step, vw=args.verbose_wbt,
+    wbt_mdfm(dem=dem, out_dir=out_dir,
+             out_mag=out_mag, out_scale=out_scale,
+             min_scale=min_scale, max_scale=max_scale,
+             step=step, vw=args.verbose_wbt,
              dryrun=args.dryrun)
