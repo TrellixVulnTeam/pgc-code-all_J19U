@@ -8,8 +8,8 @@ Copies aerial imagery from offline drives or server to specified destination.
 
 import argparse
 import copy
+import platform
 import os
-import logging
 import shutil
 import sys
 
@@ -43,7 +43,10 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
     
     
     ## Params
-    SERVER_LOC = os.path.normpath(r'V:\pgc\data\aerial\usgs\ahap\photos')
+    if platform.system() == 'Windows':
+        SERVER_LOC = os.path.normpath(r'V:\pgc\data\aerial\usgs\ahap\photos')
+    elif platform.system() == 'Linux':
+        SERVER_LOC = os.path.normpath(r'/mnt/pgc/data/aerial/usgs/ahap/photos')
     PHOTO_EXTENTS = 'Photo_Extents'
     FLIGHTLINES = 'Flightlines'
     CAMPAIGN = 'AHAP'
@@ -144,6 +147,7 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
         """
         Loads the selection and returns a list of ids and count.
         """
+        logger.info('Loading selection...')
         ## Load selection footprint
         if input_path.endswith('shp'):
             selection = gpd.read_file(input_path)
@@ -157,7 +161,9 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
             selection_unique_ids = list(selection[JOIN_SEL].unique())
         elif input_path.endswith('txt'):
             selection_unique_ids = read_ids(input_path)
-        selection_count = len(selection_unique_ids)
+
+        selection_count = len(set(selection_unique_ids))
+        logger.info('Scenes in selection: {:,}'.format(selection_count))
         selection_unique_ids_str = str(selection_unique_ids).replace('[', '').replace(']', '')
     
         return selection_unique_ids_str, selection_count
@@ -166,6 +172,7 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
     
     def load_table(FP, JOIN_FP, selection_unique_ids_str,
                    SERIES, SERIES_BOTH, SERIES_FIELD):
+        logger.debug('Loading danco AHAP table...')
         ## Load aerial source table
         # Build where clause, including selecting only ids in selection
         # where = "(sde.{}.{} IN ({}))".format(FP, JOIN_FP, selection_unique_ids_str)
@@ -176,8 +183,9 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
             where += " AND ({}.{} = '{}')".format(FP, SERIES_FIELD, SERIES)
         aia = query_footprint(FP, db=DB, table=True, where=where)
         aia_ct = len(aia)
+        logger.info('Records loaded in AHAP table: {:,}'.format(aia_ct))
         # Remove duplicates - there are identical records, but on different src_drives
-        # Mainly seen on src_drives: USGS_s31 and USDS_s71
+        # Mainly seen on src_drives: USGS_s31 and USGS_s71
         # If this actually removes anything, a debug message will be logged.
         # TODO: Add option to keep all locations, only useful for copying from drives
         #       as there should be one of each file on the server
@@ -185,6 +193,7 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
         aia_dd = len(aia)
         if aia_dd != aia_ct:
             logger.debug('Duplicates dropped, identical records on multiples drives.')
+
         return aia
     
     
@@ -274,11 +283,11 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
     aia_mounted = copy.deepcopy(aia[aia[MNT_PATH]!=NOT_MOUNTED])
     # aia_mounted = aia_mounted[aia_mounted[DST_EXISTS] == True]
     
-    high_status = 'Located {}/{} {} from selection on {}...'.format(len(aia_mounted[aia_mounted[SERIES_FIELD.lower()]==SERIES_HIGH]),
+    high_status = 'Located {:,}/{:,} {} from selection on {}...'.format(len(aia_mounted[aia_mounted[SERIES_FIELD.lower()]==SERIES_HIGH]),
                                                                    selection_count,
                                                                    SERIES_HIGH,
                                                                    source_loc)
-    med_status = 'Located {}/{} {} from selection on {}...'.format(len(aia_mounted[aia_mounted[SERIES_FIELD.lower()]==SERIES_MED]),
+    med_status = 'Located {:,}/{:,} {} from selection on {}...'.format(len(aia_mounted[aia_mounted[SERIES_FIELD.lower()]==SERIES_MED]),
                                                                selection_count,
                                                                SERIES_MED,
                                                                source_loc)
