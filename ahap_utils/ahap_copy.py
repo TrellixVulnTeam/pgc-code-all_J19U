@@ -45,8 +45,10 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
     ## Params
     if platform.system() == 'Windows':
         SERVER_LOC = os.path.normpath(r'V:\pgc\data\aerial\usgs\ahap\photos')
+        FOOTPRINT_LOC = r'E:\disbr007\general\aerial\AHAP\AHAP_Photo_Extents\AHAP_Photo_Extents.shp'
     elif platform.system() == 'Linux':
-        SERVER_LOC = os.path.normpath(r'/mnt/pgc/data/aerial/usgs/ahap/photos')
+        SERVER_LOC = os.path.normpath(r'/mnt/pgc/data/aerial/usgs/ahap/AHAP_Photo_Extents.shp')
+        FOOTPRINT_LOC = r'/mnt/pgc/data/'
     PHOTO_EXTENTS = 'Photo_Extents'
     FLIGHTLINES = 'Flightlines'
     CAMPAIGN = 'AHAP'
@@ -61,9 +63,7 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
     SERIES_BOTH = 'both'
     SERIES_HIGH = 'high_res'
     SERIES_MED = 'medium_res'
-    # Path to footprints -- used for writing footprint only
-    FOOTPRINT_LOC = r'E:\disbr007\general\aerial\AHAP\AHAP_Photo_Extents\AHAP_Photo_Extents.shp'
-    
+
     
     DRIVE_PATH = 'drive_path'
     MNT_PATH = 'mounted_path'
