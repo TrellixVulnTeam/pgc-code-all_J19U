@@ -47,8 +47,8 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
         SERVER_LOC = os.path.normpath(r'V:\pgc\data\aerial\usgs\ahap\photos')
         FOOTPRINT_LOC = r'E:\disbr007\general\aerial\AHAP\AHAP_Photo_Extents\AHAP_Photo_Extents.shp'
     elif platform.system() == 'Linux':
-        SERVER_LOC = os.path.normpath(r'/mnt/pgc/data/aerial/usgs/ahap/AHAP_Photo_Extents.shp')
-        FOOTPRINT_LOC = r'/mnt/pgc/data/'
+        SERVER_LOC = os.path.normpath(r'/mnt/pgc/data/aerial/usgs/ahap/photos')
+        FOOTPRINT_LOC = r'/mnt/pgc/data/aerial/usgs/ahap/AHAP_Photo_Extents.shp'
     PHOTO_EXTENTS = 'Photo_Extents'
     FLIGHTLINES = 'Flightlines'
     CAMPAIGN = 'AHAP'
@@ -342,7 +342,7 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
                 if tm == tm_copy:
                     shutil.copyfile(src, dst)
                 elif tm == tm_link:
-                    os.symlink(src, dst)
+                    os.link(src, dst)
                 if write_copied:
                     wc.write(os.path.basename(src).split('.')[0])
                     wc.write('\n')
