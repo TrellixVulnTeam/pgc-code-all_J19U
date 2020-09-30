@@ -9,6 +9,7 @@ CDED Mosaicker based on AOI
 import argparse
 import logging.config
 import os
+from pathlib import Path
 import platform
 import subprocess
 import zipfile
@@ -20,7 +21,7 @@ import tqdm
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 def run_subprocess(command):
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -42,8 +43,7 @@ def main(args):
         handler_level = 'DEBUG'
     else:
         handler_level = 'INFO'
-    logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-    logger = logging.getLogger(__name__)
+
     # Determine operating system
     system = platform.system()
     if system == 'Windows':
@@ -95,34 +95,38 @@ def main(args):
 
     # Select AOI relevant tiles from index footprint
     aoi = gpd.read_file(aoi_path)
-    logger.info('AOI:\n{}'.format(aoi.head()))
+    # logger.info('AOI:\n{}'.format(aoi.head()))
     if aoi.crs != index.crs:
+        logger.info("Projecting AOI to match index...")
         aoi = aoi.to_crs(index.crs)
     # selected_tiles = gpd.sjoin(aoi, index, how='left', op='intersects')
-    selected_tiles = gpd.overlay(aoi, index)
+    selected_tiles = gpd.sjoin(index, aoi)
 
     # For some reason the overlay is selecting each tile multiple times
     # this gets a list of unique tile names for extracting
+    selected_tiles = selected_tiles.drop_duplicates(subset='IDENTIF')
     selected_tile_names = selected_tiles.IDENTIF.unique()
+    logger.debug('Tiles needed:\n{}'.format('\n'.join(selected_tile_names)))
     selected_tile_names = [x.lower() for x in selected_tile_names]  # file paths to tiles are lowercase
 
     # Unzip relevant tiles to local location
     # Loop each tile name, extract tile locally
     logger.info('Extracting tiles locally...')
-    for tile_name in tqdm.tqdm(selected_tile_names):
+    for tile_name in tqdm.tqdm(selected_tile_names, desc='Extracting...'):
         parent_dir = tile_name[:3]
-        tile_path = os.path.join(tiles_path, parent_dir, '{}.zip'.format(tile_name))
-        if os.path.exists(tile_path):
-            if not os.path.exists(local_tiles_path):
-                logger.debug('Unzipping from: {}'.format(tile_path))
-                zip_ref = zipfile.ZipFile(tile_path, 'r')
+
+        # Check for local tile match
+        local_tile_match = any(Path(local_tiles_path).rglob('{}*.dem'.format(tile_name)))
+        if not local_tile_match:
+            tile_zip_path = os.path.join(tiles_path, parent_dir, '{}.zip'.format(tile_name))
+            if os.path.exists(tile_zip_path):
+                logger.debug('Unzipping from: {}'.format(tile_zip_path))
+                zip_ref = zipfile.ZipFile(tile_zip_path, 'r')
                 tile_dir_extract = zip_ref.extractall(local_tiles_path)
                 zip_ref.close()
                 logger.debug('Unzipped to: {}'.format(local_tiles_path))
             else:
-                logger.debug('Tile {} already in local tiles directory'.format(tile_name))
-        else:
-            logger.warning('File not found: {}\nSkipping...'.format(tile_name))
+                logger.warning('Tile not found: {}'.format(tile_zip_path))
 
     # Mosaic relevant tiles
     # Get DEMs
@@ -133,22 +137,32 @@ def main(args):
     dems_not_exist = any([os.path.exists(x) for x in dems_paths])
     if not dems_not_exist:
         logger.warning('Missing tiles: {}'.format([x for x in dems_paths if not os.path.exists(x)]))
-    # dems_paths = ' '.join(dems_paths)
+    dems_paths = ' '.join(dems_paths)
 
-    # command = 'gdalbuildvrt {} {}'.format(out_mosaic, dems_paths)
-    # logger.debug(command)
     logger.info('Mosaicking tiles...')
     if out_mosaic.endswith('tif'):
         logger.debug('Extension is "tif", creating in-memory VRT first...')
-        vrt = r'/vsimem/cded_mosaic_temp.vrt'
-        gdal.BuildVRT(vrt, dems_paths)
-        logger.debug('Copying VRT to GeoTiff...')
-        # translate_options = gdal.TranslateOptions(format='GTiff')
-        gdal.Translate(out_mosaic, vrt, options=gdal.TranslateOptions(format='GTiff'))
-    # run_subprocess(command)
+        vrt = out_vrt = os.path.join(
+            os.path.dirname(out_mosaic),
+            '{}.vrt'.format(os.path.basename(out_mosaic)))
+        command = 'gdalbuildvrt {} {}'.format(vrt, dems_paths)
+        logger.debug(command)
+        run_subprocess(command)
+
+        logger.info('Saving VRT as GeoTIFF...')
+        command = 'gdal_translate -of GTiff {} {}'.format(out_vrt, out_mosaic)
+        logger.debug(command)
+        run_subprocess(command)
+        # Remove temporary VRT
+        try:
+            os.remove(out_vrt)
+        except:
+            logger.warning('Could not remove VRT: {}'.format(out_vrt))
+
     else:
-        gdal.BuildVRT(out_mosaic, dems_paths)
-    logger.info('Mosaic created at: {}'.format(out_mosaic))
+        command = 'gdalbuildvrt {} {}'.format(out_mosaic, dems_paths)
+        logger.debug(command)
+        run_subprocess(command)
 
 
 if __name__ == '__main__':
