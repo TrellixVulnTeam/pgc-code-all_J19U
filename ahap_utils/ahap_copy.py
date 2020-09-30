@@ -48,7 +48,7 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
         FOOTPRINT_LOC = r'E:\disbr007\general\aerial\AHAP\AHAP_Photo_Extents\AHAP_Photo_Extents.shp'
     elif platform.system() == 'Linux':
         SERVER_LOC = os.path.normpath(r'/mnt/pgc/data/aerial/usgs/ahap/photos')
-        FOOTPRINT_LOC = r'/mnt/pgc/data/aerial/usgs/ahap/AHAP_Photo_Extents.shp'
+        FOOTPRINT_LOC = r'/mnt/pgc/data/aerial/usgs/ahap/indedx/AHAP_Photo_Extents.shp'
     PHOTO_EXTENTS = 'Photo_Extents'
     FLIGHTLINES = 'Flightlines'
     CAMPAIGN = 'AHAP'
