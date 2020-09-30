@@ -70,48 +70,48 @@ def extend_no_data(img, distance, out_path=None, out_dir=None, out_suffix=None, 
     extended_bb.to_file(ext_bb_mem)
 
     if not dryrun:
-        clip_rasters(ext_bb_mem, str(img), out_path=out_path)
+        clip_rasters(ext_bb_mem, str(img), skip_srs_check=True, out_path=out_path)
 
 
-shp_p = r'V:\pgc\data\scratch\jeff\ms\2020sep27_eureka\img\raw_WV02_20140703.shp'
-if shp_p:
-    gdf = gpd.read_file(shp_p)
-
-    # Check for crs match, if not reproject shape
-    crs_match = check_sr(shp_p, img)
-    if not crs_match:
-        raster_crs = get_raster_sr(img).ExportToWkt()
-        gdf = gdf.to_crs(raster_crs)
-
-    shp_left, shp_bottom, shp_right, shp_top = gdf.total_bounds
-
-
-
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser()
+# shp_p = r'V:\pgc\data\scratch\jeff\ms\2020sep27_eureka\img\raw_WV02_20140703.shp'
+# if shp_p:
+#     gdf = gpd.read_file(shp_p)
 #
-#     parser.add_argument('-i', '--input', type=os.path.abspath,
-#                         help='Input image to be extended.')
-#     parser.add_argument('-d', '--distance', type=int,
-#                         help='Distance to extend input by, in units'
-#                              'of input CRS.')
-#     parser.add_argument('-o', '--out_path', type=os.path.abspath,
-#                         help='Path to write extended raster to.')
-#     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-#                         help='Directory to write extended raster to,'
-#                              'with out_suffix.')
-#     parser.add_argument('-os', '--out_suffix', type=str,
-#                         help='Suffix to append to input file name'
-#                              'if providing out_dir.')
-#     parser.add_argument('--dryrun', action='store_true',
-#                         help='Print extended bounds without creating new file.')
+#     # Check for crs match, if not reproject shape
+#     crs_match = check_sr(shp_p, img)
+#     if not crs_match:
+#         raster_crs = get_raster_sr(img).ExportToWkt()
+#         gdf = gdf.to_crs(raster_crs)
 #
-#     args = parser.parse_args()
-#
-#     if not args.out_suffix:
-#         out_suffix = 'ext{}'.format(args.distance)
-#     else:
-#         out_suffix = args.out_suffix
-#
-#     extend_no_data(img=args.input, distance=args.distance, out_path=args.out_path,
-#                    out_dir=args.out_dir, out_suffix=out_suffix, dryrun=args.dryrun)
+#     shp_left, shp_bottom, shp_right, shp_top = gdf.total_bounds
+
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-i', '--input', type=os.path.abspath,
+                        help='Input image to be extended.')
+    parser.add_argument('-d', '--distance', type=float,
+                        help='Distance to extend input by, in units'
+                             'of input CRS.')
+    parser.add_argument('-o', '--out_path', type=os.path.abspath,
+                        help='Path to write extended raster to.')
+    parser.add_argument('-od', '--out_dir', type=os.path.abspath,
+                        help='Directory to write extended raster to,'
+                             'with out_suffix.')
+    parser.add_argument('-os', '--out_suffix', type=str,
+                        help='Suffix to append to input file name'
+                             'if providing out_dir.')
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Print extended bounds without creating new file.')
+
+    args = parser.parse_args()
+
+    if not args.out_suffix:
+        out_suffix = 'ext{}'.format(args.distance)
+    else:
+        out_suffix = args.out_suffix
+
+    extend_no_data(img=args.input, distance=args.distance, out_path=args.out_path,
+                   out_dir=args.out_dir, out_suffix=out_suffix, dryrun=args.dryrun)

@@ -5,7 +5,6 @@ Created on Sat Mar 14 12:27:22 2020
 @author: disbr007
 """
 # import traceback, sys, pdb
-# import logging.config
 import copy
 from random import randint
 from tqdm import tqdm
@@ -20,10 +19,8 @@ from misc_utils.RasterWrapper import Raster
 # from obia_utils.calc_zonal_stats import calc_zonal_stats
 # from calc_zonal_stats import calc_zonal_stats
 
-
 gdal.UseExceptions()
 
-# logging.config.dictConfig(LOGGING_CONFIG('INFO'))
 logger = create_logger(__name__, 'sh', 'INFO')
 
 
@@ -47,7 +44,7 @@ def get_neighbors(gdf, subset=None, unique_id=None, neighbor_field='neighbors'):
     gdf : gpd.GeoDataFrame
         GeoDataFrame to compute neighbors in, must be polygon/multipolygon.
     subset : gpd.GeoDataFrame
-        Selected rows from gdf to compute neighbors for. Highly recommended 
+        Selected rows from gdf to compute neighbors for. Highly recommended
         for large dataframes as neighbor computation can be slow.
     unique_id : str
         Unique field name in gdf and subset to use as identifier. The default is None.
@@ -60,54 +57,56 @@ def get_neighbors(gdf, subset=None, unique_id=None, neighbor_field='neighbors'):
         GeoDataFrame with added column containing list of unique IDs of neighbors.
 
     """
-    # TODO: Turn this into an apply function that takes the row and 
+    # TODO: Turn this into an apply function that takes the row and
     #       returns the neighbors
     # If no subset is provided, use the whole dataframe
     if subset is None:
         subset = gdf
-    
+
     # List to store neighbors
     ns = []
     # List to store unique_ids
     labels = []
     # Iterate over rows, for each row, get unique_ids of all features it touches
-    logger.info('Getting neighbors for {} features...'.format(len(subset)))
+    print('Getting neighbors for {} features...'.format(len(subset)))
     for index, row in tqdm(subset.iterrows(), total=len(subset)):
         neighbors = gdf[gdf.geometry.touches(row['geometry'])][unique_id].tolist()
         # If the feature is considering itself a neighbor remove it from the list
-        # TODO: clean this logic up (or just the comment) 
+        # TODO: clean this logic up (or just the comment)
         #       when does a feature find itself as a neighbor?
         if row[unique_id] in neighbors:
             neighbors = neighbors.remove(row[unique_id])
-        
+
         # Save the neighbors that have been found and their IDs
         ns.append(neighbors)
         labels.append(row[unique_id])
 
+    if not any(ns):
+        logger.warning('No neighbors found.')
     # Create data frame of the unique ids and their neighbors
-    nebs = pd.DataFrame({unique_id:labels, neighbor_field:ns})
+    nebs = pd.DataFrame({unique_id: labels, neighbor_field: ns})
     # Combine the neighbors dataframe back into the main dataframe, joining on unique_id
     # essentially just adding the neighbors column
     gdf[unique_id] = gdf[unique_id].astype(str)
     nebs[unique_id] = nebs[unique_id].astype(str)
-    
+
     # gdf_cols = list(gdf.columns)
     # if neighbor_field not in gdf.columns:
     #     gdf[neighbor_field] = [[] for i in range(len(gdf))]
     #     gdf_cols.append(neighbor_field)
-    
-    result = pd.merge(gdf,
-                      nebs,
+
+    result = pd.merge(nebs,
+                      gdf,
                       how='left',
-                      suffixes=('','_y'),
+                      suffixes=('', '_y'),
                       on=unique_id)
     # result = result[gdf_cols]
-    logger.info('Neighbor computation complete.')
-    
+    print('Neighbor computation complete.')
+
     return result
 
 
-def neighbor_features(unique_id, gdf, subset=None, neighbor_ids_col=None):
+def neighbor_features(unique_id, gdf, subset=None, neighbor_ids_col='neighbors'):
     """
     Create a new geodataframe of neighbors for all features in subset. Finds neighbors if
     neighbor_ids_col does not exist already.
@@ -119,7 +118,7 @@ def neighbor_features(unique_id, gdf, subset=None, neighbor_ids_col=None):
     gdf : gpd.GeoDataFrame
         Full geodataframe containing all features.
     subset : gpd.GeoData, optional
-        Subset of gdf containing only feautres to find neighbors for. The default is None.
+        Subset of gdf containing only features to find neighbors for. The default is None.
     neighbor_ids_col : str, optional
         Column in subset (and gdf) containing neigbor unique IDs. If column doesn't exist,
         the column name in which to put neighbor IDs, The default is None.
@@ -127,19 +126,19 @@ def neighbor_features(unique_id, gdf, subset=None, neighbor_ids_col=None):
     Returns
     -------
     neighbor_feats : gpd.GeoDataFrame
-        GeoDataFrame containing one row per nieghbor for each row in subset. Will contain
+        GeoDataFrame containing one row per neighbor for each row in subset. Will contain
         repeated geometries if features in subset share neighbors.
 
     """
     # Compute for entire dataframe if subset is not provided.
     if not isinstance(subset, (gpd.GeoDataFrame, pd.DataFrame)):
         subset = gdf
-    
+
     # Find neighbors if column containing neighbor IDs does not already exist
     if not neighbor_ids_col in subset.columns:
-        subset = get_neighbors(gdf=gdf, subset=subset, unique_id=unique_id, 
+        subset = get_neighbors(gdf=gdf, subset=subset, unique_id=unique_id,
                                neighbor_field=neighbor_ids_col)
-    
+
     # Store source IDs and neighbor IDs in lists
     source_ids = []
     neighbor_ids = []
@@ -150,21 +149,21 @@ def neighbor_features(unique_id, gdf, subset=None, neighbor_ids_col=None):
         # Add source ID to list one time for each of its neighbors
         for n in neighbors:
             source_ids.append(row[unique_id])
-    # Create 'look up' dataframe of source IDs and neighbor ids            
+    # Create 'look up' dataframe of source IDs and neighbor ids
     src_lut = pd.DataFrame({'neighbor_src': source_ids, 'neighbor_id': neighbor_ids})
-    
+
     # Find each neighbor feature in the master GeoDataFrame, creating a new GeoDataFrame
     neighbor_feats = gpd.GeoDataFrame()
     for ni in neighbor_ids:
-        feat = gdf[gdf[unique_id]==ni]
+        feat = gdf[gdf[unique_id] == ni]
         neighbor_feats = pd.concat([neighbor_feats, feat])
-    
+
     # Join neighbor features to sources
     # This is one-to-many with one row for each neighbor-source pair
     neighbor_feats = pd.merge(neighbor_feats, src_lut, left_on=unique_id, right_on='neighbor_id')
     # Remove redundant neighbor_id column - this is the same as the unique_id in this df
     neighbor_feats.drop(columns=['neighbor_id'], inplace=True)
-    
+
     return neighbor_feats
 
 

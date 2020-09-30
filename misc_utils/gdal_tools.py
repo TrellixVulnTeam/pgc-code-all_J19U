@@ -17,7 +17,7 @@ from misc_utils.logging_utils import create_logger
 
 
 logger = create_logger(__name__, 'sh',
-                       handler_level='INFO')
+                       handler_level='DEBUG')
 
 
 ogr.UseExceptions()
@@ -33,13 +33,21 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
     driver = auto_detect_ogr_driver(input_shp)
     
     # TODO: Improve the logic around in Memory Layers (not functional)
-    if driver.GetName() == 'Memory':
-        input_shp_name = 'mem_lyr'
+    if driver.GetName() == 'Memory' and isinstance(input_shp, ogr.DataSource):
         in_mem = True
-        # If driver is Memory assume an ogr.DataSource is being passed
+        # If driver is Memory assume and ogr.DataSource is being passed
         # as input_shp
+        # if isinstance(input_shp, ogr.DataSource):
+        input_shp_name = 'mem_lyr'
         inLayer = input_shp.GetLayer(0)
+        # # If driver is Memory and str: input_shp like /vsimem/vector.shp
+        # elif isinstance(input_shp, str):
+        #     # TODO: figure out how to handle viamem
+        #     pass
     else:
+        # if 'vsimem' in input_shp:
+        #     in_mem = True
+
         # Get the input layer
         # Get names of from input shapefile path for output shape
         input_shp_name = os.path.basename(input_shp)
@@ -53,7 +61,6 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
     # create the CoordinateTransformation
     coordTrans = osr.CoordinateTransformation(inSpatialRef, to_sr)
 
-
     # Create the output layer
     # Default output shapefile name and location -- same as input
     if output_shp is None and in_mem is False:
@@ -61,19 +68,19 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
         output_shp = os.path.join(input_shp_dir, input_shp_name)
     # In memory output
     elif in_mem is True:
-        output_shp = os.path.join('/vsimem', 'mem_lyr.shp'.format(input_shp_name))
+        output_shp = os.path.join('/vsimem', 'mem_lyr1.shp'.format(input_shp_name))
         # Convert windows path to unix path (required for gdal in-memory)
         output_shp = output_shp.replace(os.sep, posixpath.sep)
 
     # Check if output exists
     if os.path.exists(output_shp):
+        logger.debug('Removing existing file: {}'.format(output_shp))
         remove_shp(output_shp)
     if in_mem is True:
         outDataSet = driver.CreateDataSource(os.path.basename(output_shp).split('.')[0])
     else:
         outDataSet = driver.CreateDataSource(os.path.dirname(output_shp))
     # TODO: Support non-polygon input types
-    # TODO: Fix this -- creating names like test.shp.shp
     output_shp_name = os.path.basename(output_shp).split('.')[0]
     outLayer = outDataSet.CreateLayer(output_shp_name, geom_type=ogr.wkbMultiPolygon)
 
@@ -105,7 +112,7 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
         outFeature = None
         inFeature = inLayer.GetNextFeature()
 
-    if in_mem is False:
+    if in_mem is False and 'vsimem' not in input_shp:
         # Create .prj file
         outdir = os.path.dirname(output_shp)
         outname = os.path.basename(output_shp).split('.')[0]
@@ -122,7 +129,9 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
     inDataSet = None
     outLayer = None
     outDataSet = None
-        
+
+    logger.debug('Projected ogr file: {}'.format(output_shp))
+
     return output_shp
 
 
@@ -232,7 +241,8 @@ def auto_detect_ogr_driver(ogr_ds):
     if isinstance(ogr_ds, ogr.DataSource):
         driver_name = 'Memory'
     elif 'vsimem' in ogr_ds:
-        driver_name = 'Memory'
+        # driver_name = 'Memory'
+        driver_name = 'ESRI Shapefile'
     else:
         # Check if extension in look up table
         try:
@@ -254,6 +264,9 @@ def auto_detect_ogr_driver(ogr_ds):
        print('ValueError with driver_name: {}'.format(driver_name))
        print('OGR DS: {}'.format(ogr_ds))
        raise e
+
+    logger.debug('Driver autodetected: {}'.format(driver_name))
+
     return driver
 
 

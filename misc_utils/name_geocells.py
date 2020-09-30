@@ -14,12 +14,10 @@ import geopandas as gpd
 # prj_path = r'E:\disbr007\general\geocell'
 
 geocells_path = r'E:\disbr007\general\geocell\one_degree_geocell.shp'
-# graticules_path = r'E:\disbr007\general\graticules\ne_10m_graticules_1.shp'
-
 
 def name_cell(poly):
     minx, miny, maxx, maxy = poly.bounds
-    ulx, uly = round(minx), round(miny)
+    ulx, uly = round(minx), round(maxy)
     if ulx < 0:
         x_dir = 'w'
     else:
@@ -35,5 +33,6 @@ def name_cell(poly):
 
 gc = gpd.read_file(geocells_path)
 gc['name'] = gc.geometry.apply(lambda x: name_cell(x))
+
 
 gc.to_file(r'E:\disbr007\general\geocell\one_degree_geocell_named.shp')

@@ -24,7 +24,7 @@ ogr.UseExceptions()
 
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
-sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'INFO')
+# sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'INFO')
 
 
 def move_meta_files(raster_p, out_dir, raster_ext=None):
@@ -44,7 +44,7 @@ def move_meta_files(raster_p, out_dir, raster_ext=None):
 
 def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip',
                  out_prj_shp=None, raster_ext=None, move_meta=False, 
-                 in_mem=False, overwrite=False):
+                 in_mem=False, skip_srs_check=False, overwrite=False):
     """
     Take a list of rasters and warps (clips) them to the shapefile feature
     bounding box.
@@ -69,15 +69,16 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
         check_raster = rasters
         rasters = [rasters]
 
-    logger.debug('Checking spatial reference match:\n{}\n{}'.format(shp_p, check_raster))
-    sr_match = check_sr(shp_p, check_raster)
-    if not sr_match:
-        logger.debug('Spatial references do not match. Reprojecting to AOI...')
-        if not out_prj_shp:
-            out_prj_shp = shp_p.replace('.shp', '_prj.shp')
-        shp_p = ogr_reproject(shp_p,
-                              to_sr=get_raster_sr(check_raster),
-                              output_shp=out_prj_shp)
+    if not skip_srs_check:
+        logger.debug('Checking spatial reference match:\n{}\n{}'.format(shp_p, check_raster))
+        sr_match = check_sr(shp_p, check_raster)
+        if not sr_match:
+            logger.debug('Spatial references do not match. Reprojecting to AOI...')
+            if not out_prj_shp:
+                out_prj_shp = shp_p.replace('.shp', '_prj.shp')
+            shp_p = ogr_reproject(shp_p,
+                                  to_sr=get_raster_sr(check_raster),
+                                  output_shp=out_prj_shp)
 
     shp = gpd.read_file(shp_p)
     if len(shp) > 1:
@@ -102,6 +103,8 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
             # Create outpath
             raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
             raster_out_path = os.path.join(out_dir, raster_out_name)
+        else:
+            raster_out_path = out_path
 
         # Clip to shape
         logger.info('Clipping: {}\n{}---> {}'.format(os.path.basename(raster_p), (' ' * 49), raster_out_path))
