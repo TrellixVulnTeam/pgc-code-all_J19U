@@ -183,7 +183,6 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
             where += " AND ({}.{} = '{}')".format(FP, SERIES_FIELD, SERIES)
         aia = query_footprint(FP, db=DB, table=True, where=where)
         aia_ct = len(aia)
-        logger.info('Records loaded in AHAP table: {:,}'.format(aia_ct))
         # Remove duplicates - there are identical records, but on different src_drives
         # Mainly seen on src_drives: USGS_s31 and USGS_s71
         # If this actually removes anything, a debug message will be logged.
@@ -193,6 +192,8 @@ def main(selection, destination, source_loc, high_res, med_res, tm,
         aia_dd = len(aia)
         if aia_dd != aia_ct:
             logger.debug('Duplicates dropped, identical records on multiples drives.')
+
+        logger.info('Records loaded in AHAP table: {:,}'.format(len(aia)))
 
         return aia
     
