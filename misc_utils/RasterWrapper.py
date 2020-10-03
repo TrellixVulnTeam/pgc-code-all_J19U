@@ -21,7 +21,7 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 gdal.UseExceptions()
 
 
-class Raster():
+class Raster:
     """
     A class wrapper using GDAL to simplify working with rasters.
     Basic functionality:

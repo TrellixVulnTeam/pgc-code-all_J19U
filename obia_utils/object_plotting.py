@@ -14,9 +14,6 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-#%%
-
-
 def geo2pixel(y, x, img):
     """
     Convert geographic coordinates to pixel coordinates

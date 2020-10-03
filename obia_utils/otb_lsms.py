@@ -20,9 +20,9 @@ from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
 
 
 #### Set up logger
-# handler_level = 'INFO'
-# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-# logger = logging.getLogger(__name__)
+handler_level = 'INFO'
+logging.config.dictConfig(LOGGING_CONFIG(handler_level))
+logger = logging.getLogger(__name__)
 
 
 #### Function definition

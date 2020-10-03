@@ -480,3 +480,12 @@ def match_pixel_size(rasters, dst_dir=None, sfx=None, resampleAlg='cubic', in_me
             outputs.append(dst)
 
     return outputs
+
+
+def get_raster_stats(raster, band_num=1):
+    src = gdal.Open(raster)
+    band = src.GetRasterBand(band_num)
+
+    stats = band.GetStatistics(True, True)
+
+    return stats

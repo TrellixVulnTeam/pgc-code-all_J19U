@@ -15,13 +15,12 @@ from subprocess import PIPE
 
 # from osgeo import gdal
 
-from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
+from misc_utils.logging_utils import create_logger
+from misc_utils.gdal_tools import get_raster_stats
 
 
 #### Set up logger
-handler_level = 'INFO'
-logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-logger = logging.getLogger(__name__)
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 #### Function definition
@@ -77,6 +76,9 @@ def otb_texture_haralick(img,
     None.
 
     """
+    if not img_min and not img_max:
+        img_min, img_max, _mean, _std = get_raster_stats(img)
+
     # Build the command
     cmd = """otbcli_HaralickTextureExtraction
              -in {}
@@ -100,8 +102,8 @@ def otb_texture_haralick(img,
     # Remove whitespace, newlines
     cmd = cmd.replace('\n', '')
     cmd = ' '.join(cmd.split())
-    logger.info(cmd)
-    
+    logger.debug(cmd)
+
     # Run command
     logger.debug(cmd)
     # If run too quickly, check OTB env is active
@@ -111,11 +113,10 @@ def otb_texture_haralick(img,
     run_time = run_time_finish - run_time_start
     too_fast = datetime.timedelta(seconds=10)
     if run_time < too_fast:
-        logger.warning("""Execution completed quickly, likely due to an error. Did you activate
-                          OTB env first?
-                          "C:\OSGeo4W64\OTB-6.6.1-Win64\OTB-6.6.1-Win64\otbenv.bat" or
-                          module load otb/6.6.1
-                          """)
+        logger.warning("Execution completed quickly, likely due to an error. Did you activate "
+                       "OTB env first?"
+                       "C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat\nor \n"
+                       "module load otb/6.6.1")
     logger.info('HaralickTextureExtraction finished. Runtime: {}'.format(str(run_time)))
 
 
