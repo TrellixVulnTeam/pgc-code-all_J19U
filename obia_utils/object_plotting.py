@@ -29,13 +29,13 @@ def geo2pixel(y, x, img):
 def plot_objects(obj=None, img=None, column=None, bounds_only=True, obj_extent=True,
                  obj_cmap=None, linewidth=0.5, alpha=1,
                  edgecolor='white', rgb=[4, 2, 1], band=None,
-                 ax=None, obj_kwargs={}, img_kwargs={}):
+                 plot_window=None, ax=None, obj_kwargs={}, img_kwargs={}):
     """Plot vector objects on an image
     Parameters:
         """
     # Create a figure and ax is not provided
     if not ax:
-        fig, ax = plt.subplots(1,1, figsize=(15,15))
+        fig, ax = plt.subplots(1, 1, figsize=(15, 15))
     # Plot the img if provided
     if img is not None:
         logger.debug('Plotting imagery...')
@@ -43,16 +43,23 @@ def plot_objects(obj=None, img=None, column=None, bounds_only=True, obj_extent=T
         if isinstance(img, str):
             img = rio.open(img)
         img_arr = img.read(masked=True)
+
         if obj is not None and obj_extent:
+            logger.debug('Using objects extent for plotting.')
             minx, miny, maxx, maxy = obj.total_bounds
             minrow, mincol = geo2pixel(y=maxy, x=minx, img=img)
             maxrow, maxcol = geo2pixel(y=miny, x=maxx, img=img)
             img_arr = img_arr[:, mincol:maxcol, minrow:maxrow]
             logger.debug(img_arr.min(), img_arr.max())
-            img_ext = (minx, maxx, miny, maxy)
+            img_ext = (minx, miny, maxx, maxy)
         else:
+            logger.debug('Using images full extent for plotting.')
+            # minx, maxx, miny, maxy = plotting_extent(img)
+            # img_ext = (minx, miny, maxx, maxy)
             img_ext = plotting_extent(img)
+
         logger.debug('Img ext: {}'.format(img_ext))
+
         if band is not None:
             ep.plot_bands(img_arr[band-1], extent=img_ext, ax=ax, **img_kwargs)
         else:
@@ -78,10 +85,14 @@ def plot_objects(obj=None, img=None, column=None, bounds_only=True, obj_extent=T
         else:
             obj.plot(ax=ax, column=column, cmap=obj_cmap, alpha=alpha,
                      linewidth=linewidth, edgecolor=edgecolor, **obj_kwargs)
-
+    if plot_window:
+        logger.debug('Updating to use passed window as extent.')
+        ax.set_xlim([plot_window[0], plot_window[2]])
+        ax.set_ylim([plot_window[1], plot_window[3]])
 
     fig.show()
 
+    return fig, ax
 
 #%%
 # plt.style.use('ggplot')

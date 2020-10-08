@@ -43,15 +43,23 @@ o = ImageObjects(obj_path)
 
 # o.objects = o.objects.loc[[2, 3, 4]]
 
-# img_kwargs = {'cmap': 'RdYlGn', 'vmin': -0.25, 'vmax': 0.25}
-plot_objects(obj=o.objects, img=ms_img, rgb=[7,5,4], obj_extent=False)
-
-
-
-
-
-
-
+img_kwargs = {'cmap': 'RdYlGn', 'vmin': -0.25, 'vmax': 0.25}
+img = ndvi
+linewidth = 1
+# rgb = [7, 5, 4]
+rgb = None
+band = 1
+plot_window = (-716225, -825030, -715700, -824534)
+column = 'meanB7'
+obj_cmap = None
+alpha = 0.9
+bounds_only = True
+fig, ax = plot_objects(obj=o.objects, img=img, band=band,
+                       column=column, obj_cmap=obj_cmap,
+                       alpha=alpha, bounds_only=bounds_only,
+                       linewidth=linewidth, rgb=rgb,
+                       obj_extent=False, plot_window=plot_window,
+                       img_kwargs=img_kwargs)
 
 
 
