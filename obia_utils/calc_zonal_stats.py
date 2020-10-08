@@ -5,6 +5,7 @@ Created on Tue Feb 18 14:00:03 2020
 @author: disbr007
 """
 import argparse
+import json
 import logging.config
 import os
 import matplotlib.pyplot as plt
@@ -21,6 +22,16 @@ from misc_utils.logging_utils import LOGGING_CONFIG
 
 logging.config.dictConfig(LOGGING_CONFIG('INFO'))
 logger = logging.getLogger(__name__)
+
+
+def load_stats_dict(stats_json):
+    with open(stats_json) as jf:
+        data = json.load(jf)
+        rasters = [d['path'] for n, d in data.items()]
+        names = [n for n, d in data.items()]
+        stats = [d['stats'] for n, d in data.items()]
+
+    return rasters, names, stats
 
 
 def compute_stats(gdf, raster, stats_dict):
@@ -46,7 +57,7 @@ def compute_stats(gdf, raster, stats_dict):
     The geodataframe with added columns.
 
     """
-    logger.info('Computing {} on raster:\n{}...'.format(' '.join(stats_dict.keys()), raster))
+    logger.info('Computing {} on raster:\n{}'.format(' '.join(stats_dict.keys()), raster))
     gdf = gdf.join(pd.DataFrame(zonal_stats(gdf['geometry'], raster, 
                                         stats=[k for k in stats_dict.keys()]))
                    .rename(columns=stats_dict),
@@ -108,12 +119,18 @@ def calc_zonal_stats(shp, rasters, names,
                     logger.info('Located rasters:'.format('\n'.join(rasters)))
                     for r, n in zip(rasters, names):
                         logger.info('{}: {}'.format(n, r))
-
+                # Create list of lists of stats passed, one for each raster
+                stats = [stats for i in range(len(rasters))]
+            elif ext == '.json':
+                rasters, names, stats = load_stats_dict(rasters[0])
+            else:
+                # Raster paths directly passed
+                stats = [stats for i in range(len(rasters))]
 
     # Iterate rasters and compute stats for each
-    for r, n in zip(rasters, names):
+    for r, n, s in zip(rasters, names, stats):
         # logger.info('Computing zonal statistics for {}'.format(os.path.basename(r)))
-        stats_dict = {s: '{}_{}'.format(n, s) for s in stats}
+        stats_dict = {x: '{}_{}'.format(n, x) for x in s}
         seg = compute_stats(gdf=seg, raster=r, stats_dict=stats_dict)
     
     # Area recording
@@ -148,7 +165,9 @@ if __name__ == '__main__':
                         nargs='+',
                         type=os.path.abspath,
                         help="""List of rasters to compute zonal statistics for.
-                                Or path to .txt file of raster paths (one per line).""")
+                                Or path to .txt file of raster paths (one per line),
+                                or path to .json file in format:
+                                {"name": {"path": "C:\\raster", "stats":["mean", "min"]}}""")
                         # TODO: Adjust to take json of {raster1: {path: C:\raster.tif, name: raster, stats: mean, max,}}
     parser.add_argument('-n', '--names',
                         type=str,

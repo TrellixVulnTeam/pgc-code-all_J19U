@@ -54,7 +54,7 @@ def plot_objects(obj=None, img=None, column=None, bounds_only=True, obj_extent=T
             img_ext = plotting_extent(img)
         logger.debug('Img ext: {}'.format(img_ext))
         if band is not None:
-            ep.plot_bands(img_arr[band], extent=img_ext, ax=ax, **img_kwargs)
+            ep.plot_bands(img_arr[band-1], extent=img_ext, ax=ax, **img_kwargs)
         else:
             ep.plot_rgb(img_arr, rgb=rgb, ax=ax, extent=img_ext, **img_kwargs)
 

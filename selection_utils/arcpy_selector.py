@@ -275,7 +275,8 @@ def select_by_id(selector, imagery_index, id_field='CATALOG_ID', where=None,
     selected_ids = set([row[0] for row in arcpy.da.SearchCursor(selection, [id_field])])
     logger.info('Selected IDs: {}'.format(len(selected_ids)))
     missing_ids = unique_ids - selected_ids
-    logger.info('Missing IDs:\n{}'.format('\n'.join(missing_ids)))
+    if missing_ids:
+        logger.info('Missing IDs:\n{}'.format('\n'.join(missing_ids)))
     logger.info('Missing IDs: {}'.format(len(missing_ids)))
 
     return selection

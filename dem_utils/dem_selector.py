@@ -342,7 +342,12 @@ def dem_selector(AOI_PATH=None,
     # Write list of filepaths to DEMs
     if OUT_FILEPATH_LIST:
         logger.info('Writing selected DEM system filepaths to: {}'.format(OUT_FILEPATH_LIST))
-        filepaths = list(dems[fields['PLATFORM_PATH']])
+        try:
+            filepaths = list(dems[fields['PLATFORM_PATH']])
+        except KeyError as e:
+            logger.error('PLATOFRM_PATH field not found - use --locate_dems flag to generate field.')
+            logger.error(e)
+            sys.exit()
         write_ids(filepaths, OUT_FILEPATH_LIST)
 
     #### Summary Statistics ####

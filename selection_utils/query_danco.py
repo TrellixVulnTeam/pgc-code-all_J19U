@@ -324,6 +324,7 @@ def mono_noh(where=None, noh=True):
     mono = all_mono_stereo[~all_mono_stereo['catalogid'].isin(all_stereo['catalogid'])]
 
     if noh:
+        logger.debug('Removing onhand IDs...')
         # Remove onhand
         pgc_archive = query_footprint(layer='pgc_imagery_catalogids_stereo', table=True)
         oh_ids = set(pgc_archive.catalog_id)

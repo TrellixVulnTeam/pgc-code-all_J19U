@@ -303,7 +303,9 @@ def select_danco(layer_name, destination_path=None, selector_path=None, dst_type
                         max_y1=max_y1,
                         layer_name=layer_name)
     if add_where:
-        where += """ AND {}""".format(add_where)
+        if where:
+            where += " AND "
+        where += """ {}""".format(add_where)
     logger.debug('Where clause: {}'.format(where))
     # Load footprint layer with where clause
     src = load_src(layer_name, where, columns)

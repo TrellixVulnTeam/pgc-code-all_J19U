@@ -63,6 +63,7 @@ class Raster:
         # Get the raster as an array
         # Defaults to band 1 -- use ReadArray() to return stack
         # of multiple bands
+        # TODO: Init these here, but then call as method to avoid loading all on Raster() call
         self.Array = self.data_src.ReadAsArray()
         self.Mask = self.Array == self.nodata_val
         self.MaskedArray = ma.masked_array(self.Array, mask=self.Mask)

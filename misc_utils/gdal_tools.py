@@ -9,6 +9,8 @@ import glob
 import logging
 import posixpath
 from pathlib import Path
+import subprocess
+from subprocess import PIPE
 
 from osgeo import gdal, ogr, osr
 
@@ -488,4 +490,61 @@ def get_raster_stats(raster, band_num=1):
 
     stats = band.GetStatistics(True, True)
 
+    stats = {'min': stats[0],
+             'max': stats[1],
+             'mean': stats[2],
+             'std': stats[3]}
+
     return stats
+
+
+def run_subprocess(command):
+    proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+    for line in iter(proc.stdout.readline, b''):
+        logger.info('(subprocess) {}'.format(line.decode()))
+    proc_err = ""
+    for line in iter(proc.stderr.readline, b''):
+        proc_err += line.decode()
+    if proc_err:
+        logger.info('(subprocess) {}'.format(proc_err))
+    output, error = proc.communicate()
+    logger.debug('Output: {}'.format(output.decode()))
+    logger.debug('Err: {}'.format(error.decode()))
+
+
+def rescale_raster(raster, out_raster, out_min=0, out_max=1):
+    logger.info('Determining input min/max...')
+    stats = get_raster_stats(raster)
+    logger.info('\nMin: {}\nMax:{}'.format(stats['min'], stats['max']))
+
+    # cmd = "gdal_translate -scale {} {} {} {} {} {}".format(stats['min'], stats['max'],
+    #                                                        out_min, out_max,
+    #                                                        raster,
+    #                                                        out_raster)
+    # logger.debug('Running subprocess:\n{}'.format(cmd))
+    # run_subprocess(cmd)
+    # logger.info('Done.')
+    logger.debug('Rescaling: {}'.format(raster))
+    ds = gdal.Translate(out_raster, raster, scaleParams=[[stats['min'], stats['max'], out_min, out_max]])
+
+    return ds
+
+
+def stack_rasters(rasters, out, rescale=False, rescale_min=0, rescale_max=1):
+    if rescale:
+        rescaled = []
+        for r in rasters:
+            logger.info("Rescaling {}".format(r))
+            rescaled_name = r'/vsimem/{}_rescale.vrt'.format(Path(r).stem)
+            rescale_raster(str(r), rescaled_name, out_min=rescale_min, out_max=rescale_max)
+            rescaled.append(rescaled_name)
+        rasters = rescaled
+
+    logger.debug('Building stacked VRT...')
+    temp = r'/vsimem/stack.vrt'
+    gdal.BuildVRT(temp, rasters, separate=True)
+
+    logger.debug('Writing to: {}'.format(out))
+    out_ds = gdal.Translate(out, temp)
+
+    return out_ds

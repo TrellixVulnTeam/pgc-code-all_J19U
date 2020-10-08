@@ -252,7 +252,7 @@ if __name__ == '__main__':
         selection = selection[~selection['catalogid'].isin(oh_ids)]
 
     # Stats for printing to command line
-    logger.info('IDs found: {}'.format(len(selection)))
+    logger.info('IDs found: {:,}'.format(len(selection)))
     agg = {'catalogid': 'count',
            'acqdate': ['min', 'max'],
            'cloudcover': ['min', 'max'],

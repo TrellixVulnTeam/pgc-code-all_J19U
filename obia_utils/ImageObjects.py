@@ -306,17 +306,3 @@ class ImageObjects:
         self.objects[out_field] = (self.objects[~self.objects[neb_values_fld].isnull()][neb_values_fld]
                                    .apply(lambda x: any(value_op(v, value_thresh) for v in x.values())))
 
-obj_path = r'E:\disbr007\umn\2020sep27_eureka\seg' \
-           r'\WV02_20140703013631_1030010032B54F00_' \
-           r'14JUL03013631-M1BS-500287602150_01_P009_' \
-           r'u16mr3413_pansh_test_aoi_sr5_rr100x0_ms100_' \
-           r'tx500_ty500.shp'
-
-o = ImageObjects(obj_path)
-# o.compute_neighbor_values('meanB0', 'neb_meanB0', subset=o.objects.loc[[i for i in range(0, 15)]])
-o.compute_area()
-o.merge_adj(area_fld, operator.gt, 26.2,
-            merge_on_fld='meanB0', merge_thresh=250, recompute_area=True)
-
-# o.objects = o.objects.loc[[2, 3, 4]]
-
