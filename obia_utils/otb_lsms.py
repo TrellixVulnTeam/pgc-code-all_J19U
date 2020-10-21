@@ -181,7 +181,7 @@ def otb_lsms(img, mode='vector',
 
     # Messages from OTB to filter to DEBUG
     debug_filters = ['estimat', ' will be written in ',
-                     'Unable to remove file']
+                     'unable to remove file']
     run_time_start = datetime.datetime.now()
     temp_files = run_subprocess(cmd, debug_filters=debug_filters,
                                 return_lines=[('Unable to remove file (.*)', 1)])

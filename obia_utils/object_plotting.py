@@ -50,7 +50,7 @@ def plot_objects(obj=None, img=None, column=None, bounds_only=True, obj_extent=T
             minrow, mincol = geo2pixel(y=maxy, x=minx, img=img)
             maxrow, maxcol = geo2pixel(y=miny, x=maxx, img=img)
             img_arr = img_arr[:, mincol:maxcol, minrow:maxrow]
-            logger.debug(img_arr.min(), img_arr.max())
+            logger.debug("Object ext: {} {} {} {}".format(minx, miny, maxx, maxy))
             img_ext = (minx, miny, maxx, maxy)
         else:
             logger.debug('Using images full extent for plotting.')
@@ -58,8 +58,8 @@ def plot_objects(obj=None, img=None, column=None, bounds_only=True, obj_extent=T
             # img_ext = (minx, miny, maxx, maxy)
             img_ext = plotting_extent(img)
 
-        logger.debug('Img ext: {}'.format(img_ext))
-
+        if not band and img_arr.shape[0] == 1:
+            band = 1
         if band is not None:
             ep.plot_bands(img_arr[band-1], extent=img_ext, ax=ax, **img_kwargs)
         else:
@@ -80,6 +80,7 @@ def plot_objects(obj=None, img=None, column=None, bounds_only=True, obj_extent=T
 
             obj[column] = 1
         if bounds_only:
+            logger.debug('Plotting objects...')
             obj.set_geometry(obj.geometry.boundary).plot(ax=ax, column=column, cmap=obj_cmap, alpha=alpha,
                                                          linewidth=linewidth, **obj_kwargs)
         else:

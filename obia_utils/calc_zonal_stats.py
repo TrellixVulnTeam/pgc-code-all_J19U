@@ -17,24 +17,47 @@ import geopandas as gpd
 # import rasterio
 from rasterstats import zonal_stats
 
-from misc_utils.logging_utils import LOGGING_CONFIG
+from misc_utils.logging_utils import create_logger
+from misc_utils.gdal_tools import auto_detect_ogr_driver
 
 
-logging.config.dictConfig(LOGGING_CONFIG('INFO'))
-logger = logging.getLogger(__name__)
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def load_stats_dict(stats_json):
     with open(stats_json) as jf:
         data = json.load(jf)
-        rasters = [d['path'] for n, d in data.items()]
-        names = [n for n, d in data.items()]
-        stats = [d['stats'] for n, d in data.items()]
+        # rasters = [d['path'] for n, d in data.items()]
+        # names = [n for n, d in data.items()]
+        # stats = [d['stats'] for n, d in data.items()]
 
-    return rasters, names, stats
+        names = []
+        rasters = []
+        stats = []
+        bands = []
+        for n, d in data.items():
+            names.append(n)
+            rasters.append(d['path'])
+            stats.append(d['stats'])
+            if 'bands' in d.keys():
+                bands.append(d['bands'])
+            else:
+                bands.append(None)
+
+    return rasters, names, stats, bands
 
 
-def compute_stats(gdf, raster, stats_dict):
+def calc_compactness(geometry):
+    # Polsby - Popper Score - - 1 = circle
+    compactness = (np.pi * 4 * geometry.area) / (geometry.boundary.length)**2
+    return compactness
+
+
+def apply_compactness(gdf, out_field='compact'):
+    gdf[out_field] = gdf.geometry.apply(lambda x: calc_compactness(x))
+
+
+def compute_stats(gdf, raster, stats_dict, band=None):
     """
     Computes statistics for each polygon in geodataframe
     based on raster. Statistics to be computed are the keys
@@ -58,11 +81,18 @@ def compute_stats(gdf, raster, stats_dict):
 
     """
     logger.info('Computing {} on raster:\n{}'.format(' '.join(stats_dict.keys()), raster))
-    gdf = gdf.join(pd.DataFrame(zonal_stats(gdf['geometry'], raster, 
-                                        stats=[k for k in stats_dict.keys()]))
-                   .rename(columns=stats_dict),
-               how='left')
-
+    if band:
+        logger.info('Band: {}'.format(band))
+        gdf = gdf.join(pd.DataFrame(zonal_stats(gdf['geometry'], raster,
+                                                stats=[k for k in stats_dict.keys()],
+                                                band=band))
+                       .rename(columns=stats_dict),
+                       how='left')
+    else:
+        gdf = gdf.join(pd.DataFrame(zonal_stats(gdf['geometry'], raster,
+                                                stats=[k for k in stats_dict.keys()],))
+                       .rename(columns=stats_dict),
+                       how='left')
     return gdf
 
 
@@ -104,14 +134,16 @@ def calc_zonal_stats(shp, rasters, names,
     logger.info('Reading in segments...')
     seg = gpd.read_file(shp)
     logger.info('Segments found: {:,}'.format(len(seg)))
-    
+
     # Determine rasters input type
+    # TODO: Fix logic here, what is a bad path is passed?
     if len(rasters) == 1:
         if os.path.exists(rasters[0]):
+            logger.info('Reading raster file...')
             ext = os.path.splitext(rasters[0])[1]
             if ext == '.txt':
                 # Assume text file of raster paths, read into list
-                logger.info('Reading rasters from file: {}'.format(rasters[0]))
+                logger.info('Reading rasters from text file: {}'.format(rasters[0]))
                 with open(rasters[0], 'r') as src:
                     content = src.readlines()
                     rasters = [c.strip() for c in content]
@@ -122,16 +154,22 @@ def calc_zonal_stats(shp, rasters, names,
                 # Create list of lists of stats passed, one for each raster
                 stats = [stats for i in range(len(rasters))]
             elif ext == '.json':
-                rasters, names, stats = load_stats_dict(rasters[0])
+                logger.info('Reading rasters from json file: {}'.format(rasters[0]))
+                rasters, names, stats, bands = load_stats_dict(rasters[0])
             else:
                 # Raster paths directly passed
                 stats = [stats for i in range(len(rasters))]
 
     # Iterate rasters and compute stats for each
-    for r, n, s in zip(rasters, names, stats):
-        # logger.info('Computing zonal statistics for {}'.format(os.path.basename(r)))
-        stats_dict = {x: '{}_{}'.format(n, x) for x in s}
-        seg = compute_stats(gdf=seg, raster=r, stats_dict=stats_dict)
+    for r, n, s, bs in zip(rasters, names, stats, bands):
+        if bs is None:
+            stats_dict = {x: '{}_{}'.format(n, x) for x in s}
+            seg = compute_stats(gdf=seg, raster=r, stats_dict=stats_dict)
+        else:
+            # Compute stats for each band
+            for b in bs:
+                stats_dict = {x: '{}b{}_{}'.format(n, b, x) for x in s}
+                seg = compute_stats(gdf=seg, raster=r, stats_dict=stats_dict, band=b)
     
     # Area recording
     if area:
@@ -146,7 +184,8 @@ def calc_zonal_stats(shp, rasters, names,
         out_path = os.path.join(os.path.dirname(shp),
                        '{}_stats.shp'.format(os.path.basename(shp).split('.')[0]))
     logger.info('Writing segments with statistics to: {}'.format(out_path))
-    seg.to_file(out_path)
+    driver = auto_detect_ogr_driver(out_path, name_only=True)
+    seg.to_file(out_path, driver=driver)
     
     logger.info('Done.')
 
@@ -194,6 +233,6 @@ if __name__ == '__main__':
                      rasters=args.rasters,
                      names=args.names,
                      stats=args.stats,
-                     area=args.compactness,
+                     area=args.area,
                      compactness=args.compactness,
                      out_path=args.out_path)

@@ -14,7 +14,7 @@ from osgeo import gdal, osr  # ogr
 from shapely.geometry import box
 
 from misc_utils.logging_utils import create_logger
-from misc_utils.gdal_tools import clip_minbb
+from misc_utils.gdal_tools import clip_minbb, gdal_polygonize
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
@@ -64,6 +64,7 @@ class Raster:
         # Defaults to band 1 -- use ReadArray() to return stack
         # of multiple bands
         # TODO: Init these here, but then call as method to avoid loading all on Raster() call
+        # @property for lazy evaluation?
         self.Array = self.data_src.ReadAsArray()
         self.Mask = self.Array == self.nodata_val
         self.MaskedArray = ma.masked_array(self.Array, mask=self.Mask)
@@ -290,12 +291,21 @@ class Raster:
                 dst_ds.GetRasterBand(band).WriteArray(lyr)
                 dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
             else:
-                logger.info(array.dtype)
+                # logger.info(array.dtype)
                 band = i + 1
                 dst_ds.GetRasterBand(band).WriteArray(array)
                 dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
 
         dst_ds = None
+
+    def WriteMask(self, out_path, **kwargs):
+        self.WriteArray(self.Mask, out_path=out_path, **kwargs)
+
+    def WriteMaskVector(self, out_vec, out_mask_img=None, **kwargs):
+        if out_mask_img is None:
+            out_mask_img = r'/vsimem/mask.tif'
+        self.WriteMask(out_path=out_mask_img)
+        gdal_polygonize(img=out_mask_img, out_vec=out_vec, **kwargs)
 
     def NDVI(self, out_path, red_num, nir_num):
         ndvi_arr = self.ndvi_array(red_num, nir_num)

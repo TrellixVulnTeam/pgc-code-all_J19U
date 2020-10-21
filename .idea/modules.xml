@@ -3,8 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://V:/pgc/data/scratch/jeff/code/pgcdemtools_jeff/.idea/pgcdemtools.iml" filepath="V:/pgc/data/scratch/jeff/code/pgcdemtools_jeff/.idea/pgcdemtools.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/planet.iml" filepath="$PROJECT_DIR$/.idea/planet.iml" />
       <module fileurl="file://$PROJECT_DIR$/../planet_stereo/.idea/planet_stereo.iml" filepath="$PROJECT_DIR$/../planet_stereo/.idea/planet_stereo.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/rts.iml" filepath="$PROJECT_DIR$/.idea/rts.iml" />
     </modules>
   </component>
 </project>

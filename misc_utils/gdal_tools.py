@@ -19,7 +19,7 @@ from misc_utils.logging_utils import create_logger
 
 
 logger = create_logger(__name__, 'sh',
-                       handler_level='DEBUG')
+                       handler_level='INFO')
 
 
 ogr.UseExceptions()
@@ -219,7 +219,7 @@ def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'], username=g
     return lyr, conn
 
 
-def auto_detect_ogr_driver(ogr_ds):
+def auto_detect_ogr_driver(ogr_ds, name_only=False):
     """
     Autodetect the appropriate driver for an OGR datasource.
     
@@ -259,17 +259,19 @@ def auto_detect_ogr_driver(ogr_ds):
         except:
             logger.info('Unable to locate OGR driver for {}'.format(ogr_ds))
             driver_name = None
-    
-    try:
-        driver = ogr.GetDriverByName(driver_name)
-    except ValueError as e:
-       print('ValueError with driver_name: {}'.format(driver_name))
-       print('OGR DS: {}'.format(ogr_ds))
-       raise e
+    if name_only:
+        return driver_name
+    else:
+        try:
+            driver = ogr.GetDriverByName(driver_name)
+        except ValueError as e:
+           print('ValueError with driver_name: {}'.format(driver_name))
+           print('OGR DS: {}'.format(ogr_ds))
+           raise e
 
-    logger.debug('Driver autodetected: {}'.format(driver_name))
+        logger.debug('Driver autodetected: {}'.format(driver_name))
 
-    return driver
+        return driver
 
 
 def remove_shp(shp):
@@ -421,15 +423,20 @@ def gdal_polygonize(img, out_vec, band=1, fieldname='label', overwrite=True):
         logger.debug('Removing existing vector files: {}'.format('\n'.join(vec_files)))
         _del_files = [os.remove(f) for f in vec_files]
     # Open raster, get band and coordinate reference
+    logger.debug('Opening raster for vectorization: {}'.format(img))
     src_ds = gdal.Open(img)
     src_band = src_ds.GetRasterBand(band)
+
     src_srs = get_raster_sr(img)
+    logger.debug('Raster SRS: {}'.format(src_srs.GetAuthorityCode(src_srs.ExportToWkt())))
     # Create vector
+    logger.debug('Creating vector layer: {}'.format(out_vec))
     dst_driver = auto_detect_ogr_driver(out_vec)
     dst_ds = dst_driver.CreateDataSource(out_vec)
     # Drop extension for layer name
     lyr_name = os.path.basename(os.path.splitext(out_vec)[0])
-    dst_lyr = dst_ds.CreateLayer(lyr_name, srs = src_srs)
+    dst_lyr = dst_ds.CreateLayer(lyr_name, srs=src_srs)
+    logger.debug('Vector layer SRS: {}'.format(dst_lyr.GetSpatialRef().ExportToWkt()))
     field_dfn = ogr.FieldDefn(fieldname, ogr.OFTString)
     dst_lyr.CreateField(field_dfn)
     # Polygonize
@@ -540,11 +547,11 @@ def stack_rasters(rasters, out, rescale=False, rescale_min=0, rescale_max=1):
             rescaled.append(rescaled_name)
         rasters = rescaled
 
-    logger.debug('Building stacked VRT...')
+    logger.info('Building stacked VRT...')
     temp = r'/vsimem/stack.vrt'
     gdal.BuildVRT(temp, rasters, separate=True)
 
-    logger.debug('Writing to: {}'.format(out))
+    logger.info('Writing to: {}'.format(out))
     out_ds = gdal.Translate(out, temp)
 
     return out_ds

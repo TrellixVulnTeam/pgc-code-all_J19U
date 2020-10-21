@@ -48,7 +48,8 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
     # if args:
         # dem_options = gdal.DEMProcessingOptions(args)
     logger.info('Creating and writing {} to: {}'.format(derivative, output_path))
-    gdal.DEMProcessing(output_path, input_dem, derivative, **args)
+    status = gdal.DEMProcessing(output_path, input_dem, derivative, **args)
+    logger.info(status)
 
     if return_array:
         array = Raster(output_path).Array

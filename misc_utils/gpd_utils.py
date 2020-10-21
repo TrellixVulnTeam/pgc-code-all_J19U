@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import copy, logging, os
 import numpy as np
 import random
+import pathlib
+from pathlib import Path
 
 import fiona
 import geopandas as gpd
@@ -294,3 +296,49 @@ def dissolve_gdf(gdf):
         gdf = gdf.drop(columns=dissolve_field)
 
     return gdf
+
+
+def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
+    # Convert datetime columns to str
+    date_cols = df.select_dtypes(include=['datetime64']).columns
+    for dc in date_cols:
+        df[dc] = df[dc].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S'))
+
+
+def write_gdf(src_gdf, out_footprint, to_str_cols=None,
+              out_format=None, date_format=None):
+    gdf = copy.deepcopy(src_gdf)
+
+    if not isinstance(out_footprint, pathlib.PurePath):
+        out_footprint = Path(out_footprint)
+
+    # remove datetime - specifiy datetime if desired format
+    if not gdf.select_dtypes(include=['datetime64']).columns.empty:
+        datetime2str_df(gdf, date_format=date_format)
+    # convert columns that store lists to strings
+    if to_str_cols:
+        for col in to_str_cols:
+            gdf[col] = [','.join(map(str, l)) if len(l) > 0
+                        else '' for l in gdf[col]]
+
+    logger.debug('Writing to file: {}'.format(out_footprint))
+    if not out_format:
+        out_format = out_footprint.suffix.replace('.', '')
+        if not out_format:
+            # if still no extension, check if gpkg (package.gpkg/layer)
+            out_format = out_footprint.parent.suffix
+            if not out_format:
+                logger.error('Could not recognize out format from file extension: {}'.format(out_footprint))
+
+    # write out in format specified
+    if out_format == 'shp':
+        gdf.to_file(out_footprint)
+    elif out_format == 'geojson':
+        gdf.to_file(out_footprint,
+                    driver='GeoJSON')
+    elif out_format == 'gpkg':
+        gdf.to_file(out_footprint.parent, layer=out_footprint.stem,
+                    driver='gpkg')
+    else:
+        logger.error('Unrecognized format: {}'.format(out_format))
+
