@@ -135,3 +135,7 @@ clarie_repos
 # google
 .tmp.drivedownload
 *.ini
+
+# DB connections
+config/danco.footprint.json
+config/sanwich-ppol.dem.json
