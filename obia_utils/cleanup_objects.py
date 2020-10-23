@@ -2,6 +2,8 @@ import argparse
 import copy
 import os
 
+from osgeo import gdal
+import pandas as pd
 import geopandas as gpd
 
 from misc_utils.RasterWrapper import Raster
@@ -9,29 +11,21 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-# Create mask based on raster NoData
+gdal.UseExceptions()
+gdal.SetConfigOption('CHECK_DISK_FREE_SPACE', 'FALSE')
 
-# mask_on = r'E:\disbr007\umn\2020sep27_eureka\dems\sel\WV02_20140703_1030010033A84300_1030010032B54F00_test_aoi' \
-#           r'\WV02_20140703_1030010033A84300_1030010032B54F00_2m_lsf_seg1_dem_masked_test_aoi.tif'
-# obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\grm\ms' \
-#         r'\WV02_20140703013631_1030010032B54F00_14JUL03013631' \
-#         r'-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_bst200x0ni250s0spec0x5spat0x6.shp'
-#
-# mask_out_img = r'E:\disbr007\umn\2020sep27_eureka\scratch\mask.tif'
-# # mask_out_vec = r'E:\disbr007\umn\2020sep27_eureka\scratch\mask.shp'
-# mask_out_vec = r'/vsimem/mask_vec.shp'
-#
-# r = Raster(mask_on)
-# r.WriteMaskVector(mask_out_vec)
-#
-# mask = gpd.read_file(mask_out_vec)
-# good = mask[mask['label']!='1']
-#
-# objs = gpd.read_file(obj_p)
-#
-# keep_objs = gpd.overlay(objs, good)
 
-def mask_objs(objects, mask_on, out_objects, out_mask_img=None, out_mask_vec=None):
+def load_objs(objects):
+    # Load objects
+    # TODO: Read in chunks, parallelize, recombine and write
+    logger.info('Reading in objects...')
+    objs = gpd.read_file(objects)
+    logger.info('Objects found: {:,}'.format(len(objs)))
+
+    return objs
+
+
+def mask_objs(objs, mask_on, out_mask_img=None, out_mask_vec=None):
     if out_mask_img is None:
         out_mask_img = r'/vsimem/temp_mask.tif'
     if out_mask_vec is None:
@@ -42,11 +36,6 @@ def mask_objs(objects, mask_on, out_objects, out_mask_img=None, out_mask_vec=Non
     Raster(mask_on).WriteMaskVector(out_vec=out_mask_vec, out_mask_img=out_mask_img)
     mask = gpd.read_file(out_mask_vec)
     not_mask = mask[mask.iloc[:, 0] != '1']
-    # Load objects
-    # TODO: Read in chunks, parallelize, recombine and write
-    logger.info('Reading in objects...')
-    objs = gpd.read_file(objects)
-    logger.info('Objects found: {:,}'.format(len(objs)))
 
     # Select only objects in valid areas of mask
     logger.info('Removing objects in masked areas...')
@@ -57,16 +46,31 @@ def mask_objs(objects, mask_on, out_objects, out_mask_img=None, out_mask_vec=Non
     keep_objs = gpd.overlay(objs, not_mask)
     logger.info('Objects kept: {:,}'.format(len(keep_objs)))
 
-    logger.info('Writing kept objects to: {}'.format(out_objects))
-    keep_objs.to_file(out_objects)
-    logger.info('Done.')
+    return keep_objs
 
+
+def remove_null_objects(objects, fields=['all']):
+    logger.info('Removing objects with fields that are null.')
+    if len(fields) == 1 and fields[0] == 'all':
+        fields = list(objects)
+    logger.info('Fields considered: {}'.format(fields))
+
+    keep_objs = objects[objects.apply(lambda x: all([pd.notna(x[f])
+                                                     for f in fields]), axis=1)]
+    # keep_objs = keep_objs[keep_objs[fields].notnull()]
+
+    logger.info('Objects kept: {:,}'.format(len(keep_objs)))
+
+    return keep_objs
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Remove objects that fall within NoData'
                                                  'areas of passed raster.')
     parser.add_argument('-r', '--raster', type=os.path.abspath,
                         help='Path to raster to use to remove objects in NoData areas.')
+    parser.add_argument('-dna', '--drop_na', nargs='+',
+                        help='Drop objects where the passed fields are NaN. '
+                             'Pass "all" to check all fields for NaN.')
     parser.add_argument('-i', '--input_objects', type=os.path.abspath,
                         help='Path to objects to clean up.')
     parser.add_argument('-o', '--out_objects', type=os.path.abspath,
@@ -78,23 +82,37 @@ if __name__ == '__main__':
                         help='Path to write intermediate mask vector polygonized '
                              'from mask raster.')
 
+    import sys
+    sys.argv = [r'C:\code\pgc-code-all\obia_utils\cleanup_objects.py',
+                '-i',
+                r'E:\disbr007\umn\2020sep27_eureka\seg\zs'
+                r'\WV02_20140703013631_1030010032B54F00_14JUL03013631'
+                r'-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_'
+                r'bst150x0ni200s0spec0x3spat0x9_zs_cclass.shp',
+                '-o',
+                r'E:\disbr007\umn\2020sep27_eureka\seg\zs'
+                r'\WV02_20140703013631_1030010032B54F00_14JUL03013631'
+                r'-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_'
+                r'bst150x0ni200s0spec0x3spat0x9_zs_cclass_cln.shp',
+                '-dna', 'all']
+
     args = parser.parse_args()
 
-    import sys
-    sys.argv['-i',
-             'seg\grm\ms\WV02_20140703013631_1030010032B54F00_14JUL03013631-M1BS-' \
-             '500287602150_01_P009_u16mr3413_pansh_test_aoi_bst150x0ni200s0spec0x3spat0x9.shp',
-             '-o', 'seg\grm\ms\WV02_20140703013631_1030010032B54F00_14JUL03013631-M1BS-' \
-                   '500287602150_01_P009_u16mr3413_pansh_test_aoi_bst150x0ni200s0spec0x3spat0x9.shp',
-             ' -r',
-             'dems\sel\WV02_20110811_103001000D198300_103001000C5D4600_test_aoi' \
-             '\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_test_aoi.tif']
-
     raster = args.raster
+    drop_na = args.drop_na
     input_objects = args.input_objects
     out_objects = args.out_objects
     out_mask_img = args.out_mask_img
     out_mask_vec = args.out_mask_vec
+    
+    keep_objs = load_objs(input_objects)
 
-    mask_objs(objects=input_objects, mask_on=raster, out_objects=out_objects,
-              out_mask_img=out_mask_img, out_mask_vec=out_mask_vec)
+    if raster:
+        keep_objs = mask_objs(objects=keep_objs, mask_on=raster,
+                              out_mask_img=out_mask_img, out_mask_vec=out_mask_vec)
+    if drop_na:
+        keep_objs = remove_null_objects(keep_objs, fields=drop_na)
+
+    logger.info('Writing kept objects to: {}'.format(out_objects))
+    keep_objs.to_file(out_objects)
+    logger.info('Done.')

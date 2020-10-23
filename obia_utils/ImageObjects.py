@@ -18,7 +18,7 @@ plt.style.use('pycharm')
 # Suppress pandas SettingWithCopyWarning
 pd.options.mode.chained_assignment = None
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 nebs_fld = 'neighbors'
 area_fld = 'area'
@@ -37,12 +37,48 @@ def weighted_majority(values, weights):
     return wmaj
 
 
+# Pairwise functions
+def within_range(a, b, range):
+    return operator.le(abs(a - b), range)
+
+
+def pairwise_match(row, possible_match, pairwise_criteria):
+    """Tests each set of pairwise critieria against the current row
+    and a possible match.
+    Parameters
+    ---------
+    row : pd.Series
+        Must contain all fields in pairwise criteria
+    possible_match : pd.Series
+        Must contain all fields in pairwise critieria
+    pairwise_criteria : dict
+        Dict of critiria, supported types:
+            'within': {'field': "field_name", 'range': "within range"}
+            'threshold: {'field': "field_name, 'op', operator comparison fxn,
+                         'threshold': value to use in fxn}
+    Returns
+    -------
+    bool : True is all criteria are met
+    """
+    criteria_met = []
+    for criteria_type, params in pairwise_criteria.items():
+        if criteria_type == 'within':
+            criteria_met.append(within_range(row[params['field']],
+                                             possible_match[params['field']],
+                                             params['range']))
+        elif criteria_type == 'threshold':
+            criteria_met.append(
+                params['op'](possible_match[params['field']],
+                             params['threshold']))
+    return all(criteria_met)
+
+
 class ImageObjects:
     """
     Designed to facilitate object-based-image-analysis
     classification.
     """
-    def __init__(self, objects_path):
+    def __init__(self, objects_path, value_fields=None):
         if isinstance(objects_path, gpd.GeoDataFrame):
             self.objects = copy.deepcopy(objects_path)
             self.objects_path = None
@@ -50,9 +86,12 @@ class ImageObjects:
             self.objects_path = objects_path
             self.objects = gpd.read_file(objects_path)
 
-        self.num_objs = len(self.objects)
+        self.value_fields = value_fields
+        self._num_objs = None
         self._fields = list(self.objects.columns)
 
+        # Neighbor value fields
+        self.nv_fields = list()
         # Field name for area
         if area_fld not in self.fields:
             self.area_fld = area_fld
@@ -69,10 +108,18 @@ class ImageObjects:
         if not self.objects.index.is_unique:
             logger.warning('Non-unique index not supported.')
 
+        # Merging
+        self.to_be_merged = None
+
     @property
     def fields(self):
         self._fields = list(self.objects.columns)
         return self._fields
+
+    @property
+    def num_objs(self):
+        self._num_objs = len(self.objects)
+        return self._num_objs
 
     def compute_area(self):
         self.objects[self.area_fld] = self.objects.geometry.area
@@ -133,6 +180,30 @@ class ImageObjects:
         logger.debug('Neighbor computation complete.')
 
         return self.objects[self.objects.index.isin(subset.index)]
+
+    def replace_neighbor(self, old_neb, new_neb):
+
+        def _rowwise_replace_neighbor(neighbors, old_neb, new_neb):
+            if old_neb in neighbors:
+                neighbors = [n for n in neighbors if n != old_neb]
+                neighbors.append(new_neb)
+            return neighbors
+
+        self.objects[nebs_fld] = self.objects[nebs_fld].apply(
+            lambda x: _rowwise_replace_neighbor(x, old_neb, new_neb))
+
+    def replace_neighbor_value(self, neb_v_fld, old_neb, new_neb, new_value):
+
+        def _rowwise_replace_nv(neb_values, old_neb, new_neb, new_value):
+            if old_neb in neb_values.keys():
+                neb_values.pop(old_neb)
+                neb_values[new_neb] = new_value
+            return neb_values
+
+        self.objects[neb_v_fld] = self.objects[neb_v_fld].apply(
+            lambda x: _rowwise_replace_nv(x, old_neb,
+                                          new_neb, new_value))
+
 
     def neighbor_features(self, subset=None):
         """
@@ -235,11 +306,15 @@ class ImageObjects:
                                 subset[[out_field]],
                                 how='outer', suffixes=('', '_y'),
                                 left_index=True, right_index=True)
+        # Add neighbor value field and field it is based on to list of tuples
+        # of all neighbor value fields
+        self.nv_fields.append((value_field, out_field))
 
         return self.objects[self.objects.index.isin(subset.index)]
 
     def find_merge_candidates(self, fields_ops_thresholds):
-        """Marks columns that meet merge criteria (field op threshold)
+        """
+        Marks columns that meet merge criteria (field op threshold)
         as True in merge_candidates field.
         fields_ops_thresholds.
         Parameters
@@ -249,7 +324,8 @@ class ImageObjects:
 
         Returns
         ------
-        None : updates self.objects in place"""
+        None : updates self.objects in place
+        """
         df = pd.DataFrame(
             [op(self.objects[field], threshold) for field, op, threshold in
              fields_ops_thresholds]).transpose()
@@ -260,17 +336,22 @@ class ImageObjects:
         logger.info('Beginning pseudo-merge to determine merges...')
         # Get objects that meet merge criteria
         self.find_merge_candidates(merge_criteria)
+        logger.debug('Merge candidates found: {:,}'.format(
+            len(self.objects[self.objects[merge_candidates] == True])))
 
-        # Sort merge candidates
-        # TODO: sort merge candidates
+        # Sort
+        self.objects = self.objects.sort_values(by=area_fld)
 
+        # Set all objects as possible mergeable
         self.objects[mergeable] = True
-        self.objects[merge_path] = [[] for i in range(len(self.objects))]
+        # Initialize empty list to store "merge path" -> ordered neighbor
+        # IDs to be merged
+        self.objects[merge_path] = [[] for i in range(self.num_objs)]
 
         # Dataframe to hold objects that will be merged later
-        to_be_merged = gpd.GeoDataFrame()
-        # While there are rows that are merge_candidates, that haven't been
-        # checked
+        self.to_be_merged = gpd.GeoDataFrame()
+        # While there are rows that are merge_candidates and that haven't been
+        # checked, look for a possible merge to a neighbor
         while self.objects[[merge_candidates, mergeable]].all(
                 axis='columns').any():
             # Get the first row that is a merge_candidate and marked mergeable
@@ -278,7 +359,7 @@ class ImageObjects:
                              self.objects[mergeable]].iloc[0])
             # Get ID of row
             i = r.name
-            print(i)
+            print('ID: {}'.format(i))
             if not r[merge_nv_field]:
                 self.objects.at[i, mergeable] = False
                 continue
@@ -298,29 +379,31 @@ class ImageObjects:
                     break
 
             if best_match is not None:
-                print('match')
                 best_match_id = best_match.name
-                # pseudo merge
+                logger.debug('match: {}'.format(best_match_id))
                 # Handle other objects that are neighbors
                 for neighbor in r[nebs_fld]:
                     # Remove current row from it's neighbors lists of
                     # neighbors
-                    while i in self.objects.at[neighbor, nebs_fld]:
-                        self.objects.at[neighbor, nebs_fld].remove(i)
+                    # while i in self.objects.at[neighbor, nebs_fld]:
+                    #     self.objects.at[neighbor, nebs_fld].remove(i)
+
                     # Add new (best_match_id) ID to neighbors list of neighbors
                     # if it wasn't already a neighbor
                     if neighbor != best_match_id:
-                        if best_match_id not in self.objects.at[
-                            neighbor, nebs_fld]:
+                        if best_match_id not in self.objects.at[neighbor,
+                                                                nebs_fld]:
                             self.objects.at[neighbor, nebs_fld].append(
                                 best_match_id)
-                    # Remove current feature from all of its neighbor's
-                    # neighbor value fields
-                    while i in self.objects.at[neighbor, merge_nv_field]:
-                        self.objects.at[neighbor, merge_nv_field].pop(i)
+
+                    # # Remove current feature from all of its neighbor's
+                    # # neighbor value fields
+                    # while i in self.objects.at[neighbor, merge_nv_field]:
+                    #     self.objects.at[neighbor, merge_nv_field].pop(i)
+
                 # Update value fields with approriate aggregate,
                 # e.g.: weighted mean
-                for vf, agg_type in value_fields:
+                for vf, agg_type in self.value_fields:
                     if agg_type == 'mean':
                         self.objects.at[best_match_id, vf] = (
                             weighted_mean(values=[r[vf], best_match[vf]],
@@ -347,46 +430,65 @@ class ImageObjects:
                     else:
                         logger.error('Unknown agg_type: {} for '
                                      'value field: {}'.format(agg_type, vf))
+
                 # Update area field (add areas)
-                self.objects.at[best_match_id, area_fld] = (r[area_fld] +
-                                                            best_match[area_fld])
+                self.objects.at[best_match_id, area_fld] = (
+                        r[area_fld] + best_match[area_fld])
+
+                # Replace current object with best match in all neighbor fields
+                self.replace_neighbor(i, best_match_id)
+
+                # Update neighbor value fields that had current object
+                for vf, nvf in self.nv_fields:
+                    self.replace_neighbor_value(nvf, i, best_match_id,
+                                                self.objects.at[best_match_id,
+                                                                vf])
 
                 # Update merge_path
+                # Get all of the feature to be merged's merge_path ids and add
+                # them to best match objects merge_path
+                self.objects.at[best_match_id, merge_path].extend(
+                    r[merge_path])
                 # Store id to merge in new (best_match) object's merge_path
                 # field
                 self.objects.at[best_match_id, merge_path].append(i)
-                # Get all of the feature to be merged's merge_path ids and add
-                # them
-                self.objects.at[best_match_id, merge_path].extend(r[merge_path])
 
                 # Copy features that will be merged to temp gdf
-                to_be_merged = pd.concat([to_be_merged, gpd.GeoDataFrame([r])])
+                self.to_be_merged = pd.concat([self.to_be_merged,
+                                               gpd.GeoDataFrame([r])])
             else:
-                print('no match')
+                logger.debug('No match')
 
             # Mark feature as no longer mergeable - either it was psuedo-merged
             # or else it had no best match
             self.objects.at[i, mergeable] = False
             self.find_merge_candidates(merge_criteria)
 
-        # zero
+    def merge(self):
         # merge features that have a merge path
         logger.info('Performing calculated merges...')
+        logger.info('Objects before merge: {:,}'.format(self.num_objs))
         for i, r in self.objects[
                 self.objects[merge_path].map(lambda d: len(d)) > 0].iterrows():
             # Create gdf of current row and the features to merge with it.
             # Important that the current row is first, as it contains the
             # correct aggregated values and the dissolve function defaults
             # to keeping the first rows values
-            to_merge = pd.concat([gpd.GeoDataFrame([r]), to_be_merged[
-                to_be_merged.index.isin(r[merge_path])]])
+            to_merge = pd.concat([gpd.GeoDataFrame([r]), self.to_be_merged[
+                self.to_be_merged.index.isin(r[merge_path])]])
             to_merge['temp'] = 1
             to_merge = to_merge.dissolve(by='temp')
             to_merge.index = [i]
-            to_merge.drop(columns='temp', inplace=True)
-
+            # Zero out merge_path
+            to_merge[merge_path] = [[]]
+            # TODO: confirm whether it is there or not
+            if 'temp' in to_merge.columns:
+                to_merge.drop(columns='temp', inplace=True)
+            # Drop both original objects
             self.objects.drop(r[merge_path] + [i], inplace=True)
+            # Add merged object back in
             self.objects = pd.concat([self.objects, to_merge])
+        logger.info('Objects after merge: {:,}'.format(self.num_objs))
 
     def determine_adj_thresh(self, neb_values_fld, value_thresh, value_op, out_field, subset=None):
         """Determines if each row is has neighbor that meets the value
@@ -419,13 +521,15 @@ class ImageObjects:
                                    for v in x.values())))
 
 #%%
-obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs.shp'
+obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\rgo.shp'
 # Existing column name
 med_mean = 'MED_mean'
 cur_mean = 'CurPr_mean'
 ndvi_mean = 'NDVI_mean'
+slope_mean = 'Slope_mean'
 # Neighbor value column names
 med_nv = 'nv_{}'.format(med_mean)
+ndvi_nv = 'nv_{}'.format(ndvi_mean)
 # Merge column names
 merge_candidates = 'merge_candidates'
 merge_path = 'merge_path'
@@ -433,88 +537,57 @@ mergeable = 'mergeable'
 value_fields = [('MDFM_mean', 'mean'), ('MED_mean', 'mean'),
                 ('CurPr_mean', 'mean'), ('NDVI_mean', 'mean'),
                 ('EdgDen_mea', 'mean'), ('Slope_mean', 'mean'),
-                ('CClass_majority', 'majority')]
+                ('CClass_maj', 'majority')
+                ]
 merge_col = med_mean
 
-ios = ImageObjects(objects_path=obj_p)
+#%%
+ios = ImageObjects(objects_path=obj_p, value_fields=value_fields)
+
 ios.compute_area()
 # Get neighbor ids into a list in columns 'neighbors'
 ios.get_neighbors()
-ios.compute_neighbor_values(med_mean, med_nv)
-
-
-
-# Pairwise functions
-def within_range(a, b, range):
-    return operator.le(abs(a - b), range)
-
-
-def pairwise_match(row, possible_match, pairwise_criteria):
-    """Tests each set of pairwise critieria against the current row
-    and a possible match.
-    Parameters
-    ---------
-    row : pd.Series
-        Must contain all fields in pairwise criteria
-    possible_match : pd.Series
-        Must contain all fields in pairwise critieria
-    pairwise_criteria : dict
-        Dict of critiria, supported types:
-            'within': {'field': "field_name", 'range': "within range"}
-            'threshold: {'field': "field_name, 'op', operator comparison fxn,
-                         'threshold': value to use in fxn}
-    Returns
-    -------
-    bool : True is all criteria are met
-    """
-    criteria_met = []
-    for criteria_type, params in pairwise_criteria.items():
-        if criteria_type == 'within':
-            criteria_met.append(within_range(row[params['field']],
-                                             possible_match[params['field']],
-                                             params['range']))
-        elif criteria_type == 'threshold':
-            criteria_met.append(
-                params['op'](possible_match[params['field']],
-                             params['threshold']))
-    return all(criteria_met)
-
+ios.compute_neighbor_values(med_mean, ndvi_nv)
 
 #%%
 # Args
-merge_field = med_mean
-merge_nv_field = med_nv
+merge_field = ndvi_mean
+merge_nv_field = ndvi_nv
 # Criteria to determine candidates to be merged. This does not limit
 # which objects they may be merge to, that is done with pairwise criteria.
-merge_criteria = [(area_fld, operator.lt, 17.6),
-                  (ndvi_mean, operator.lt, 0)]
+merge_criteria = [(area_fld, operator.lt, 1500),
+                  (ndvi_mean, operator.lt, 0),
+                  (med_mean, operator.lt, 0.3),
+                  (slope_mean, operator.gt, 2)]
 # Criteria to check between a merge candidate and merge option
-pairwise_criteria = {'within': {'field': cur_mean, 'range': 1},}
-                     # 'threshold': {'field': ndvi_mean, 'op': operator.lt,
-                     #               'threshold': 0}}
-
+pairwise_criteria = {'within': {'field': cur_mean, 'range': 10},
+                     'threshold': {'field': ndvi_mean, 'op': operator.lt,
+                                   'threshold': 0}}
+#%%
 ios.pseudo_merging(merge_field=med_mean, merge_criteria=merge_criteria,
                    pairwise_criteria=pairwise_criteria)
-
 #%%
-write_gdf(ios.objects.reset_index(), r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs_idx_2.shp',
-          to_str_cols=[nebs_fld, med_nv, merge_path])
+ios.merge()
+#%%
+out_footprint = r'E:\disbr007\umn\2020sep27_eureka\scratch\rbo_merge.shp'
+write_gdf(ios.objects.reset_index(), out_footprint,
+          to_str_cols=[nebs_fld, ndvi_nv, merge_path])
 
 
 #%% object with value within distance
-obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs.shp'
-obj = gpd.read_file(obj_p)
-field = 'CurPr_mean'
-candidate_value = 25
-dist_to_value = -25
-dist = 2
-
-selected = obj[obj[field] > candidate_value]
-
-for i, r in selected.iterrows():
-    if i == 348:
-        tgdf = gpd.GeoDataFrame([r], crs=obj.crs)
-        within_area = gpd.GeoDataFrame(geometry=tgdf.buffer(dist), crs=obj.crs)
-        # overlay
-        # look up values for features in overlay matches
-        # if meet dist to value, True
+# obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs.shp'
+# obj = gpd.read_file(obj_p)
+# field = 'CurPr_mean'
+# candidate_value = 25
+# dist_to_value = -25
+# dist = 2
+#
+# selected = obj[obj[field] > candidate_value]
+#
+# for i, r in selected.iterrows():
+#     if i == 348:
+#         tgdf = gpd.GeoDataFrame([r], crs=obj.crs)
+#         within_area = gpd.GeoDataFrame(geometry=tgdf.buffer(dist), crs=obj.crs)
+#         # overlay
+#         # look up values for features in overlay matches
+#         # if meet dist to value, True

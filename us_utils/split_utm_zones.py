@@ -15,27 +15,68 @@ from misc_utils.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'INFO')
 
 
-def create_epsg(zone, hemi):
-    if hemi == 'n':
-        base = '326'
-    elif hemi == 's':
-        base = '327'
+def convert_UTM_epsg(utm_zone):
+    """
+    Converts a utm zone to it's WGS84 EPSG number
+
+    Parameters
+    ----------
+    utm_zone : STR
+        UTM zone in format #,hemisphere (eg. 10,n).
+
+    Returns
+    -------
+    INT : EPSG.
+
+    """
+    number, hemisphere = utm_zone.split(',')
+    if hemisphere.lower() == 'n':
+        hemi_indicator = 6
+    elif hemisphere.lower() == 's':
+        hemi_indicator = 7
     else:
-        base = None
-    epsg = base + zone
+        logger.error('Unable to parse utm zone: {}'.format(utm_zone))
+    
+    epsg = int('32{}{}'.format(hemi_indicator, number))
     
     return epsg
 
 
-def create_utm_zone(geometry):
-    centroid = geometry.centroid
-    zone_number = int(math.ceil((centroid.X + 180)/6))
-    if centroid.Y <= 0:
-        utm_epsg = "327%s" % str(zone_number).zfill(2)
-    else:
-        utm_epsg = "326%s" % str(zone_number).zfill(2)
+# def create_utm_zone(geometry):
+#     centroid = geometry.centroid
+#     zone_number = int(math.ceil((centroid.X + 180)/6))
+#     if centroid.Y <= 0:
+#         utm_epsg = "327%s" % str(zone_number).zfill(2)
+#     else:
+#         utm_epsg = "326%s" % str(zone_number).zfill(2)
 
-    return utm_epsg
+#     return utm_epsg
+def locate_utm_zone(feature, utm_zones):
+    """
+    Locates the UTM zone of a single feature, 
+    using the features centroid.
+
+    Parameters
+    ----------
+    feature : shapely.geometry.object
+        A single feature, point, polygon or line. The centroid
+        is used.
+    utm_zones : geopandas.GeoDataFrame
+        The UTM zone polygons. Must have 'Zone_Hemi' field.
+
+    Returns
+    -------
+    STR : UTM Zone hemisphere and number.
+
+    """
+    for i, zone in utm_zones.iterrows():
+        if zone.geometry.contains(feature.centroid):
+            matched_zone = zone['Zone_Hemi']
+            break
+        else:
+            matched_zone = 'No_match'
+    
+    return matched_zone
 
 
 def split_epsg(fp_p, utm_p, out_dir, out_name, dryrun):
@@ -45,13 +86,14 @@ def split_epsg(fp_p, utm_p, out_dir, out_name, dryrun):
     utm = gpd.read_file(utm_p)
 
     logger.info('Determining EPSG zones...')
-    fp_utm = gpd.sjoin(fp, utm, how='left')
+    # fp_utm = gpd.sjoin(fp, utm, how='left')
 
-    fp_utm['epsg'] = fp_utm.apply(lambda x: create_epsg(x['ZONE'], x['HEMISPHERE']), axis=1)
+    fp['utm'] = fp.geometry.apply(lambda x: locate_utm_zone(x, utm))
+    fp['epsg'] = fp.apply(lambda x: convert_UTM_epsg(x['utm']), axis=1)
 
     # Split and write
-    for epsg in list(fp_utm['epsg'].unique()):
-        epsg_fp = fp_utm[fp_utm['epsg']==epsg]
+    for epsg in list(fp['epsg'].unique()):
+        epsg_fp = fp[fp['epsg'] == epsg]
         logger.info('Zone {}: {}'.format(epsg, len(epsg_fp)))
         if not dryrun:
             epsg_out = os.path.join(out_dir, "{}_{}.shp".format(out_name, epsg))

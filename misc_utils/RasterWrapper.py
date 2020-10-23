@@ -264,6 +264,7 @@ class Raster:
         # try:
         if dims == 3:
             rows, cols, depth = array.shape
+            stacked = True
         elif dims == 2:
         # except ValueError:
             rows, cols = array.shape
