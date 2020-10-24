@@ -63,13 +63,24 @@ def pairwise_match(row, possible_match, pairwise_criteria):
     criteria_met = []
     for criteria_type, params in pairwise_criteria.items():
         if criteria_type == 'within':
-            criteria_met.append(within_range(row[params['field']],
-                                             possible_match[params['field']],
-                                             params['range']))
+            met = within_range(row[params['field']],
+                               possible_match[params['field']],
+                               params['range'])
+            logger.debug('{} {} {} {}: {}'.format(params['field'],
+                                                  criteria_type,
+                                                  params['op'],
+                                                  params['range'],
+                                                  met))
+            criteria_met.append(met)
         elif criteria_type == 'threshold':
-            criteria_met.append(
-                params['op'](possible_match[params['field']],
-                             params['threshold']))
+            met = params['op'](possible_match[params['field']],
+                               params['threshold'])
+            logger.debug('{} {} {} {}: {}'.format(params['field'],
+                                                  criteria_type,
+                                                  params['op'],
+                                                  params['threshold'],
+                                                  met))
+            criteria_met.append(met)
     return all(criteria_met)
 
 
@@ -109,7 +120,7 @@ class ImageObjects:
             logger.warning('Non-unique index not supported.')
 
         # Merging
-        self.to_be_merged = None
+        # self.to_be_merged = None
 
     @property
     def fields(self):
@@ -181,16 +192,20 @@ class ImageObjects:
 
         return self.objects[self.objects.index.isin(subset.index)]
 
-    def replace_neighbor(self, old_neb, new_neb):
+    def replace_neighbor(self, old_neb, new_neb, update_merges=False):
 
         def _rowwise_replace_neighbor(neighbors, old_neb, new_neb):
             if old_neb in neighbors:
                 neighbors = [n for n in neighbors if n != old_neb]
-                neighbors.append(new_neb)
+                if new_neb not in neighbors:
+                    neighbors.append(new_neb)
             return neighbors
 
         self.objects[nebs_fld] = self.objects[nebs_fld].apply(
             lambda x: _rowwise_replace_neighbor(x, old_neb, new_neb))
+        if update_merges:
+            self.objects[merge_path] = self.objects[merge_path].apply(
+                lambda x: _rowwise_replace_neighbor(x, old_neb, new_neb))
 
     def replace_neighbor_value(self, neb_v_fld, old_neb, new_neb, new_value):
 
@@ -349,7 +364,7 @@ class ImageObjects:
         self.objects[merge_path] = [[] for i in range(self.num_objs)]
 
         # Dataframe to hold objects that will be merged later
-        self.to_be_merged = gpd.GeoDataFrame()
+        # self.to_be_merged = gpd.GeoDataFrame()
         # While there are rows that are merge_candidates and that haven't been
         # checked, look for a possible merge to a neighbor
         while self.objects[[merge_candidates, mergeable]].all(
@@ -359,7 +374,7 @@ class ImageObjects:
                              self.objects[mergeable]].iloc[0])
             # Get ID of row
             i = r.name
-            print('ID: {}'.format(i))
+            # print('ID: {}'.format(i))
             if not r[merge_nv_field]:
                 self.objects.at[i, mergeable] = False
                 continue
@@ -380,9 +395,9 @@ class ImageObjects:
 
             if best_match is not None:
                 best_match_id = best_match.name
-                logger.debug('match: {}'.format(best_match_id))
+                # logger.debug('match: {}'.format(best_match_id))
                 # Handle other objects that are neighbors
-                for neighbor in r[nebs_fld]:
+                # for neighbor in r[nebs_fld]:
                     # Remove current row from it's neighbors lists of
                     # neighbors
                     # while i in self.objects.at[neighbor, nebs_fld]:
@@ -390,11 +405,11 @@ class ImageObjects:
 
                     # Add new (best_match_id) ID to neighbors list of neighbors
                     # if it wasn't already a neighbor
-                    if neighbor != best_match_id:
-                        if best_match_id not in self.objects.at[neighbor,
-                                                                nebs_fld]:
-                            self.objects.at[neighbor, nebs_fld].append(
-                                best_match_id)
+                    # if neighbor != best_match_id:
+                    #     if best_match_id not in self.objects.at[neighbor,
+                    #                                             nebs_fld]:
+                    #         self.objects.at[neighbor, nebs_fld].append(
+                    #             best_match_id)
 
                     # # Remove current feature from all of its neighbor's
                     # # neighbor value fields
@@ -436,7 +451,8 @@ class ImageObjects:
                         r[area_fld] + best_match[area_fld])
 
                 # Replace current object with best match in all neighbor fields
-                self.replace_neighbor(i, best_match_id)
+                # and merge_paths
+                self.replace_neighbor(i, best_match_id, update_merges=True)
 
                 # Update neighbor value fields that had current object
                 for vf, nvf in self.nv_fields:
@@ -454,13 +470,15 @@ class ImageObjects:
                 self.objects.at[best_match_id, merge_path].append(i)
 
                 # Copy features that will be merged to temp gdf
-                self.to_be_merged = pd.concat([self.to_be_merged,
-                                               gpd.GeoDataFrame([r])])
+                # self.to_be_merged = pd.concat([self.to_be_merged,
+                #                                gpd.GeoDataFrame([r])])
             else:
-                logger.debug('No match')
+                pass
+                # logger.debug('No match')
 
             # Mark feature as no longer mergeable - either it was psuedo-merged
             # or else it had no best match
+            self.objects.at[i, merge_path] = []
             self.objects.at[i, mergeable] = False
             self.find_merge_candidates(merge_criteria)
 
@@ -474,8 +492,11 @@ class ImageObjects:
             # Important that the current row is first, as it contains the
             # correct aggregated values and the dissolve function defaults
             # to keeping the first rows values
-            to_merge = pd.concat([gpd.GeoDataFrame([r]), self.to_be_merged[
-                self.to_be_merged.index.isin(r[merge_path])]])
+            # to_merge = pd.concat([gpd.GeoDataFrame([r]), self.to_be_merged[
+                # self.to_be_merged.index.isin(r[merge_path])]])
+            logger.debug(r[merge_path])
+            to_merge = pd.concat([gpd.GeoDataFrame([r]), self.objects[
+                self.objects.index.isin(r[merge_path])]])
             to_merge['temp'] = 1
             to_merge = to_merge.dissolve(by='temp')
             to_merge.index = [i]
@@ -540,38 +561,42 @@ value_fields = [('MDFM_mean', 'mean'), ('MED_mean', 'mean'),
                 ('CClass_maj', 'majority')
                 ]
 merge_col = med_mean
-
+#%%
+# Args
+merge_field = med_mean
+merge_nv_field = med_nv
+# Criteria to determine candidates to be merged. This does not limit
+# which objects they may be merge to, that is done with pairwise criteria.
+merge_criteria = [
+                  (area_fld, operator.lt, 1500),
+                  (ndvi_mean, operator.lt, 0),
+                  (med_mean, operator.lt, 0.3),
+                  (slope_mean, operator.gt, 2)
+                 ]
+# Criteria to check between a merge candidate and merge option
+pairwise_criteria = {
+    # 'within': {'field': cur_mean, 'range': 10},
+    'threshold': {'field': ndvi_mean, 'op': operator.lt, 'threshold': 0}
+}
 #%%
 ios = ImageObjects(objects_path=obj_p, value_fields=value_fields)
-
+#%%
 ios.compute_area()
 # Get neighbor ids into a list in columns 'neighbors'
 ios.get_neighbors()
-ios.compute_neighbor_values(med_mean, ndvi_nv)
+ios.compute_neighbor_values(merge_field, merge_nv_field)
 
-#%%
-# Args
-merge_field = ndvi_mean
-merge_nv_field = ndvi_nv
-# Criteria to determine candidates to be merged. This does not limit
-# which objects they may be merge to, that is done with pairwise criteria.
-merge_criteria = [(area_fld, operator.lt, 1500),
-                  (ndvi_mean, operator.lt, 0),
-                  (med_mean, operator.lt, 0.3),
-                  (slope_mean, operator.gt, 2)]
-# Criteria to check between a merge candidate and merge option
-pairwise_criteria = {'within': {'field': cur_mean, 'range': 10},
-                     'threshold': {'field': ndvi_mean, 'op': operator.lt,
-                                   'threshold': 0}}
+
 #%%
 ios.pseudo_merging(merge_field=med_mean, merge_criteria=merge_criteria,
                    pairwise_criteria=pairwise_criteria)
 #%%
 ios.merge()
 #%%
-out_footprint = r'E:\disbr007\umn\2020sep27_eureka\scratch\rbo_merge.shp'
+logger.info('Writing...')
+out_footprint = r'E:\disbr007\umn\2020sep27_eureka\scratch\rbo_merge_med.shp'
 write_gdf(ios.objects.reset_index(), out_footprint,
-          to_str_cols=[nebs_fld, ndvi_nv, merge_path])
+          to_str_cols=[nebs_fld, merge_nv_field, merge_path])
 
 
 #%% object with value within distance

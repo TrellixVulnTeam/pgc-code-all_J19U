@@ -20,9 +20,9 @@ from osgeo import gdal
 
 from misc_utils.logging_utils import create_logger, LOGGING_CONFIG
 from misc_utils.RasterWrapper import Raster
-from dem_utils.dem_rmse import dem_rmse
-from dem_utils.rmse_compare import rmse_compare
-
+# from dem_utils.dem_rmse import dem_rmse
+# from dem_utils.rmse_compare import rmse_compare
+from dem_rmse import dem_rmse
 
 #### FUNCTION DEFINITION ####
 def run_subprocess(command, clean=True):
