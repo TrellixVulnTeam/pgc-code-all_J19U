@@ -83,18 +83,18 @@ if __name__ == '__main__':
                              'from mask raster.')
 
     import sys
-    sys.argv = [r'C:\code\pgc-code-all\obia_utils\cleanup_objects.py',
-                '-i',
-                r'E:\disbr007\umn\2020sep27_eureka\seg\zs'
-                r'\WV02_20140703013631_1030010032B54F00_14JUL03013631'
-                r'-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_'
-                r'bst150x0ni200s0spec0x3spat0x9_zs_cclass.shp',
-                '-o',
-                r'E:\disbr007\umn\2020sep27_eureka\seg\zs'
-                r'\WV02_20140703013631_1030010032B54F00_14JUL03013631'
-                r'-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_'
-                r'bst150x0ni200s0spec0x3spat0x9_zs_cclass_cln.shp',
-                '-dna', 'all']
+    # sys.argv = [r'C:\code\pgc-code-all\obia_utils\cleanup_objects.py',
+    #             '-i',
+    #             r'E:\disbr007\umn\2020sep27_eureka\seg\zs'
+    #             r'\WV02_20140703013631_1030010032B54F00_14JUL03013631'
+    #             r'-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_'
+    #             r'bst150x0ni200s0spec0x3spat0x9_zs_cclass.shp',
+    #             '-o',
+    #             r'E:\disbr007\umn\2020sep27_eureka\seg\zs'
+    #             r'\WV02_20140703013631_1030010032B54F00_14JUL03013631'
+    #             r'-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_'
+    #             r'bst150x0ni200s0spec0x3spat0x9_zs_cclass_cln.shp',
+    #             '-dna', 'all']
 
     args = parser.parse_args()
 
@@ -108,8 +108,9 @@ if __name__ == '__main__':
     keep_objs = load_objs(input_objects)
 
     if raster:
-        keep_objs = mask_objs(objects=keep_objs, mask_on=raster,
-                              out_mask_img=out_mask_img, out_mask_vec=out_mask_vec)
+        keep_objs = mask_objs(objs=keep_objs, mask_on=raster,
+                              out_mask_img=out_mask_img,
+                              out_mask_vec=out_mask_vec)
     if drop_na:
         keep_objs = remove_null_objects(keep_objs, fields=drop_na)
 

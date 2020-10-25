@@ -160,6 +160,12 @@ def calc_zonal_stats(shp, rasters, names,
                 # Raster paths directly passed
                 stats = [stats for i in range(len(rasters))]
 
+    # Confirm all rasters exist before starting
+    for r in rasters:
+        if not os.path.exists(r):
+            logger.error('Raster does not exist: {}'.format(r))
+            raise Exception
+
     # Iterate rasters and compute stats for each
     for r, n, s, bs in zip(rasters, names, stats, bands):
         if bs is None:

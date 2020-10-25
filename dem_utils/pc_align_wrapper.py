@@ -319,12 +319,12 @@ if __name__ == '__main__':
     else:
         handler_level = 'INFO'
 
+    logger = create_logger(__name__, 'sh',
+                           handler_level=handler_level)
     if logfile:
         logger = create_logger(__name__, 'fh',
                                handler_level=handler_level,
                                filename=logfile)
-    else:
-        logger = create_logger(__name__, 'sh',
-                               handler_level=handler_level)
 
-    main(dems, out_dir, max_diff=max_diff, dem_ext=dem_ext, dem_fp=dem_fp, rmse=rmse, dryrun=dryrun, verbose=verbose)
+    main(dems, out_dir, max_diff=max_diff, dem_ext=dem_ext, dem_fp=dem_fp,
+         rmse=rmse, dryrun=dryrun, verbose=verbose)

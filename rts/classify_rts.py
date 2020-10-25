@@ -9,74 +9,89 @@ import operator
 import matplotlib.pyplot as plt
 
 import pandas as pd
-# from pandas.api.types import is_numeric_dtype
-import geopandas as gpd
-from shapely.geometry import Polygon
 
 from misc_utils.logging_utils import create_logger
-# from obia_utils.neighbors import subset_df, adj_neighbor
 from obia_utils.ImageObjects import ImageObjects
-from obia_utils.object_plotting import plot_objects
+
 
 pd.options.mode.chained_assignment = None
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 plt.style.use('pycharm')
 
-ms_img = r'E:\disbr007\umn\2020sep27_eureka\img' \
-         r'\ortho_WV02_20140703_test_aoi' \
-         r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
-         r'M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi.tif'
-ndvi = r'E:\disbr007\umn\2020sep27_eureka\img\ndvi_WV02_20140703' \
-       r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-M1BS-500287602150_01_P009_u16mr3413_ndvi.tif'
+#%%
+obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\rgo.shp'
+# Existing column name
+med_mean = 'MED_mean'
+cur_mean = 'CurPr_mean'
+ndvi_mean = 'NDVI_mean'
+slope_mean = 'Slope_mean'
+# Neighbor value column names
+med_nv = 'nv_{}'.format(med_mean)
+ndvi_nv = 'nv_{}'.format(ndvi_mean)
+# Merge column names
+merge_candidates = 'merge_candidates'
+merge_path = 'merge_path'
+mergeable = 'mergeable'
+value_fields = [('MDFM_mean', 'mean'), ('MED_mean', 'mean'),
+                ('CurPr_mean', 'mean'), ('NDVI_mean', 'mean'),
+                ('EdgDen_mea', 'mean'), ('Slope_mean', 'mean'),
+                ('CClass_maj', 'majority')
+                ]
+merge_col = med_mean
 
-obj_path = r'E:\disbr007\umn\2020sep27_eureka\scratch\sample_rs_objs_zs.shp'
+#%%
+ios = ImageObjects(objects_path=obj_p, value_fields=value_fields)
+#%%
+# Args
+merge_field = med_mean
+# Criteria to determine candidates to be merged. This does not limit
+# which objects they may be merge to, that is done with pairwise criteria.
+merge_criteria = [
+                  # (ios.area_fld, operator.lt, 1500),
+                  (ndvi_mean, operator.lt, 0),
+                  (med_mean, operator.lt, 0.3),
+                  (slope_mean, operator.gt, 2)
+                 ]
+# Criteria to check between a merge candidate and merge option
+pairwise_criteria = {
+    # 'within': {'field': cur_mean, 'range': 10},
+    'threshold': {'field': ndvi_mean, 'op': operator.lt, 'threshold': 0}
+}
+#%%
+ios.compute_area()
+# Get neighbor ids into a list in columns 'neighbors'
+ios.get_neighbors()
+ios.compute_neighbor_values(merge_field)
 
-o = ImageObjects(obj_path)
-
-# Plot objects
-# img_kwargs = {'cmap': 'RdYlGn', 'vmin': -0.25, 'vmax': 0.25}
-img_kwargs = {}
-img = None
-linewidth = 1
-rgb = [7, 5, 4]
-# rgb = None
-# band = 1
-band = None
-# plot_window = (-716225, -825030, -715700, -824534)
-plot_window = None
-obj_extent = True
-column = 'EdgeDens_3'
-obj_cmap = None
-alpha = 0.9
-bounds_only = False
-fig, ax = plot_objects(obj=o.objects, img=img, band=band,
-                       column=column, obj_cmap=obj_cmap,
-                       alpha=alpha, bounds_only=bounds_only,
-                       linewidth=linewidth, rgb=rgb,
-                       obj_extent=obj_extent, plot_window=plot_window,
-                       img_kwargs=img_kwargs)
+#%%
+# Determines merge paths
+ios.pseudo_merging(merge_field=med_mean, merge_criteria=merge_criteria,
+                   pairwise_criteria=pairwise_criteria)
+#%%
+# Does merging
+ios.merge()
+#%%
+logger.info('Writing...')
+out_footprint = r'E:\disbr007\umn\2020sep27_eureka\scratch\rbo_merge_med.shp'
+ios.write_objects(out_footprint)
 
 
-# Find neighbors
-o.get_neighbors(subset=None)
-# o.compute_neighbor_values()
-
-# Find headwalls
-plt.style.use('pycharm_blank')
-fig, ax = plt.subplots(1, 1)
-
-# fields
-med = 'MED_mean'
-slope = 'slope_mean'
-ed = 'EdgeDens_3'
-curv = 'curv_pro_3'
-
-hw = o.objects[o.objects[slope] > 5]
-hw = hw[hw[ed] > 0.9]
-hw = hw[(hw[curv] > -50) & (hw[curv] < 50)]
-hw = hw[(hw[med] > -0.5) & (hw[med] < 0.5)]
-o.objects.plot(edgecolor='white', color='grey', ax=ax)
-hw.plot(edgecolor='red', color='none', ax=ax)
-fig.show()
+#%% object with value within distance
+# obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs.shp'
+# obj = gpd.read_file(obj_p)
+# field = 'CurPr_mean'
+# candidate_value = 25
+# dist_to_value = -25
+# dist = 2
+#
+# selected = obj[obj[field] > candidate_value]
+#
+# for i, r in selected.iterrows():
+#     if i == 348:
+#         tgdf = gpd.GeoDataFrame([r], crs=obj.crs)
+#         within_area = gpd.GeoDataFrame(geometry=tgdf.buffer(dist), crs=obj.crs)
+#         # overlay
+#         # look up values for features in overlay matches
+#         # if meet dist to value, True

@@ -10,7 +10,9 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-warnings.filterwarnings("ignore", message="You will likely lose important projection information when converting ")
+warnings.filterwarnings("ignore", message="You will likely lose important "
+                                          "projection information when "
+                                          "converting ")
 
 
 def add_suffix(path, suffix):
@@ -33,7 +35,7 @@ def img_coreg(im_ref: pathlib.PurePath, im_tar: pathlib.PurePath,
               method='global', window_size=(256,256),
               max_shift=25, max_iter=5, local_grid_res=200,
               others=None, **kwargs):
-    """Apply global coregistration to im_tar to alighn with im_ref. Optionally
+    """Apply global coregistration to im_tar to align with im_ref. Optionally
     apply the same shift to others.
     kwargs arguments to COREG:
         fmt_out(str) – raster file format for output file. ignored if path_out is None.
