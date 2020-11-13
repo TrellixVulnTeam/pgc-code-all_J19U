@@ -36,6 +36,8 @@ def submit_jobs(args):
             if not dryrun:
                 print('submitting..')
                 # subprocess.call(cmd,shell=True)
+        else:
+            logger.info('File exists, skipping: {}'.format(t.parent / t.name))
 
 
 if __name__ == '__main__':
