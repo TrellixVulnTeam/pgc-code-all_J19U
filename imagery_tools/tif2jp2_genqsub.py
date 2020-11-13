@@ -9,10 +9,10 @@ from tqdm import tqdm
 from misc_utils.logging_utils import create_logger
 
 qsubscript = Path(__file__).parent / 'tif2jp2_qsub.sh'
-print(qsubscript)
 
 
 def submit_jobs(args):
+    logger.info(qsubscript)
     srcdir = args.src
     dstdir = args.dst
     out_format = args.out_format
