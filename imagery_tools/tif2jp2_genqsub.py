@@ -9,6 +9,7 @@ from tqdm import tqdm
 from misc_utils.logging_utils import create_logger
 
 qsubscript = Path(__file__).parent / 'tif2jp2_qsub.sh'
+print(qsubscript)
 
 
 def submit_jobs(args):
@@ -30,8 +31,7 @@ def submit_jobs(args):
     for t in tqdm(tifs):
         dst = Path(dstdir) / '{}.{}'.format(t.stem, out_suffix)
         if not dst.exists():
-            cmd = 'qsub -l walltime=4:00:00 -l nodes=1:ppn=4 -v ' \
-                  'p1={} p2={} p3={} {}'.format(t, dst, out_format, qsubscript)
+            cmd = 'qsub -l walltime=4:00:00 -l nodes=1:ppn=4 -v p1={} p2={} p3={} {}'.format(t, dst, out_format, qsubscript)
             logger.debug(cmd)
             if not dryrun:
                 if not dst.parent.exists():
