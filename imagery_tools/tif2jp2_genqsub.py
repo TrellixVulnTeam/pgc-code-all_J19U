@@ -27,10 +27,9 @@ def submit_jobs(args):
     logger.info('Locating tifs...')
     tifs = [f for f in Path(srcdir).rglob('*.tif')]
     logger.info('Tifs found: {}'.format(len(tifs)))
-    logger.info(len(tifs))
     for t in tqdm(tifs):
-        if not t.exists():
-            dst = dstdir / '{}.{}'.format(t.stem, out_suffix)
+        dst = Path(dstdir) / '{}.{}'.format(t.stem, out_suffix)
+        if not dst.exists():
             cmd = 'qsub -l walltime=4:00:00 -l nodes=1:ppn=4 -v ' \
                   'p1={} p2={} p3={} {}'.format(t, dst, out_format, qsubscript)
             logger.debug(cmd)
@@ -39,7 +38,6 @@ def submit_jobs(args):
                     logger.info('Creating subdirectories up to: '
                                 '{}'.format(t.parent))
                     os.makedirs(t.parent)
-                print('submitting..')
                 # subprocess.call(cmd,shell=True)
         else:
             logger.info('File exists, skipping: {}'.format(t.parent / t.name))
