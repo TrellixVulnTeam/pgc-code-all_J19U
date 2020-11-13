@@ -16,11 +16,8 @@ cmd="gdal_translate -of ${fmt} ${src} ${dst}"
 
 if [ ! -e ${dst} ]
 then
-	cp -v $src $localsrc
 	echo $cmd
 	$cmd
-	cp -v ${localdst} ${dst}
-	rm -v $localsrc ${localdst}
 fi
 
 echo "done"
