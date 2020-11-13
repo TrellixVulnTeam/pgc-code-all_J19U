@@ -34,7 +34,7 @@ def submit_jobs(args):
                   'p1={} p2={} p3={} {}'.format(t, dst, out_format, qsubscript)
             logger.debug(cmd)
             if not dryrun:
-                if not t.parent.exists():
+                if not dst.parent.exists():
                     logger.info('Creating subdirectories up to: '
                                 '{}'.format(t.parent))
                     os.makedirs(t.parent)
