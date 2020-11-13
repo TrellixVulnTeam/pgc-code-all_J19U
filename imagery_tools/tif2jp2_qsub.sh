@@ -7,15 +7,12 @@
 module load gdal/2.1.3
 
 src=$p1
-dst=${src%%.tif}.jp2
-localsrc=/local/${src##*/}
-localdst=${localsrc%%.tif}.jp2
+dst=$p2
+fmt=$p3
 
 echo $src
 echo $dst
-echo $localsrc
-echo $localdst
-cmd="gdal_translate -of JP2OpenJPEG ${localsrc} ${localdst}"
+cmd="gdal_translate -of ${fmt} ${src} ${dst}"
 
 if [ ! -e ${dst} ]
 then
