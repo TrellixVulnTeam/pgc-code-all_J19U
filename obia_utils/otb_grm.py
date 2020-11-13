@@ -6,15 +6,16 @@ Created on Fri Mar  6 14:22:54 2020
 """
 import argparse
 import datetime
-import logging.config
 import os
+from pathlib import Path
 import subprocess
 from subprocess import PIPE
 
 from osgeo import gdal
 
-from misc_utils.logging_utils import LOGGING_CONFIG, create_logger
+from misc_utils.logging_utils import create_logger, create_logfile_path
 from misc_utils.gdal_tools import gdal_polygonize
+# from cleanup_objects import mask_objs
 # from misc_utils.RasterWrapper import Raster
 
 
@@ -36,7 +37,7 @@ def otb_grm(img,
             niter=0,
             speed=0,
             cw=0.5,
-            sw=0.5):
+            sw=0.5,):
     """
     Run the Orfeo Toolbox GenericRegionMerging command via the command line.
     Requires that OTB environment is activated
@@ -143,6 +144,7 @@ def otb_grm(img,
         os.remove(out_seg)
 
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -188,7 +190,8 @@ if __name__ == "__main__":
     parser.add_argument('-sw', '--spatial',
                         type=float,
                         default=0.5,
-                        help='How much to consider spatial similarity, i.e. shape')
+                        help='How much to consider spatial similarity, i.e. '
+                             'shape')
     parser.add_argument('-l', '--log_file',
                         type=os.path.abspath,
                         default='otb_lsms_log.txt',
@@ -230,8 +233,7 @@ if __name__ == "__main__":
     if not log_file:
         if not log_dir:
             log_dir = os.path.dirname(out_seg)
-        log_name = os.path.basename(out_seg).replace('.tif', '_log.txt')
-        log_file = os.path.join(log_dir, log_name)
+        log_file = create_logfile_path(Path(__file__).stem, logdir=log_dir)
 
     logger = create_logger(__name__, 'fh',
                            handler_level='DEBUG',

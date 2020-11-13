@@ -64,20 +64,20 @@ def pairwise_match(row, possible_match, pairwise_criteria):
             met = within_range(row[params['field']],
                                possible_match[params['field']],
                                params['range'])
-            logger.debug('{} {} {} {}: {}'.format(params['field'],
-                                                  criteria_type,
-                                                  params['op'],
-                                                  params['range'],
-                                                  met))
+            # logger.debug('{} {} {} {}: {}'.format(params['field'],
+            #                                       criteria_type,
+            #                                       params['op'],
+            #                                       params['range'],
+            #                                       met))
             criteria_met.append(met)
         elif criteria_type == 'threshold':
             met = params['op'](possible_match[params['field']],
                                params['threshold'])
-            logger.debug('{} {} {} {}: {}'.format(params['field'],
-                                                  criteria_type,
-                                                  params['op'],
-                                                  params['threshold'],
-                                                  met))
+            # logger.debug('{} {} {} {}: {}'.format(params['field'],
+            #                                       criteria_type,
+            #                                       params['op'],
+            #                                       params['threshold'],
+            #                                       met))
             criteria_met.append(met)
     return all(criteria_met)
 
@@ -86,7 +86,7 @@ def z_score(value, mean, std):
     return (value - mean) / std
 
 def stat_dist(value1, value2, std):
-    return (value1 - value2) / std
+    return abs((value1 - value2) / std)
 
 
 class ImageObjects:
@@ -364,9 +364,9 @@ class ImageObjects:
 
         self.objects[self.mc_fld] = df.all(axis='columns')
 
-    def pseudo_merging(self, merge_field, merge_criteria, pairwise_criteria):
+    def pseudo_merging(self, merge_fields, merge_criteria, pairwise_criteria):
         logger.info('Beginning pseudo-merge to determine merges...')
-        merge_nv_field = self._nv_field_name(merge_field)
+
         # Get objects that meet merge criteria
         self.find_merge_candidates(merge_criteria)
         logger.debug('Merge candidates found: {:,}'.format(
@@ -392,54 +392,54 @@ class ImageObjects:
                              self.objects[self.m_fld]].iloc[0])
             # Get ID of row
             i = r.name
-            # print('ID: {}'.format(i))
-            if not r[merge_nv_field]:
-                self.objects.at[i, self.m_fld] = False
-                continue
+
+            # Check that neighbor value fields have been computed for all
+            # merge fields, if not compute
+            for mf in merge_fields:
+                merge_nv_field = self._nv_field_name(mf)
+                if merge_nv_field not in r.index:
+                    self.compute_neighbor_values(mf)
+
 
             # Find best match, which is closest value in merge field, given
             # pairwise criteria are all met
             best_match = None
-            # Sort merge_field neighbor values by difference in merge_field to
-            # current feature's merge_field value (start with closest neighbor
-            # value in merge_field)
-            nvs = sorted(r[merge_nv_field].items(),
-                         key=lambda y: abs(r[merge_field] - y[1]))
-            neighbor_stat_dist = {nv[0]: [] for nv in nvs}
-            for nv in nvs:
-                possible_match = self.objects.loc[nv[0], :]
-                for mf in merge_fields:
-                  neighbor_stat_dist[nv[0].append(stat_dist())
-                logger.warning(stat_dist(r[merge_field], nv[1]),
-                               self.stats_objects.at[merge_field, 'std'])
+            # # Sort merge_field neighbor values by difference in merge_field to
+            # # current feature's merge_field value (start with closest neighbor
+            # # value in merge_field)
+            # nvs = sorted(r[merge_nv_field].items(),
+            #              key=lambda y: abs(r[merge_field] - y[1]))
+            # for nv in nvs:
 
-                if pairwise_match(r, possible_match, pairwise_criteria):
-                    best_match = possible_match
-                    break
+            # Init dict to hold all stat distances for each neighbor
+            neighbor_stat_dist = {n: [] for n in r[self.nebs_fld]}
+
+            # Compute number of std away from current row for each neighbor
+            # for each merge_field
+            for neb_id in r[self.nebs_fld]:
+                possible_match = self.objects.loc[neb_id, :]
+                # Check if neighbor meets pairwise criteria
+                if not pairwise_match(r, possible_match, pairwise_criteria):
+                    neighbor_stat_dist.pop(neb_id)
+                    continue
+                for mf in merge_fields:
+                    neighbor_stat_dist[neb_id].append(
+                        stat_dist(r[mf], possible_match[mf],
+                                  std=self.object_stats.loc['std', mf]))
+
+                # if pairwise_match(r, possible_match, pairwise_criteria):
+                #     best_match = possible_match
+                #     break
+
+            # Find neighbor with least total std away from feature considering
+            # all merge fields
+            if len(neighbor_stat_dist.keys()) != 0:
+                best_match_id = min(neighbor_stat_dist.keys(),
+                                    key=lambda k: sum(neighbor_stat_dist[k]))
+                best_match = self.objects.loc[best_match_id, :]
 
             if best_match is not None:
-                best_match_id = best_match.name
                 # logger.debug('match: {}'.format(best_match_id))
-                # Handle other objects that are neighbors
-                # for neighbor in r[self.nebs_fld]:
-                    # Remove current row from it's neighbors lists of
-                    # neighbors
-                    # while i in self.objects.at[neighbor, self.nebs_fld]:
-                    #     self.objects.at[neighbor, self.nebs_fld].remove(i)
-
-                    # Add new (best_match_id) ID to neighbors list of neighbors
-                    # if it wasn't already a neighbor
-                    # if neighbor != best_match_id:
-                    #     if best_match_id not in self.objects.at[neighbor,
-                    #                                             self.nebs_fld]:
-                    #         self.objects.at[neighbor, self.nebs_fld].append(
-                    #             best_match_id)
-
-                    # # Remove current feature from all of its neighbor's
-                    # # neighbor value fields
-                    # while i in self.objects.at[neighbor, merge_nv_field]:
-                    #     self.objects.at[neighbor, merge_nv_field].pop(i)
-
                 # Update value fields with approriate aggregate,
                 # e.g.: weighted mean
                 for vf, agg_type in self.value_fields:
@@ -535,44 +535,78 @@ class ImageObjects:
             self.objects = pd.concat([self.objects, to_merge])
         logger.info('Objects after merge: {:,}'.format(self.num_objs))
 
-    def determine_adj_thresh(self, neb_values_fld, value_thresh, value_op, out_field, subset=None):
-        """Determines if each row is has neighbor that meets the value
-        threshold provided. Used for classifying.
+    # def determine_adj_thresh(self, neb_values_fld, value_thresh, value_op, out_field, subset=None):
+    #     """Determines if each row is has neighbor that meets the value
+    #     threshold provided. Used for classifying.
+    #
+    #     Parameters
+    #     ---------
+    #     neb_values_fld : str
+    #         Field containing dict of {neighbor_id: value}
+    #     value_thresh : str/int/float/bool
+    #         The value to compare each neighbors value to.
+    #     value_op : operator function
+    #         From operator library, the function to use to compare neighbor
+    #         value to value_thresh:
+    #         operator.le(), operator.gte(), etc.
+    #     out_field : str
+    #         Field to create in self.objects to store result of adjacency test.
+    #
+    #     Returns
+    #     --------
+    #     None : modifies self.objects in place
+    #     """
+    #     # For all rows where neighbor_values have been computed, compare
+    #     # neighbor values to value_thresh using the given value_op. If any are
+    #     # True, True is returned
+    #     self.objects[out_field] = (self.objects[
+    #                     ~self.objects[neb_values_fld].isnull()][neb_values_fld]
+    #                     .apply(lambda x:
+    #                            any(value_op(v, value_thresh)
+    #                                for v in x.values())))
 
-        Parameters
-        ---------
-        neb_values_fld : str
-            Field containing dict of {neighbor_id: value}
-        value_thresh : str/int/float/bool
-            The value to compare each neighbors value to.
-        value_op : operator function
-            From operator library, the function to use to compare neighbor
-            value to value_thresh:
-            operator.le(), operator.gte(), etc.
-        out_field : str
-            Field to create in self.objects to store result of adjacency test.
+    def adjacent_to(self, in_field, op, thresh,
+                    src_field=None, src_op=None, src_thresh=None,
+                    out_field=None):
+        logger.debug('Finding adjacent features with values...')
 
-        Returns
-        --------
-        None : modifies self.objects in place
-        """
-        # For all rows where neighbor_values have been computed, compare
-        # neighbor values to value_thresh using the given value_op. If any are
-        # True, True is returned
-        self.objects[out_field] = (self.objects[
-                        ~self.objects[neb_values_fld].isnull()][neb_values_fld]
-                        .apply(lambda x:
-                               any(value_op(v, value_thresh)
-                                   for v in x.values())))
+        # Create neighbor-value field(s) if necessary
+        in_field_nv = self._nv_field_name(in_field)
+        if in_field_nv not in self.fields:
+            self.compute_neighbor_values(in_field)
 
-    def write_objects(self, out_objects):
+        if src_field:
+            adj_series = (
+                # src object threshold
+                (src_op(self.objects[src_field], src_thresh)) &
+                # True if any neighbor has value that meets op(nv, thresh)
+                (self.objects[in_field_nv].apply(
+                    lambda nv: any([op(v, thresh) for k, v in nv.items()])))
+                )
+        else:
+            adj_series = (self.objects[in_field_nv].apply(
+                lambda nv: any([op(v, thresh) for k, v in nv.items()])))
+
+        if out_field:
+            self.objects[out_field] = adj_series
+
+        return adj_series
+
+    def write_objects(self, out_objects, overwrite=False):
         # Create list of columns to write as strings rather than lists, tuples
-        to_str_cols = [self.nebs_fld, self.mp_fld]
+        to_str_cols = []
+
+        list_cols = [self.nebs_fld, self.mp_fld]
+        for lc in list_cols:
+            if lc in self.fields and self.objects[lc].any():
+                to_str_cols.append(lc)
+
         to_str_cols.extend([nvf for vf, nvf in self.nv_fields])
 
         logger.info('Writing objects to: {}'.format(out_objects))
         write_gdf(self.objects.reset_index(), out_objects,
-                  to_str_cols=to_str_cols)
+                  to_str_cols=to_str_cols,
+                  overwrite=overwrite)
 
     def _nv_field_name(self, field):
         return '{}_nv'.format(field)

@@ -25,6 +25,14 @@ def load_objs(objects):
     return objs
 
 
+def remove_small_objects(objects, min_size):
+    logger.info('Removing objects with area less than {}'.format(min_size))
+    objects = objects[objects.geometry.area >= min_size]
+    logger.info('Objects kept: {:,}'.format(len(keep_objs)))
+
+    return objects
+
+
 def mask_objs(objs, mask_on, out_mask_img=None, out_mask_vec=None):
     if out_mask_img is None:
         out_mask_img = r'/vsimem/temp_mask.tif'
@@ -64,23 +72,27 @@ def remove_null_objects(objects, fields=['all']):
     return keep_objs
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Remove objects that fall within NoData'
-                                                 'areas of passed raster.')
+    parser = argparse.ArgumentParser(description='Utility for cleaning up '
+                                                 'image-objects after '
+                                                 'segmentation.')
+    parser.add_argument('-i', '--input_objects', type=os.path.abspath,
+                        help='Path to objects to clean up.')
     parser.add_argument('-r', '--raster', type=os.path.abspath,
-                        help='Path to raster to use to remove objects in NoData areas.')
+                        help='Path to raster to use to remove objects in NoData'
+                             ' areas.')
     parser.add_argument('-dna', '--drop_na', nargs='+',
                         help='Drop objects where the passed fields are NaN. '
                              'Pass "all" to check all fields for NaN.')
-    parser.add_argument('-i', '--input_objects', type=os.path.abspath,
-                        help='Path to objects to clean up.')
+    parser.add_argument('-ms', '--min_size', type=float,
+                        help='The minimum size object to keep, in units of CRS')
     parser.add_argument('-o', '--out_objects', type=os.path.abspath,
                         help='Path to write cleaned objects to.')
     parser.add_argument('--out_mask_img', type=os.path.abspath,
                         help='Path to write intermediate mask raster derived '
                              'from raster.')
     parser.add_argument('--out_mask_vec', type=os.path.abspath,
-                        help='Path to write intermediate mask vector polygonized '
-                             'from mask raster.')
+                        help='Path to write intermediate mask vector '
+                             'polygonized from mask raster.')
 
     import sys
     # sys.argv = [r'C:\code\pgc-code-all\obia_utils\cleanup_objects.py',
@@ -100,6 +112,7 @@ if __name__ == '__main__':
 
     raster = args.raster
     drop_na = args.drop_na
+    min_size = args.min_size
     input_objects = args.input_objects
     out_objects = args.out_objects
     out_mask_img = args.out_mask_img
@@ -107,6 +120,9 @@ if __name__ == '__main__':
     
     keep_objs = load_objs(input_objects)
 
+    if min_size:
+        keep_objs = remove_small_objects(objects=keep_objs,
+                                         min_size=min_size)
     if raster:
         keep_objs = mask_objs(objs=keep_objs, mask_on=raster,
                               out_mask_img=out_mask_img,
@@ -114,6 +130,7 @@ if __name__ == '__main__':
     if drop_na:
         keep_objs = remove_null_objects(keep_objs, fields=drop_na)
 
-    logger.info('Writing kept objects to: {}'.format(out_objects))
+    logger.info('Writing kept objects ({}) to: {}'.format(len(keep_objs),
+                                                          out_objects))
     keep_objs.to_file(out_objects)
     logger.info('Done.')

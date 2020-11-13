@@ -16,6 +16,7 @@ import geopandas as gpd
 # import fiona
 # import rasterio
 from rasterstats import zonal_stats
+from skimage.feature import greycomatrix, greycoprops
 
 from misc_utils.logging_utils import create_logger
 from misc_utils.gdal_tools import auto_detect_ogr_driver
@@ -23,6 +24,11 @@ from misc_utils.gdal_tools import auto_detect_ogr_driver
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
+# custom_stat_fxn = {
+#     'glcm': calc_glcm
+# }
+
+# def calc_glcm(patch, distance = [5], angles=[0], levels=)
 
 def load_stats_dict(stats_json):
     with open(stats_json) as jf:
@@ -57,7 +63,10 @@ def apply_compactness(gdf, out_field='compact'):
     gdf[out_field] = gdf.geometry.apply(lambda x: calc_compactness(x))
 
 
-def compute_stats(gdf, raster, stats_dict, band=None):
+def compute_stats(gdf, raster, name,
+                  stats=None,
+                  custom_stats=None, band=None,
+                  renamer=None):
     """
     Computes statistics for each polygon in geodataframe
     based on raster. Statistics to be computed are the keys
@@ -73,30 +82,36 @@ def compute_stats(gdf, raster, stats_dict, band=None):
         Dictionary of stat:renamed_col pairs.
         Stats must be one of: min, max, median. sum, std,
                               unique, range, percentile_<q>
-                              OR custom function
-
     Returns
     -------
     The geodataframe with added columns.
 
     """
-    logger.info('Computing {} on raster:\n{}'.format(' '.join(stats_dict.keys()), raster))
+    if stats is None:
+        stats = ['mean', 'min', 'max']
+    logger.info('Computing {} on raster:\n{}'.format(' '.join(stats), raster))
+    if renamer is None:
+        renamer = {x: '{}_{}'.format(name, x) for x in stats}
+
     if band:
         logger.info('Band: {}'.format(band))
         gdf = gdf.join(pd.DataFrame(zonal_stats(gdf['geometry'], raster,
-                                                stats=[k for k in stats_dict.keys()],
+                                                stats=stats,
+                                                add_stats=custom_stats,
                                                 band=band))
-                       .rename(columns=stats_dict),
+                       .rename(columns=renamer),
                        how='left')
     else:
         gdf = gdf.join(pd.DataFrame(zonal_stats(gdf['geometry'], raster,
-                                                stats=[k for k in stats_dict.keys()],))
-                       .rename(columns=stats_dict),
+                                                stats=stats,
+                                                add_stats=custom_stats))
+                       .rename(columns=renamer),
                        how='left')
+
     return gdf
 
 
-def calc_zonal_stats(shp, rasters, names, 
+def calc_zonal_stats(shp, rasters, names,
                 stats=['min', 'max', 'mean', 'count', 'median'],
                 area=True,
                 compactness=True,
@@ -136,14 +151,15 @@ def calc_zonal_stats(shp, rasters, names,
     logger.info('Segments found: {:,}'.format(len(seg)))
 
     # Determine rasters input type
-    # TODO: Fix logic here, what is a bad path is passed?
+    # TODO: Fix logic here, what if a bad path is passed?
     if len(rasters) == 1:
         if os.path.exists(rasters[0]):
             logger.info('Reading raster file...')
             ext = os.path.splitext(rasters[0])[1]
             if ext == '.txt':
                 # Assume text file of raster paths, read into list
-                logger.info('Reading rasters from text file: {}'.format(rasters[0]))
+                logger.info('Reading rasters from text file: '
+                            '{}'.format(rasters[0]))
                 with open(rasters[0], 'r') as src:
                     content = src.readlines()
                     rasters = [c.strip() for c in content]
@@ -154,7 +170,8 @@ def calc_zonal_stats(shp, rasters, names,
                 # Create list of lists of stats passed, one for each raster
                 stats = [stats for i in range(len(rasters))]
             elif ext == '.json':
-                logger.info('Reading rasters from json file: {}'.format(rasters[0]))
+                logger.info('Reading rasters from json file:'
+                            ' {}'.format(rasters[0]))
                 rasters, names, stats, bands = load_stats_dict(rasters[0])
             else:
                 # Raster paths directly passed
@@ -169,18 +186,31 @@ def calc_zonal_stats(shp, rasters, names,
     # Iterate rasters and compute stats for each
     for r, n, s, bs in zip(rasters, names, stats, bands):
         if bs is None:
-            stats_dict = {x: '{}_{}'.format(n, x) for x in s}
-            seg = compute_stats(gdf=seg, raster=r, stats_dict=stats_dict)
+            # Split custom stat functions from built-in options
+            accepted_stats = ['min', 'max', 'median', 'sum', 'std', 'mean',
+                              'unique', 'range', 'majority']
+            stats_acc = [k for k in s if k in accepted_stats
+                         or k.startswith('percentile_')]
+            # Assume any key not in accepted_stats is a name:custom_fxn
+            custom_stats = [k for k in stats if k not in accepted_stats]
+            custom_stats_dict = {}
+            # for cs in custom_stats:
+            #     custom_stats[cs] = custom_stat_fxn(cs)
+
+            seg = compute_stats(gdf=seg, raster=r, name=n,
+                                stats=stats_acc)
         else:
             # Compute stats for each band
             for b in bs:
                 stats_dict = {x: '{}b{}_{}'.format(n, b, x) for x in s}
-                seg = compute_stats(gdf=seg, raster=r, stats_dict=stats_dict, band=b)
-    
+                seg = compute_stats(gdf=seg, raster=r,
+                                    stats=stats_acc,
+                                    band=b)
+
     # Area recording
     if area:
         seg['area_zs'] = seg.geometry.area
-    
+
     # Compactness: Polsby-Popper Score -- 1 = circle
     if compactness:
         seg['compact'] = (np.pi * 4 * seg.geometry.area) / (seg.geometry.boundary.length)**2
@@ -189,16 +219,18 @@ def calc_zonal_stats(shp, rasters, names,
     if not out_path:
         out_path = os.path.join(os.path.dirname(shp),
                        '{}_stats.shp'.format(os.path.basename(shp).split('.')[0]))
+    if not os.path.exists(os.path.dirname(out_path)):
+        os.makedirs(os.path.dirname(out_path))
     logger.info('Writing segments with statistics to: {}'.format(out_path))
     driver = auto_detect_ogr_driver(out_path, name_only=True)
     seg.to_file(out_path, driver=driver)
-    
+
     logger.info('Done.')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    
+
     parser.add_argument('-i', '--input_shp',
                         type=os.path.abspath,
                         help='Vector file to compute zonal statistics for the features in.')
@@ -209,15 +241,17 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--rasters',
                         nargs='+',
                         type=os.path.abspath,
-                        help="""List of rasters to compute zonal statistics for.
-                                Or path to .txt file of raster paths (one per line),
-                                or path to .json file in format:
-                                {"name": {"path": "C:\\raster", "stats":["mean", "min"]}}""")
-                        # TODO: Adjust to take json of {raster1: {path: C:\raster.tif, name: raster, stats: mean, max,}}
+                        help="""List of rasters to compute zonal statistics 
+                                for, or path to .txt file of raster paths 
+                                (one per line) or path to .json file in format:
+                                {"name": 
+                                    {"path": "C:\\raster", 
+                                     "stats": ["mean", "min"]}
+                                }""")
     parser.add_argument('-n', '--names',
                         type=str,
                         nargs='+',
-                        help="""List of names to use as prefixes for created stats fields.
+                        help="""List of names to use as prefixes for created stxats fields.
                                 Length must match number of rasters supplied. Order is
                                 the order of the rasters to apply prefix names for. E.g.:
                                 'ndvi' -> 'ndvi_mean', 'ndvi_min', etc.""")
@@ -232,6 +266,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--compactness',
                         action='store_true',
                         help='Use to compute a compactness field.')
+
 
     args = parser.parse_args()
 

@@ -117,8 +117,8 @@ def create_where(max_cc=None, prod_code=None, sensors=None,
     # CC20 if specified
     if max_cc:
         if max_cc > 1:
-            logger.warning('Cloudcovers in MFP are specified as porportions from 0.0 - 1.0. '
-                           'Converting {} to this scale.'.format(max_cc))
+            logger.warning('Cloudcovers in MFP are specified as proportions '
+                           'from 0.0 - 1.0. Using {}.'.format(max_cc / 100))
             max_cc = max_cc / 100
             logger.debug('max_cc: {}'.format(max_cc))
         where = check_where(where)

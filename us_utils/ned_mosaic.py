@@ -18,7 +18,8 @@ from obia_utils.obia_utils import neighbor_features
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-tiles_path_win = r'E:\disbr007\general\geocell\one_degree_geocell_named_north_america.shp'
+# tiles_path_win = r'E:\disbr007\general\geocell\one_degree_geocell_named_north_america.shp'
+tiles_path_win = r'E:\disbr007\general\geocell\one_degree_geocell_named_north_america_z3.shp'
 tiles_path_linux = r'/mnt/pgc/data/scratch/jeff/general/geocell/us_one_degree_geocells_named.shp'
 
 
@@ -87,6 +88,8 @@ def main(aoi_path, out_mosaic, local_tiles_dir, extend=0, tile_index=None, dryru
 
     logger.info('Tiles already downloaded: {}'.format(len(selected_tiles[selected_tiles['downloaded']==True])))
     logger.info('Tiles to be downloaded: {}'.format(len(selected_tiles[selected_tiles['downloaded']==False])))
+    for fp in selected_tiles[selected_tiles['downloaded']==False]['ftp_path']:
+        logger.debug(fp)
 
 
     # dems_dl = ' '.join([x for x in list(selected_tiles['full_path']) if not os.path.exists(x)])

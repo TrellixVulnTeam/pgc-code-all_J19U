@@ -12,6 +12,7 @@ import logging
 import os
 import platform
 import sys
+from pathlib import Path
 
 
 class CustomError(Exception):
@@ -202,3 +203,11 @@ def create_module_loggers(handler_type, handler_level,
         loggers.append(logger)
     
     return loggers
+
+
+def create_logfile_path(name, logdir=None):
+    now = datetime.now().strftime('%Y%b%d_%H%m%S').lower()
+    logname = '{}_{}.log'.format(name, now)
+    logfile = os.path.join(logdir, logname)
+
+    return logfile

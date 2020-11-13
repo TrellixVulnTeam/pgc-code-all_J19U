@@ -10,12 +10,13 @@ import datetime
 import logging.config
 import math
 import os
+from pathlib import Path
 import subprocess
 from subprocess import PIPE
 
 # from osgeo import gdal
 
-from misc_utils.logging_utils import create_logger
+from misc_utils.logging_utils import create_logger, create_logfile_path
 from misc_utils.gdal_tools import get_raster_stats
 
 
@@ -36,7 +37,7 @@ def run_subprocess(command):
 def otb_texture_haralick(img,
                          channel=1,
                          texture='simple',
-                         img_min=0, img_max=255,
+                         img_min=None, img_max=None,
                          xrad=2, yrad=2,
                          xoff=1, yoff=1,
                          nbin=8,
@@ -105,7 +106,7 @@ def otb_texture_haralick(img,
     logger.debug(cmd)
 
     # Run command
-    logger.debug(cmd)
+    logger.info(cmd)
     # If run too quickly, check OTB env is active
     run_time_start = datetime.datetime.now()
     run_subprocess(cmd)
@@ -113,8 +114,8 @@ def otb_texture_haralick(img,
     run_time = run_time_finish - run_time_start
     too_fast = datetime.timedelta(seconds=10)
     if run_time < too_fast:
-        logger.warning("Execution completed quickly, likely due to an error. Did you activate "
-                       "OTB env first?"
+        logger.warning("Execution completed quickly, likely due to an error. "
+                       "Did you activate OTB env first?\n"
                        "C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat\nor \n"
                        "module load otb/6.6.1")
     logger.info('HaralickTextureExtraction finished. Runtime: {}'.format(str(run_time)))
@@ -206,25 +207,16 @@ if __name__ == '__main__':
     if not log_file:
         if not log_dir:
             log_dir = os.path.dirname(out_image)
-        log_name = os.path.basename(out_image).replace('.tif', '_log.txt')
-        log_file = os.path.join(log_dir, log_name)
+
+        log_file = create_logfile_path(name=Path(__file__).stem,
+                                       logdir=log_dir)
 
     logger = create_logger(__name__, 'fh',
                            handler_level='DEBUG',
                            filename=args.log_file)
     logger = create_logger(__name__, 'sh',
                            handler_level=handler_level)
-    
-    #### Argument verification
-    # if not img_min and not img_max:
-    #     ds = gdal.Open(img)
-    #     band = ds.GetRasterBand(channel)
-        
-    #     stats = band.GetStatistics(True, True)
-        
-    #     img_min = math.floor(stats[0])
-    #     img_max = math.ceil(stats[1])
-    
+
     if out_image is None:
         if out_dir is None:
             out_dir = os.path.dirname(img)
@@ -254,5 +246,3 @@ if __name__ == '__main__':
                          yoff=yoff,
                          nbin=8,
                          )
-    
-    

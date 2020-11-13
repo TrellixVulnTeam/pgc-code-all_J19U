@@ -42,7 +42,7 @@ def update_schema(df):
 
 def write_selection(df, dir_path, dir_name):
     if not os.path.isdir(dir_path):
-        os.mkdir(dir_path)
+        os.makedirs(dir_path)
 #     Name of shapefile to write
     write_name = '{}.shp'.format(dir_name)
     # Location to write shapefile to
@@ -53,7 +53,7 @@ def write_selection(df, dir_path, dir_name):
     if not df.select_dtypes(include=['datetime']).empty:
         for col in list(df.select_dtypes(include=['datetime']).columns):
             df[col] = df[col].dt.strftime('%Y-%m-%d')
-    logger.info('Writing selection: {}'.format(shp_path))
+    logger.info('Writing selection {:,}: {}'.format(len(df), shp_path))
     # df.to_file(shp_path, driver='ESRI Shapefile', schema=schema)
     df.to_file(shp_path)
 
@@ -91,17 +91,33 @@ if __name__ == '__main__':
     parser.add_argument('end_date', type=str, help='Latest date to select. ("yyyy-mm-dd")')
     parser.add_argument('platform', type=str, help='Platform to select')
     parser.add_argument('out_path', type=str, help='Where to write sheets.')
+    parser.add_argument('--sort_by_date', action='store_true',
+                        help='Sort results by date, ascending.')
+    parser.add_argument('--sort_by_date_descending', action='store_true',
+                        help='Sort by date descending.')
+
     args = parser.parse_args()
     begin_date = args.begin_date
     end_date = args.end_date
     platform = args.platform
     out_path = args.out_path
+    sort_by_date = args.sort_by_date
+    sort_by_date_descending = args.sort_by_date_descending
 
     # Do it
     logger.info('Loading records...')
-    platform_noh = query_danco.query_footprint('dg_imagery_index_all_notonhand_cc20', where="platform = '{}'".format(platform))
+    platform_noh = query_danco.query_footprint('dg_imagery_index_all_notonhand_cc20',
+                                               where="platform = '{}'".format(platform))
     platform_noh['acqdate'] = pd.to_datetime(platform_noh.acqdate)
     selection = select_by_date(platform_noh, date_begin=begin_date, date_end=end_date)
+    if sort_by_date:
+        ascending = True
+    elif sort_by_date_descending:
+        ascending = False
+    if sort_by_date or sort_by_date_descending:
+        logger.info('Sorting by date...')
+        selection = selection.sort_values(by='acqdate', ascending=ascending)
+
     out_name = '{}_{}_to_{}'.format(platform, date_words(begin_date), date_words(end_date))
     dir_path, dirname = project_dir(out_path, out_name)
     shp_name = '{}'.format(out_name)

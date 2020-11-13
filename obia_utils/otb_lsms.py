@@ -209,7 +209,10 @@ def otb_lsms(img, mode='vector',
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=r"Wrapper for Orfeo Toolbox LargeScaleMeanShift "
+                    r"segmentation. OTB environment must be activated: "
+                    r"C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat")
 
     parser.add_argument('-i', '--image_source',
                         type=os.path.abspath,

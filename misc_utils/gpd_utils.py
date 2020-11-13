@@ -280,7 +280,7 @@ def select_in_aoi(gdf, aoi, centroid=False):
 
     # gdf = gdf[gdf_cols]
     # TODO: Confirm if this is needed, does an 'inner' sjoin leave duplicates?
-    gdf.drop_duplicates(subset='pairname')
+    # gdf.drop_duplicates(subset='pairname')
 
     return gdf
 
@@ -306,7 +306,8 @@ def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
 
 
 def write_gdf(src_gdf, out_footprint, to_str_cols=None,
-              out_format=None, date_format=None):
+              out_format=None, date_format=None,
+              overwrite=False):
     gdf = copy.deepcopy(src_gdf)
 
     if not isinstance(out_footprint, pathlib.PurePath):
@@ -329,6 +330,14 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
             out_format = out_footprint.parent.suffix
             if not out_format:
                 logger.error('Could not recognize out format from file extension: {}'.format(out_footprint))
+
+    if out_footprint.exists():
+        if overwrite:
+            os.remove(out_footprint)
+        else:
+            logger.warning('Out file exists and overwrite not specified, '
+                           'skipping writing.')
+            return None
 
     # write out in format specified
     if out_format == 'shp':

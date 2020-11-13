@@ -48,7 +48,7 @@ def wbt_med(dem, out_dir=None, out_mag=None, out_scale=None,
         cmd += ' -v'
 
     if not dryrun:
-        logger.info('Running MaximumDifferenceFromMean...')
+        logger.info('Running MaxElevationDeviation...')
         logger.debug(cmd)
         run_subprocess(cmd)
 
