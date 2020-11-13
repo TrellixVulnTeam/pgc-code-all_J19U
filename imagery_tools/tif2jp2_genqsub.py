@@ -3,12 +3,14 @@
 import os,sys,string,subprocess
 
 if len(sys.argv) != 3:
-    print "Script requires 2 arguments (srcdir, qsubscript)"
+    print("Script requires 2 arguments (srcdir, dstdir, qsubscript")
 else:
     srcdir = os.path.abspath(sys.argv[1])
-    qsubscript = sys.argv[2]
-    print srcdir
-    print qsubscript
+    dstdir = os.path.abspath(sys.argv[2])
+    qsubscript = sys.argv[3]
+    print(srcdir)
+    print(dstdir)
+    print(qsubscript)
 
     for root,dirs,files in os.walk(srcdir):
         for f in files:
@@ -17,7 +19,9 @@ else:
                 ofp = os.path.join(root,f[:-4]+".jp2")
                 if not os.path.isfile(ofp):
                 
-                    cmd = 'qsub -l walltime=4:00:00 -l nodes=1:ppn=4 -v p1=%s %s' %(os.path.join(root,f),qsubscript)
-                    print cmd
+                    cmd = 'qsub -l walltime=4:00:00 -l nodes=1:ppn=4 -v p1=%s %s' %(os.path.join(root,f),
+                                                                                    dstdir,
+                                                                                    qsubscript)
+                    print(cmd)
                     # subprocess.call(cmd,shell=True)
 
