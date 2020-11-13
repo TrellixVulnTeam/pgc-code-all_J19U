@@ -33,7 +33,9 @@ def submit_jobs(args):
             cmd = 'qsub -l walltime=4:00:00 -l nodes=1:ppn=4 -v ' \
                   'p1={} p2={} p3={} {}'.format(t, dst, out_format, qsubscript)
             logger.debug(cmd)
-            # subprocess.call(cmd,shell=True)
+            if not dryrun:
+                print('submitting..')
+                # subprocess.call(cmd,shell=True)
 
 
 if __name__ == '__main__':
@@ -42,10 +44,10 @@ if __name__ == '__main__':
 
         parser.add_argument('-i', '--src',
                             type=os.path.abspath,
-                            help='Image to convert.')
+                            help='Source directory holding imagery to convert.')
         parser.add_argument('-o', '--dst',
                             type=os.path.abspath,
-                            help='Output image.')
+                            help='Output destination.')
         parser.add_argument('-f', '--out_format')
         parser.add_argument('-s', '--out_suffix')
         parser.add_argument('-d', '--dryrun', action='store_true')
@@ -60,4 +62,6 @@ if __name__ == '__main__':
             handler_level = 'INFO'
         logger = create_logger(__name__, 'sh',
                                handler_level=handler_level)
+        
+        submit_jobs(args)
 
