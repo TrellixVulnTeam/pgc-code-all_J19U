@@ -37,7 +37,7 @@ def submit_jobs(args):
                 if not dst.parent.exists():
                     logger.info('Creating subdirectories up to: '
                                 '{}'.format(t.parent))
-                    os.makedirs(t.parent)
+                    os.makedirs(dst.parent)
                 # subprocess.call(cmd,shell=True)
         else:
             logger.info('File exists, skipping: {}'.format(t.parent / t.name))
