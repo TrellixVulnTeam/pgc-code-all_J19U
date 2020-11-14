@@ -31,7 +31,9 @@ def submit_jobs(args):
     for t in tqdm(tifs):
         dst = Path(dstdir) / '{}.{}'.format(t.stem, out_suffix)
         if not dst.exists():
-            cmd = 'qsub -v p1="{}" p2="{}" p3="{}" {}'.format(t, dst, out_format, qsubscript)
+            cmd = 'qsub -v p1="{}",p2="{}",p3="{}" {}'.format(t, dst,
+                                                              out_format,
+                                                              qsubscript)
             logger.debug(cmd)
             if not dryrun:
                 if not dst.parent.exists():
