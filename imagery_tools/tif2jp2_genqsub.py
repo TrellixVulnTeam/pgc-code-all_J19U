@@ -4,8 +4,6 @@ import os
 from pathlib import Path
 import subprocess
 
-from tqdm import tqdm
-
 from misc_utils.logging_utils import create_logger
 
 qsubscript = Path(__file__).parent / 'tif2jp2_qsub.sh'
@@ -28,7 +26,7 @@ def submit_jobs(args):
     logger.info('Locating tifs...')
     tifs = [f for f in Path(srcdir).rglob('*.tif')]
     logger.info('Tifs found: {}'.format(len(tifs)))
-    for t in tqdm(tifs):
+    for t in tifs:
         dst = Path(dstdir) / '{}.{}'.format(t.stem, out_suffix)
         if not dst.exists():
             cmd = 'qsub -l walltime=4:00:00 -l nodes=1:ppn=4 ' \
