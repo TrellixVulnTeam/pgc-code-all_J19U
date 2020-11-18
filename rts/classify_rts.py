@@ -17,7 +17,6 @@ from misc_utils.gpd_utils import select_in_aoi
 from obia_utils.ImageObjects import ImageObjects
 
 
-
 pd.options.mode.chained_assignment = None
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -117,6 +116,7 @@ ios.objects[ndvi_thresh] = ios.objects[ndvi_mean] < low_ndvi
 low_med = 0
 med_thresh = 'med_thresh'
 ios.objects[med_thresh] = ios.objects[med_mean] < low_med
+
 #%% Get neighbors for those objects that meet thresholds
 thresholds = [rug_thresh,
               sa_thresh,
@@ -171,26 +171,6 @@ logger.info('Writing...')
 out_footprint = r'E:\disbr007\umn\2020sep27_eureka\scratch\hwc_adjmedneg0x2_ndvi0_med0_all.shp'
 ios.write_objects(out_footprint, overwrite=True)
 
-#%% Plot headwall candidate characteristics
-alpha = 0.5
-# TODO plot vertical line for threshold
-atts = {rug_mean: high_rugged,
-        sa_rat_mean: high_sa_rat,
-        slope_mean: high_slope,
-        ndvi_mean: low_ndvi,
-        med_mean: low_med}
-fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-axes = axes.flatten()
-for i, (k, v) in enumerate(atts.items()):
-    axes[i].title.set_text(k)
-    # ios.objects[[a, hw_candidate]].pivot(columns=hw_candidate, values=a).hist(ax=axes[i])
-    ios.objects[[k]].hist(k, alpha=alpha, label='F', ax=axes[i])
-    axes[i].axvline(v, linewidth=2)
-    # ios.objects[ios.objects[hw_candidate]==True][[k]].hist(k, alpha=0.5, label='T', ax=axes[i])
-
-# fig.legend(loc='upper right')
-plt.tight_layout()
-fig.show()
 #%%
 # Determines merge paths
 # ios.pseudo_merging(merge_fields=[med_mean, ndvi_mean],
