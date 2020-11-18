@@ -16,6 +16,7 @@ def main(args):
     MFP_PATH = args.mfp_path
     CATALOG_ID = args.field_of_int
     IDS_OUT_DIR = args.ids_out_dir
+    mfp_ids_tbl = 'pgc_imagery_catalogids'
 
     ID_OUT_NAME = os.path.basename(MFP_PATH).split('.')[0]
     ID_OUT_BASENAME = '{}_{}.txt'.format(ID_OUT_NAME, args.field_of_int)
@@ -24,8 +25,8 @@ def main(args):
     else:
         IDS_OUT_PATH = os.path.join(IDS_OUT_DIR, ID_OUT_BASENAME)
         
-    logging.info('Reading IDs...')
-    pgc_cid_fp = query_footprint('pgc_imagery_catalogids', 
+    logging.info('Reading IDs from danco table: {}...'.format(mfp_ids_tbl))
+    pgc_cid_fp = query_footprint(mfp_ids_tbl,
                                  table=True, 
                                  columns=[CATALOG_ID])
     

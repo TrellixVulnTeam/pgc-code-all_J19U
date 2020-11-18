@@ -112,7 +112,7 @@ def otb_texture_haralick(img,
     run_subprocess(cmd)
     run_time_finish = datetime.datetime.now()
     run_time = run_time_finish - run_time_start
-    too_fast = datetime.timedelta(seconds=10)
+    too_fast = datetime.timedelta(seconds=5)
     if run_time < too_fast:
         logger.warning("Execution completed quickly, likely due to an error. "
                        "Did you activate OTB env first?\n"
@@ -147,8 +147,9 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--texture',
                         # nargs='+',
                         choices=['simple', 'advanced', 'higher'],
-                        help="""Texture set selection, may choose more than one. If multiple,
-                                output is multiband image, one band per selection.""")
+                        help="Texture set selection, may choose more than "
+                             "one. If multiple, output is multiband image, "
+                             "one band per selection.")
     parser.add_argument('-imn', '--image_min',
                         type=float,
                         help='Minimum value in the input image.')
@@ -221,19 +222,12 @@ if __name__ == '__main__':
         if out_dir is None:
             out_dir = os.path.dirname(img)
         out_name = os.path.basename(img).split('.')[0]
-        out_name = '{}_c{}t{}_imin{}imax{}xr{}yr{}xo{}yo{}nb{}.tif'.format(out_name,
-                                                                         channel,
-                                                                         texture[:3],
-                                                                         str(img_min).replace('.', 'x'),
-                                                                         str(img_max).replace('.', 'x'),
-                                                                         xrad, yrad,
-                                                                         xoff, yoff,
-                                                                         nbin,
-                                                                         )
+        out_name = '{}_c{}t{}_imin{}imax{}xr{}yr{}xo{}yo{}nb{}.tif'.format(
+            out_name, channel, texture[:3], str(img_min).replace('.', 'x'),
+            str(img_max).replace('.', 'x'), xrad, yrad, xoff, yoff, nbin)
         out_image = os.path.join(out_dir, out_name)
 
-        
-    # Run command    
+    # Run command
     otb_texture_haralick(img=img,
                          out_image=out_image,
                          channel=channel,

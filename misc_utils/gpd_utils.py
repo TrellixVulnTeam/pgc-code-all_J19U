@@ -307,15 +307,20 @@ def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
 
 def write_gdf(src_gdf, out_footprint, to_str_cols=None,
               out_format=None, date_format=None,
-              overwrite=False):
+              overwrite=False,
+              **kwargs):
     gdf = copy.deepcopy(src_gdf)
 
     if not isinstance(out_footprint, pathlib.PurePath):
         out_footprint = Path(out_footprint)
 
+    # convert NaNs to empty string
+    gdf = gdf.replace(np.nan, '', regex=True)
+
     # remove datetime - specifiy datetime if desired format
     if not gdf.select_dtypes(include=['datetime64']).columns.empty:
         datetime2str_df(gdf, date_format=date_format)
+
     # convert columns that store lists to strings
     if to_str_cols:
         for col in to_str_cols:
@@ -341,13 +346,14 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
 
     # write out in format specified
     if out_format == 'shp':
-        gdf.to_file(out_footprint)
+        gdf.to_file(out_footprint, **kwargs)
     elif out_format == 'geojson':
+        logger.info(gdf.crs)
         gdf.to_file(out_footprint,
-                    driver='GeoJSON')
+                    driver='GeoJSON', **kwargs)
     elif out_format == 'gpkg':
         gdf.to_file(out_footprint.parent, layer=out_footprint.stem,
-                    driver='gpkg')
+                    driver='GPKG', **kwargs)
     else:
         logger.error('Unrecognized format: {}'.format(out_format))
 

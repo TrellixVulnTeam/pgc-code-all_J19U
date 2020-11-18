@@ -59,8 +59,20 @@ def calc_compactness(geometry):
     return compactness
 
 
-def apply_compactness(gdf, out_field='compact'):
+def apply_compactness(gdf, out_field='compactness'):
     gdf[out_field] = gdf.geometry.apply(lambda x: calc_compactness(x))
+    return gdf
+
+
+def calc_roundness(geometry):
+    # Circularity = Perimeter^2 / (4 * pi * Area)
+    roundess = (geometry.length**2 / (4 * np.pi * geometry.area))
+    return roundess
+
+
+def apply_roundness(gdf, out_field='roundness'):
+    gdf[out_field] = gdf.geometry.apply(lambda x: calc_roundness(x))
+    return gdf
 
 
 def compute_stats(gdf, raster, name,
@@ -80,7 +92,7 @@ def compute_stats(gdf, raster, name,
         Raster to compute statistics from.
     stats_dict : DICT
         Dictionary of stat:renamed_col pairs.
-        Stats must be one of: min, max, median. sum, std,
+        Stats must be one of: min, max, median, sum, std,
                               unique, range, percentile_<q>
     Returns
     -------
@@ -88,7 +100,7 @@ def compute_stats(gdf, raster, name,
 
     """
     if stats is None:
-        stats = ['mean', 'min', 'max']
+        stats = ['mean', 'min', 'max', 'std']
     logger.info('Computing {} on raster:\n{}'.format(' '.join(stats), raster))
     if renamer is None:
         renamer = {x: '{}_{}'.format(name, x) for x in stats}
@@ -112,10 +124,11 @@ def compute_stats(gdf, raster, name,
 
 
 def calc_zonal_stats(shp, rasters, names,
-                stats=['min', 'max', 'mean', 'count', 'median'],
-                area=True,
-                compactness=True,
-                out_path=None):
+                     stats=['min', 'max', 'mean', 'count', 'median'],
+                     area=True,
+                     compactness=False,
+                     roundness=False,
+                     out_path=None):
     """
     Calculate zonal statistics on the given vector file
     for each raster provided.
@@ -140,6 +153,9 @@ def calc_zonal_stats(shp, rasters, names,
         projection.
     compactness : bool
         True to also compute compactness of each object
+    roundness : bool
+        True to also compute roundess of each object
+
     Returns
     -------
     None.
@@ -213,7 +229,10 @@ def calc_zonal_stats(shp, rasters, names,
 
     # Compactness: Polsby-Popper Score -- 1 = circle
     if compactness:
-        seg['compact'] = (np.pi * 4 * seg.geometry.area) / (seg.geometry.boundary.length)**2
+        seg = apply_compactness(seg)
+        
+    if roundness:
+        seg = apply_roundness(seg)
 
     # Write segments with stats to new shapefile
     if not out_path:
@@ -251,7 +270,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--names',
                         type=str,
                         nargs='+',
-                        help="""List of names to use as prefixes for created stxats fields.
+                        help="""List of names to use as prefixes for created stats fields.
                                 Length must match number of rasters supplied. Order is
                                 the order of the rasters to apply prefix names for. E.g.:
                                 'ndvi' -> 'ndvi_mean', 'ndvi_min', etc.""")
@@ -266,7 +285,9 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--compactness',
                         action='store_true',
                         help='Use to compute a compactness field.')
-
+    parser.add_argument('-rd', '--roundness',
+                        action='store_true',
+                        help='Use to compute a roundness field.')
 
     args = parser.parse_args()
 
@@ -276,4 +297,5 @@ if __name__ == '__main__':
                      stats=args.stats,
                      area=args.area,
                      compactness=args.compactness,
+                     roundness=args.roundness,
                      out_path=args.out_path)

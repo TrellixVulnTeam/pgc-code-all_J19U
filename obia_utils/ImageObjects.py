@@ -305,17 +305,31 @@ class ImageObjects:
 
         return neighbor_feats
 
-    def compute_neighbor_values(self, value_field, subset=None,):
+    def compute_neighbor_values(self, value_field, subset=None,
+                                compute_neighbors=False):
         """Look up the value in value field for each neighbor,
         adding a dict of {neighbor_id: value} in out_field of
         each row (only performed on rows where neighbors have
-        been computed previously)"""
+        been computed previously).
+        Parameters
+        ---------
+        value_field : str
+            Name of field to compute neighbor values for
+        subset : pd.DataFrame or gpd.GeoDataFrame
+            Subset of self.objects to compute neighbors for
+            TODO: Change all "subsets" to take list of indicies to compute on
+             which will avoid duplicating large dataframes
+        compute_neighbors : bool
+            True to compute neighbor for any object in subset (or self.objects
+             if subset not provided) that doesn't have neighbors computed
+        """
         out_field = self._nv_field_name(value_field)
         if subset is None:
             subset = self.objects
-        # If subset doesn't have neighbors computed
-        if any(subset[self.nebs_fld].isnull()):
-            subset = self.get_neighbors(subset)
+        if compute_neighbors:
+            # If subset doesn't have neighbors computed, compute them
+            if any(subset[self.nebs_fld].isnull()):
+                subset = self.get_neighbors(subset)
         # Get all neighbors that have been found in dataframe
         # This takes lists of neighbors and puts them into a Series,
         # drops NaN's and drops duplicates
@@ -581,18 +595,20 @@ class ImageObjects:
                 (src_op(self.objects[src_field], src_thresh)) &
                 # True if any neighbor has value that meets op(nv, thresh)
                 (self.objects[in_field_nv].apply(
-                    lambda nv: any([op(v, thresh) for k, v in nv.items()])))
+                    lambda nv: any([op(v, thresh) for k, v in nv.items()])
+                    if pd.notnull(nv) else nv))
                 )
         else:
             adj_series = (self.objects[in_field_nv].apply(
-                lambda nv: any([op(v, thresh) for k, v in nv.items()])))
+                lambda nv: any([op(v, thresh) for k, v in nv.items()])
+                if pd.notnull(nv) else nv))
 
         if out_field:
             self.objects[out_field] = adj_series
 
         return adj_series
 
-    def write_objects(self, out_objects, overwrite=False):
+    def write_objects(self, out_objects, overwrite=False, **kwargs):
         # Create list of columns to write as strings rather than lists, tuples
         to_str_cols = []
 
@@ -606,7 +622,8 @@ class ImageObjects:
         logger.info('Writing objects to: {}'.format(out_objects))
         write_gdf(self.objects.reset_index(), out_objects,
                   to_str_cols=to_str_cols,
-                  overwrite=overwrite)
+                  overwrite=overwrite,
+                  **kwargs)
 
     def _nv_field_name(self, field):
         return '{}_nv'.format(field)

@@ -30,7 +30,7 @@ def run_subprocess(command):
 def main(MFP_PATH):
     TXT_LOC = r'C:\code\pgc-code-all\config\pgc_index_path.txt'
     GET_IDS_PY = r'C:\code\pgc-code-all\misc_utils\mfp_ids.py'
-    pgc_dir = r'C:\pgc_index'
+    pgc_dir = r'E:\pgc_index'
     # pgc_dir = os.path.dirname(MFP_PATH)
     gdb_name = os.path.basename(MFP_PATH)[:-4]  # with .gdb
     gdb_basename = gdb_name.split('.')[0]  # just the name

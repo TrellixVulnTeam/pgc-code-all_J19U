@@ -60,6 +60,7 @@ def split_combined(combined, splitters, coord_order):
 
 
 def coord_conv(in_coord, coord_format, coord_order):
+    logger.debug("coordinate: {}".format(in_coord))
     if coord_format == 'ddm': # D DM N
         if coord_order in ['lat-lon-dir', 'lon-lat-dir']:
             logger.debug(in_coord.split(' '))
@@ -207,20 +208,19 @@ if __name__ == '__main__':
     # lon = 'lon_DD'
     
     if csv[-3:] == 'csv':
-        sites = pd.read_csv(csv)
+        sites = pd.read_csv(csv, index_col=False)
     else:
         sites = pd.read_excel(csv)
 
+    logger.info('\n{}'.format(sites))
     # Remove degree symbols, quotes
     sites = remove_symbols(sites)
     
     if combined_coords:
         lat = 'lat'
         lon = 'lon'
-        sites[lat], sites[lon] = zip(*sites[combined_coords].apply(lambda x: split_combined(x, 
-                                                                                            cc_splitters,
-                                                                                            coord_order)))
-
+        sites[lat], sites[lon] = zip(*sites[combined_coords].apply(
+            lambda x: split_combined(x, cc_splitters, coord_order)))
 
     logger.debug('Converting...')
     coord_cols = [lat, lon]
@@ -228,11 +228,14 @@ if __name__ == '__main__':
     # print(list(sites))
     logger.debug('Coordinate columns: {}'.format(coord_cols))
     for col in coord_cols:
+        logger.debug('Working on column: {}'.format(col))
         col_name = '{}_DD'.format(col)
         sites[col_name] = sites[col]
         sites[col_name] = sites.apply(lambda x: coord_conv(x[col], 
                                                            coord_format=coord_format,
                                                            coord_order=coord_order), axis=1)
+
+    logger.info('Converted:\n{}'.format(sites))
     logger.info('Writing to excel: {}'.format(out_excel))
     sites.to_excel(out_excel)
     

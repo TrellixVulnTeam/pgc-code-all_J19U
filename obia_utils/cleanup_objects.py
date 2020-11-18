@@ -130,7 +130,7 @@ if __name__ == '__main__':
     if drop_na:
         keep_objs = remove_null_objects(keep_objs, fields=drop_na)
 
-    logger.info('Writing kept objects ({}) to: {}'.format(len(keep_objs),
+    logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
                                                           out_objects))
     keep_objs.to_file(out_objects)
     logger.info('Done.')
