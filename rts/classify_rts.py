@@ -21,14 +21,26 @@ pd.options.mode.chained_assignment = None
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-plt.style.use('ggplot')
+plt.style.use('classic')
 
 
 #%%
+super_obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\grm_ms' \
+              r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
+              r'M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_468_' \
+              r'bst250x0ni0s0spec0x25spat25x0_cln_zs.shp'
+
 obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\hw_seg' \
         r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
         r'M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_' \
         r'bst100x0ni100s0spec0x3spat50x0_cln_zs.shp'
+
+hw_candidates_p = r'E:\disbr007\umn\2020sep27_eureka\scratch' \
+                  r'\hwc_adjmedneg0x2_ndvi0_med0_all.shp'
+
+rts_candidates_p = r'E:\disbr007\umn\2020sep27_eureka\scratch' \
+                  r'\rts_candidates.shp'
+
 aoi_p = r'E:\disbr007\umn\2020sep27_eureka\aois\test_aoi_sub.shp'
 aoi_p = None
 
@@ -39,6 +51,7 @@ ndvi_mean = 'NDVI_mean'
 slope_mean = 'Slope_mean'
 rug_mean = 'RugIn_mean'
 sa_rat_mean = 'SAratio_me'
+elev_mean = 'elev_mean'
 # mdfm_mean = 'MDFM_mean'
 # edged_mean = 'EdgDen_mea'
 # cclass_maj = 'CClass_maj'
@@ -49,7 +62,8 @@ value_fields = [
     (ndvi_mean, 'mean'),
     (slope_mean, 'mean'),
     (rug_mean, 'mean'),
-    (sa_rat_mean, 'mean')
+    (sa_rat_mean, 'mean'),
+    (elev_mean, 'mean')
     # (mdfm_mean, 'mean'),
     # (edged_mean, 'mean'),
     # (cclass_maj, 'majority')
@@ -57,7 +71,11 @@ value_fields = [
 
 # Created columns
 hw_candidate = 'headwall_candidate'
+contains_hw = 'contains_hw'
+rts_candidate = 'rts_candidate'
 
+#%% Read objects with headwall candidates already computed
+# ios = ImageObjects(objects_path=hw_candidates_p, value_fields=value_fields)
 #%%
 if aoi_p:
     aoi = gpd.read_file(aoi_p)
@@ -74,7 +92,6 @@ else:
 # mergeable = 'mergeable'
 
 #%%
-# Args
 # Criteria to determine candidates to be merged. This does not limit
 # which objects they may be merge to, that is done with pairwise criteria.
 # merge_criteria = [
@@ -124,12 +141,6 @@ thresholds = [rug_thresh,
               ndvi_thresh,
               med_thresh]
 
-# Get neighbor ids into a list in column 'neighbors'
-# meets_threshs = 'meets_threshs'
-# ios.objects[meets_threshs] = ios.objects.apply(
-#     lambda x: np.all([x[c] for c in thresholds]),
-    # axis=1)
-# ios.get_neighbors(subset=ios.objects[ios.objects[meets_threshs]==True])
 ios.get_neighbors(subset=ios.objects[ios.objects.apply(
     lambda x: np.all([x[c] for c in thresholds]),
     axis=1)])
@@ -163,14 +174,67 @@ hw_criteria = [curv_adj_hl,
                ndvi_thresh,
                med_thresh]
 ios.objects[hw_candidate] = ios.objects.apply(
-    lambda x: np.all([x[c] for c in hw_criteria]),
-    axis=1)
+    lambda x: np.all([x[c] for c in hw_criteria]), axis=1)
 
 #%%
 logger.info('Writing...')
-out_footprint = r'E:\disbr007\umn\2020sep27_eureka\scratch\hwc_adjmedneg0x2_ndvi0_med0_all.shp'
-ios.write_objects(out_footprint, overwrite=True)
+ios.write_objects(hw_candidates_p, overwrite=True)
 
+# %% Plot headwall candidate characteristics
+# TODO: Figure out how to plot adjacent to --
+#  get min/max of neighbor value field based on op in adjacent_to() ?
+# alpha = 0.5
+# atts = {rug_mean: high_rugged,
+#         sa_rat_mean: high_sa_rat,
+#         slope_mean: high_slope,
+#         ndvi_mean: low_ndvi,
+#         med_mean: low_med}
+#
+# fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+# axes = axes.flatten()
+#
+# for i, (k, v) in enumerate(atts.items()):
+#     # axes[i].title.set_text(k)
+#     axes[i].set_title(k)
+#     ios.objects[[k]].hist(k, alpha=alpha, label='F', ax=axes[i])
+#     axes[i].axvline(v, linewidth=2)
+# plt.tight_layout()
+# fig.show()
+
+
+#%% Find RTS
+# Load super objects
+so = ImageObjects(super_obj_p, value_fields=value_fields)
+#%%
+# Find objects that contain potential headwalls
+so.objects[contains_hw] = so.objects.geometry.apply(
+    lambda x: np.any([x.contains(hw_p) for hw_p in
+                      ios.objects[ios.objects[hw_candidate]].centroid.values]))
+
+# Find objects with low ndvi
+so.objects[ndvi_thresh] = so.objects[ndvi_mean] < low_ndvi
+# Find objects with low MED
+so.objects[med_thresh] = so.objects[med_mean] < low_med
+so.objects[slope_thresh] = so.objects[slope_mean] > 3
+
+#%% Determine if all criteria met
+rts_criteria = [contains_hw,
+                ndvi_thresh,
+                med_thresh,
+                slope_thresh]
+
+so.objects['rts_candidate'] = so.objects.apply(
+    lambda x: np.all([x[c] for c in rts_criteria]), axis=1)
+
+#%% Write RTS candidates
+so.write_objects(rts_candidates_p, overwrite=True)
+#%%
+# Find neighbors for objects that contain headwall candidate
+# so.get_neighbors(so.objects[so.objects[contains_hw is True]])
+
+
+#%%
+# so.compute_neighbor_values()
 #%%
 # Determines merge paths
 # ios.pseudo_merging(merge_fields=[med_mean, ndvi_mean],
@@ -197,7 +261,3 @@ ios.write_objects(out_footprint, overwrite=True)
 #         # look up values for features in overlay matches
 #         # if meet dist to value, True
 
-#%% Plotting
-# fig, ax = plt.subplots(1, 1)
-# ios.objects.plot(ax=ax)
-# fig.show()

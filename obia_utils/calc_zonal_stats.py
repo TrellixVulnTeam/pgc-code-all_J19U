@@ -114,11 +114,12 @@ def compute_stats(gdf, raster, name,
                        .rename(columns=renamer),
                        how='left')
     else:
-        gdf = gdf.join(pd.DataFrame(zonal_stats(gdf['geometry'], raster,
+        stats_df = pd.DataFrame(zonal_stats(gdf['geometry'], raster,
                                                 stats=stats,
                                                 add_stats=custom_stats))
-                       .rename(columns=renamer),
-                       how='left')
+        # logger.info('Stats DF Cols: {}'.format(stats_df.columns))
+        # logger.info('GDF cols: {}'.format(gdf.columns))
+        gdf = gdf.join(stats_df.rename(columns=renamer), how='left')
 
     return gdf
 
@@ -142,7 +143,9 @@ def calc_zonal_stats(shp, rasters, names,
         add '_stats' suffix before file extension.
     rasters : list or os.path.abspath
         List of rasters to compute zonal statistics for.
-        Or path to .txt file of raster paths (one per line).
+        Or path to .txt file of raster paths (one per line)
+        or path to .json file of
+            name: {path: /path/to/raster.tif, stats: ['mean']}.
     names : list
         List of names to use as prefixes for created stats. Order
         is order of rasters.

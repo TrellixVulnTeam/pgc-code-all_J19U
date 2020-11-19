@@ -234,7 +234,7 @@ if __name__ == '__main__':
                     src.write('\n')
 
     if out_dem_fp:
-        logger.info('Writing matching DEM fooprint to {}'.format(out_dem_fp))
+        logger.info('Writing matching DEM footprint to {}'.format(out_dem_fp))
         if not dryrun:
             dems.to_file(out_dem_fp)
 
