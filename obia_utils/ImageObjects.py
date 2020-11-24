@@ -579,12 +579,34 @@ class ImageObjects:
     #                            any(value_op(v, value_thresh)
     #                                for v in x.values())))
 
+    def best_adjacent_to(self, in_field, op):
+        best_fxn_lut = {
+            operator.lt: min,
+            operator.le: min,
+            operator.gt: max,
+            operator.ge: max
+        }
+        best_fxn = best_fxn_lut[op]
+
+        logger.debug('Finding adjacent features with values...')
+        # Create neighbor-value field(s) if necessary
+        in_field_nv = self._nv_field_name(in_field)
+        if in_field_nv not in self.fields:
+            self.compute_neighbor_values(in_field)
+
+        # Get tuple of (ID, value) of "best" neighbor
+        best_series = self.objects[in_field_nv].apply(
+            lambda nv: best_fxn(nv.items(), key=operator.itemgetter(1))
+            if pd.notnull(nv) else nv)
+
+        return best_series
+
     def adjacent_to(self, in_field, op, thresh,
                     src_field=None, src_op=None, src_thresh=None,
                     out_field=None):
         logger.debug('Finding adjacent features with values...')
 
-        # Create neighbor-value field(s) if necessary
+        # # Create neighbor-value field(s) if necessary
         in_field_nv = self._nv_field_name(in_field)
         if in_field_nv not in self.fields:
             self.compute_neighbor_values(in_field)
@@ -608,9 +630,10 @@ class ImageObjects:
 
         return adj_series
 
-    def write_objects(self, out_objects, overwrite=False, **kwargs):
+    def write_objects(self, out_objects, to_str_cols=None, overwrite=False, **kwargs):
         # Create list of columns to write as strings rather than lists, tuples
-        to_str_cols = []
+        if not to_str_cols:
+            to_str_cols = []
 
         list_cols = [self.nebs_fld, self.mp_fld]
         for lc in list_cols:

@@ -139,3 +139,6 @@ clarie_repos
 # DB connections
 config/danco.footprint.json
 config/sandwich-pool.dem.json
+
+# development file
+scratch.py

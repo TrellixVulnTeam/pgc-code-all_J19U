@@ -25,10 +25,12 @@ plt.style.use('classic')
 
 
 #%%
-super_obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\grm_ms' \
-              r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
-              r'M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_468_' \
-              r'bst250x0ni0s0spec0x25spat25x0_cln_zs.shp'
+# super_obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\grm_ms' \
+#               r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
+#               r'M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_468_' \
+#               r'bst250x0ni0s0spec0x25spat25x0_cln_zs.shp'
+
+super_obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\so_subset.shp'
 
 obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\hw_seg' \
         r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
@@ -86,6 +88,7 @@ if aoi_p:
 else:
     ios = ImageObjects(objects_path=obj_p, value_fields=value_fields)
 
+ios.objects = ios.objects.iloc[4000:10000]
 #%% Merging parameters
 # Merge column names
 # merge_candidates = 'merge_candidates'
@@ -188,120 +191,47 @@ hw_criteria = [curv_adj_hl,
 ios.objects[hw_candidate] = ios.objects.apply(
     lambda x: np.all([x[c] for c in hw_criteria]), axis=1)
 
-#%%
-logger.info('Writing...')
-ios.write_objects(hw_candidates_p,
-                  to_str_cols=to_str_cols,
-                  overwrite=True)
-#%% Load written candidates with 'truth'
-# hwc_shp = gpd.read_file(r'E:\disbr007\umn\2020sep27_eureka\scratch\hwc_truth.shp')
-# # Drop everything but truth and index
-# hwc_shp = hwc_shp[['index', 'truth']]
-# hwc_shp.set_index('index', inplace=True)
-#
-# hwc = ios.objects[ios.objects[hw_candidate]==True]
-# hwc = hwc.join(hwc_shp)
-
-# %% Plot headwall candidate characteristics
-# alpha = 0.5
-# linewidth = 2
-# vline_color = 'red'
-# atts = {rug_mean: high_rugged,
-#         sa_rat_mean: high_sa_rat,
-#         slope_mean: high_slope,
-#         ndvi_mean: low_ndvi,
-#         med_mean: low_med,
-#         }
-# adj_atts = {best_low_curv: low_curv,
-#             best_high_curv: high_curv,
-#             best_low_med: low_med}
-#
-# fig, axes = plt.subplots(3, 3, figsize=(15, 10))
-# axes = axes.flatten()
-#
-# truth_filter = hwc[truth] == 'true_yes'
-# for i, (k, v) in enumerate(atts.items()):
-#     axes[i].set_title(k)
-#     # hwc[[k]].hist(k, alpha=alpha, label='F', ax=axes[i])
-#     axes[i].hist([hwc[k][truth_filter], hwc[k][~truth_filter]],
-#                  stacked=True,
-#                  label=['true_yes', 'true_no'] if i == 0 else "",
-#                  alpha=alpha)
-#     axes[i].axvline(v, linewidth=linewidth, color=vline_color)
-#
-# for j, (k, v) in enumerate(adj_atts.items()):
-#     axes[i+j+1].hist([hwc[~hwc[k].isnull()][best_low_curv].apply(lambda x: x[1])[truth_filter],
-#                       hwc[~hwc[k].isnull()][best_low_curv].apply(lambda x: x[1])[~truth_filter]],
-#                      alpha=alpha,
-#                      stacked=True),
-#     axes[i+j+1].set_title(k)
-#     axes[i+j+1].axvline(v, linewidth=linewidth, color=vline_color)
-#
-# l = fig.legend(loc="upper left")
-# plt.tight_layout()
-# fig.show()
-
 
 #%% Find RTS
 # Load super objects
 so = ImageObjects(super_obj_p,
                   value_fields=value_fields)
+so.objects['elev_mean'] = so.objects['elev_mean'].astype(float)
 #%%
+hwc = ios.objects[ios.objects[hw_candidate]]
 # Find objects that contain potential headwalls
-so.objects[contains_hw] = so.objects.geometry.apply(
-    lambda x: np.any([x.contains(hw_p) for hw_p in
-                      ios.objects[ios.objects[hw_candidate]].centroid.values]))
+# so.objects[contains_hw] = so.objects.geometry.apply(
+#     lambda x: np.any([x.contains(hw_p) for hw_p in
+#                       ios.objects[ios.objects[hw_candidate]].centroid.values]))
 
-# Find objects with low ndvi
-so.objects[ndvi_thresh] = so.objects[ndvi_mean] < low_ndvi
-# Find objects with low MED
-so.objects[med_thresh] = so.objects[med_mean] < low_med
-# Find objects with slope greater than threshold
-so.objects[slope_thresh] = so.objects[slope_mean] > 3
-# Find objects
-#%% Determine if all criteria met
-rts_criteria = [contains_hw,
-                ndvi_thresh,
-                med_thresh,
-                slope_thresh]
+def contains_obj_value(geometry, others,
+                       field=None,
+                       op=None,
+                       self_field=None,
+                       others_field=None,
+                       value=None,
+                       ):
+    """Determine if geometry contains an object from others, where the value
+    of field (or others_field) meets operator(others[field], self[field]"""
+    if self_field is None:
+        self_field = field
+    if others_field is None:
+        others_field = field
 
-so.objects['rts_candidate'] = so.objects.apply(
-    lambda x: np.all([x[c] for c in rts_criteria]), axis=1)
+    # Find all objects contained by geometry
+    contained = others[others.geometry.centroid.apply(lambda x: x.within(geometry))]
+    contains_obj = False
+    if not contained.empty:
+        contains_obj = np.any([op(value, other_value)
+                               for other_value in contained[others_field]
+                               if not pd.isnull(other_value)])
 
-#%% Write RTS candidates
-so.write_objects(rts_candidates_p,
-                 to_str_cols=to_str_cols,
-                 overwrite=True)
-#%%
-# Find neighbors for objects that contain headwall candidate
-# so.get_neighbors(so.objects[so.objects[contains_hw is True]])
+    return contains_obj
 
 
-#%%
-# so.compute_neighbor_values()
-#%%
-# Determines merge paths
-# ios.pseudo_merging(merge_fields=[med_mean, ndvi_mean],
-#                    merge_criteria=merge_criteria,
-#                    pairwise_criteria=pairwise_criteria)
-#%%
-# Does merging
-# ios.merge()
-#%% object with value within distance
-# obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs.shp'
-# obj = gpd.read_file(obj_p)
-# field = 'CurPr_mean'
-# candidate_value = 25
-# dist_to_value = -25
-# dist = 2
-#
-# selected = obj[obj[field] > candidate_value]
-#
-# for i, r in selected.iterrows():
-#     if i == 348:
-#         tgdf = gpd.GeoDataFrame([r], crs=obj.crs)
-#         within_area = gpd.GeoDataFrame(geometry=tgdf.buffer(dist), crs=obj.crs)
-#         # overlay
-#         # look up values for features in overlay matches
-#         # if meet dist to value, True
-
+test = so.objects[so.objects.apply(
+    lambda x: contains_obj_value(x.geometry, hwc,
+                                 field='elev_mean',
+                                 op=operator.lt,
+                                 value=x['elev_mean']
+                                 ), axis=1)]
