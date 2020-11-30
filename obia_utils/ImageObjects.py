@@ -107,16 +107,19 @@ class ImageObjects:
         # Field names
         self.nebs_fld = 'neighbors'
         self.area_fld = 'area'
-        self.comp_fld = 'compactness'
+        self.compact_fld = 'compactness'
         # Merge column names
         self.mc_fld = 'merge_candidates'
         self.mp_fld = 'merge_path'
         self.m_fld = 'm_fld'
-
+        # List of (field_name, summary_stat) to be recalculated after merging
         self.value_fields = value_fields
+        # List of boolean fields holding result of apply a rule
+        self.rule_fields = []
+        # Properties calculated on demand
         self._num_objs = None
         self._fields = list(self.objects.columns)
-        self.object_stats = None
+        self._object_stats = None
 
         # Neighbor value fields
         self.nv_fields = list()
@@ -129,9 +132,6 @@ class ImageObjects:
         if not self.objects.index.is_unique:
             logger.warning('Non-unique index not supported.')
 
-        # Merging
-        # self.to_be_merged = None
-
     @property
     def fields(self):
         self._fields = list(self.objects.columns)
@@ -142,6 +142,11 @@ class ImageObjects:
         self._num_objs = len(self.objects)
         return self._num_objs
 
+    @property
+    def object_stats(self):
+        self._object_stats = self.objects.describe()
+        return self._object_stats
+
     def compute_area(self):
         self.objects[self.area_fld] = self.objects.geometry.area
         self.fields.append(self.area_fld)
@@ -149,13 +154,14 @@ class ImageObjects:
     def calc_compactness(self):
         logger.info('Calculating object compactness')
         # Polsby - Popper Score - - 1 = circle
-        self.objects[self.comp_fld] = self.objects.geometry.apply(
+        self.objects[self.compact_fld] = self.objects.geometry.apply(
             lambda x: (np.pi * 4 * x.area) / (x.boundary.length) ** 2)
 
-    def calc_object_stats(self):
-        self.object_stats = self.objects.describe()
+    def _nv_field_name(self, field):
+        return '{}_nv'.format(field)
 
     def get_value(self, index_value, value_field):
+        """Get the value of value_field and index index_value"""
         if value_field not in self.fields:
             logger.error('Field not found: {}'.format(value_field))
             logger.error('Cannot get value for field: {}'.format(value_field))
@@ -212,7 +218,8 @@ class ImageObjects:
         return self.objects[self.objects.index.isin(subset.index)]
 
     def replace_neighbor(self, old_neb, new_neb, update_merges=False):
-
+        """Replace old_neb with new_newb in every objects list of
+        neighbors. Optionally, update merge_path fields as well."""
         def _rowwise_replace_neighbor(neighbors, old_neb, new_neb):
             if old_neb in neighbors:
                 neighbors = [n for n in neighbors if n != old_neb]
@@ -227,7 +234,8 @@ class ImageObjects:
                 lambda x: _rowwise_replace_neighbor(x, old_neb, new_neb))
 
     def replace_neighbor_value(self, neb_v_fld, old_neb, new_neb, new_value):
-
+        """Replace old_nebs value in neb_v_fld with new_neb and new_nebs
+        value, new_value."""
         def _rowwise_replace_nv(neb_values, old_neb, new_neb, new_value):
             if old_neb in neb_values.keys():
                 neb_values.pop(old_neb)
@@ -345,10 +353,13 @@ class ImageObjects:
         # have neighbors computed
         # TODO: change to use get_value()
         subset[out_field] = (subset[~subset[self.nebs_fld].isnull()][self.nebs_fld]
-                             .apply(lambda x: {i: neighbors.at[i, value_field] for i in x}))
+                             .apply(lambda x: {i: neighbors.at[i, value_field]
+                                               for i in x}))
 
         # Merge neighbor value field back in
-        self.objects = pd.merge(self.objects.drop(columns=out_field),
+        if out_field in self.fields:
+            self.objects.drop(columns=out_field, inplace=True)
+        self.objects = pd.merge(self.objects,
                                 subset[[out_field]],
                                 how='outer', suffixes=('', '_y'),
                                 left_index=True, right_index=True)
@@ -609,7 +620,7 @@ class ImageObjects:
         # # Create neighbor-value field(s) if necessary
         in_field_nv = self._nv_field_name(in_field)
         if in_field_nv not in self.fields:
-            self.compute_neighbor_values(in_field)
+            self.compute_neighbor_values(in_field, compute_neighbors=True)
 
         if src_field:
             adj_series = (
@@ -648,78 +659,76 @@ class ImageObjects:
                   overwrite=overwrite,
                   **kwargs)
 
-    def _nv_field_name(self, field):
-        return '{}_nv'.format(field)
+    def single_rule(self, rule_type, in_field, op, threshold,
+                   out_field=None, **kwargs):
+        """
+        Apply rule to objects, returning boolean series indicating of each
+        object meets the rule.
 
-# #%%
-# obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\rgo.shp'
-# # Existing column name
-# med_mean = 'MED_mean'
-# cur_mean = 'CurPr_mean'
-# ndvi_mean = 'NDVI_mean'
-# slope_mean = 'Slope_mean'
-# # Neighbor value column names
-# med_nv = 'nv_{}'.format(med_mean)
-# ndvi_nv = 'nv_{}'.format(ndvi_mean)
-#
-# value_fields = [('MDFM_mean', 'mean'), ('MED_mean', 'mean'),
-#                 ('CurPr_mean', 'mean'), ('NDVI_mean', 'mean'),
-#                 ('EdgDen_mea', 'mean'), ('Slope_mean', 'mean'),
-#                 ('CClass_maj', 'majority')
-#                 ]
-# merge_col = med_mean
-# #%%
-# # Args
-# merge_field = med_mean
-# merge_nv_field = med_nv
-# # Criteria to determine candidates to be merged. This does not limit
-# # which objects they may be merge to, that is done with pairwise criteria.
-# merge_criteria = [
-#                   (area_fld, operator.lt, 1500),
-#                   (ndvi_mean, operator.lt, 0),
-#                   (med_mean, operator.lt, 0.3),
-#                   (slope_mean, operator.gt, 2)
-#                  ]
-# # Criteria to check between a merge candidate and merge option
-# pairwise_criteria = {
-#     # 'within': {'field': cur_mean, 'range': 10},
-#     'threshold': {'field': ndvi_mean, 'op': operator.lt, 'threshold': 0}
-# }
-# #%%
-# ios = ImageObjects(objects_path=obj_p, value_fields=value_fields)
-# #%%
-# ios.compute_area()
-# # Get neighbor ids into a list in columns 'neighbors'
-# ios.get_neighbors()
-# ios.compute_neighbor_values(merge_field, merge_nv_field)
-#
-#
-# #%%
-# ios.pseudo_merging(merge_field=med_mean, merge_criteria=merge_criteria,
-#                    pairwise_criteria=pairwise_criteria)
-# #%%
-# ios.merge()
-# #%%
-# logger.info('Writing...')
-# out_footprint = r'E:\disbr007\umn\2020sep27_eureka\scratch\rbo_merge_med.shp'
-# write_gdf(ios.objects.reset_index(), out_footprint,
-#           to_str_cols=[ios.nebs_fld, merge_nv_field, ios.mp_fld])
-#
+        Parameters
+        ---------
+        out_field : str
+            The field to store the boolean results of the rule in.
+        rule_type : str
+            The type of rule to apply, one of: 'threshold', 'adjacent'
+        in_field : str
+            The name of the field to apply the rule to
+        op : operator function
+            Operator to use in rule, one of operator.[lt, gt, le, ge, eq]
+        threshold : float, int, str
+            The value to compare in_field to using op.
+        **kwargs : dict
+            Keyword arguments to pass through to sub functions
+            For rule_type == 'adjacent', these can be
+                src_field, src_value, src_threshold
+                to subset the objects that the adjacency rule is
+                computed for.
+        """
+        # Ensure rule type is supported
+        accepted_rule_types = ['threshold', 'adjacent']
+        if rule_type not in accepted_rule_types:
+            logger.error('Rule type: {} not recognized. Must be one of: '
+                         '{}'.format(rule_type, accepted_rule_types))
+            raise Exception
 
-#%% object with value within distance
-# obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs.shp'
-# obj = gpd.read_file(obj_p)
-# field = 'CurPr_mean'
-# candidate_value = 25
-# dist_to_value = -25
-# dist = 2
-#
-# selected = obj[obj[field] > candidate_value]
-#
-# for i, r in selected.iterrows():
-#     if i == 348:
-#         tgdf = gpd.GeoDataFrame([r], crs=obj.crs)
-#         within_area = gpd.GeoDataFrame(geometry=tgdf.buffer(dist), crs=obj.crs)
-#         # overlay
-#         # look up values for features in overlay matches
-#         # if meet dist to value, True
+        if rule_type == 'threshold':
+            results = op(self.objects[in_field], threshold)
+
+        elif rule_type == 'adjacent':
+            results = self.adjacent_to(in_field=in_field,
+                                       op=op,
+                                       thresh=threshold,
+                                       **kwargs)
+        if out_field:
+            self.objects[out_field] = results
+            # TODO: Add out_field to self.contraint_fields
+            self.rule_fields.append(out_field)
+
+        return results
+
+    def apply_rules(self, rules, out_field=None):
+        """
+        Apply a number of rules to objects.
+        Parameters
+        ----------
+        rules : list
+            List of dictionaries of keyword arguments to single_rule
+
+        Returns
+        ---------
+        pd.series : Boolean series indicating if all rules met
+        """
+        # Get and store boolean Series for each rule
+        all_results = []
+        for r in rules:
+            sr = self.single_rule(**r)
+            all_results.append(sr)
+
+        # Get single series indicating if True across all results
+        results = pd.DataFrame(all_results).transpose().all(axis='columns')
+
+        if out_field:
+            self.objects[out_field] = results
+
+        return results
+
