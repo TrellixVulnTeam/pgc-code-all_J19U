@@ -1,15 +1,12 @@
-
 import subprocess
 from subprocess import PIPE
 
-
 from misc_utils.logging_utils import create_logger
-
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-
 otb_max_ram_hint = 1024
+otb_env_loc = r"C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat"
 
 
 def run_subprocess(command):
@@ -26,10 +23,16 @@ def run_subprocess(command):
     logger.debug('Output: {}'.format(output.decode()))
     logger.debug('Err: {}'.format(error.decode()))
 
-# otb_env_loc = r'C:\OSGeo4W64\OTB-6.6.1-Win64\OTB-6.6.1-Win64\otbenv.bat'
-otb_env_loc = r"C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat"
-run_subprocess(otb_env_loc)
-logger.info('Setting OTB_MAX_RAM_HINT={}'.format(otb_max_ram_hint))
-run_subprocess('set OTB_MAX_RAM_HINT={}'.format(otb_max_ram_hint))
-logger.info('OTB Max Ram:')
-run_subprocess('echo %OTB_MAX_RAM_HINT%')
+
+def otb_init_win(otb_env_loc=otb_env_loc,
+                 otb_max_ram_hint=otb_max_ram_hint):
+    otb_env_loc = otb_env_loc
+    run_subprocess(otb_env_loc)
+    logger.info('Setting OTB_MAX_RAM_HINT={}'.format(otb_max_ram_hint))
+    run_subprocess('set OTB_MAX_RAM_HINT={}'.format(otb_max_ram_hint))
+    logger.info('OTB Max Ram:')
+    run_subprocess('echo %OTB_MAX_RAM_HINT%')
+
+
+if __name__ == '__main__':
+    otb_init_win()

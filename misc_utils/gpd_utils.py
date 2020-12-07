@@ -23,7 +23,7 @@ import multiprocessing
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 def multiprocess_gdf(fxn, gdf, *args, num_cores=None, **kwargs):
@@ -307,6 +307,7 @@ def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
 
 def write_gdf(src_gdf, out_footprint, to_str_cols=None,
               out_format=None, date_format=None,
+              nan_to=None,
               overwrite=False,
               **kwargs):
     gdf = copy.deepcopy(src_gdf)
@@ -315,7 +316,8 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
         out_footprint = Path(out_footprint)
 
     # convert NaNs to empty string
-    gdf = gdf.replace(np.nan, '', regex=True)
+    if nan_to:
+        gdf = gdf.replace(np.nan, nan_to, regex=True)
 
     # remove datetime - specifiy datetime if desired format
     if not gdf.select_dtypes(include=['datetime64']).columns.empty:
@@ -324,8 +326,9 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
     # convert columns that store lists to strings
     if to_str_cols:
         for col in to_str_cols:
-            gdf[col] = [','.join(map(str, l)) if len(l) > 0
-                        else '' for l in gdf[col]]
+            logger.debug('Converting to string field: {}'.format(col))
+            gdf[col] = [','.join(map(str, l)) if isinstance(l, (dict, list))
+                        and len(l) > 0 else '' for l in gdf[col]]
 
     logger.debug('Writing to file: {}'.format(out_footprint))
     if not out_format:
@@ -348,7 +351,10 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
     if out_format == 'shp':
         gdf.to_file(out_footprint, **kwargs)
     elif out_format == 'geojson':
-        logger.info(gdf.crs)
+        if gdf.crs != 4326:
+            logger.warning('Attempting to write GeoDataFrame with non-WGS84 '
+                           'CRS to GeoJSON. Reprojecting to WGS84.')
+            gdf = gdf.to_crs('epsg:4326')
         gdf.to_file(out_footprint,
                     driver='GeoJSON', **kwargs)
     elif out_format == 'gpkg':

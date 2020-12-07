@@ -1,0 +1,32 @@
+import json
+from pathlib import Path
+import sys
+
+sys.path.append(Path(__file__).parent / "obia_utils")
+
+from obia_utils.otb_lsms import otb_lsms
+from obia_utils.otb_grm import otb_grm
+from obia_utils.cleanup_objects import cleanup_objects
+
+
+CONFIG_FILE = Path(__file__).parent / 'config.json'
+
+
+def get_config(param=None, config_file=CONFIG_FILE):
+    config_params = json.load(open(config_file))
+    if param is not None:
+        try:
+            config = config_params[param]
+        except KeyError:
+            print('Config parameter not found: {}'.format(param))
+            print('Available configs:\n{}'.format('\n'.join(config.keys())))
+    else:
+        config = config_params
+
+    return config
+
+
+config = get_config('seg')
+hw_config = config['headwall']
+
+# Headwall

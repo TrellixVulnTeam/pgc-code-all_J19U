@@ -71,6 +71,33 @@ def remove_null_objects(objects, fields=['all']):
 
     return keep_objs
 
+
+def cleanup_objects(input_objects,
+                    out_objects,
+                    min_size=None,
+                    mask_on=None,
+                    out_mask_img=None,
+                    out_mask_vec=None,
+                    drop_na=None):
+
+    keep_objs = load_objs(input_objects)
+
+    if min_size:
+        keep_objs = remove_small_objects(objects=keep_objs,
+                                         min_size=min_size)
+    if mask_on:
+        keep_objs = mask_objs(objs=keep_objs, mask_on=mask_on,
+                              out_mask_img=out_mask_img,
+                              out_mask_vec=out_mask_vec)
+    if drop_na:
+        keep_objs = remove_null_objects(keep_objs, fields=drop_na)
+
+    logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
+                                                          out_objects))
+    keep_objs.to_file(out_objects)
+    logger.info('Done.')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Utility for cleaning up '
                                                  'image-objects after '
@@ -110,27 +137,18 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    raster = args.raster
+    mask_on = args.raster
     drop_na = args.drop_na
     min_size = args.min_size
     input_objects = args.input_objects
     out_objects = args.out_objects
     out_mask_img = args.out_mask_img
     out_mask_vec = args.out_mask_vec
-    
-    keep_objs = load_objs(input_objects)
 
-    if min_size:
-        keep_objs = remove_small_objects(objects=keep_objs,
-                                         min_size=min_size)
-    if raster:
-        keep_objs = mask_objs(objs=keep_objs, mask_on=raster,
-                              out_mask_img=out_mask_img,
-                              out_mask_vec=out_mask_vec)
-    if drop_na:
-        keep_objs = remove_null_objects(keep_objs, fields=drop_na)
-
-    logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
-                                                          out_objects))
-    keep_objs.to_file(out_objects)
-    logger.info('Done.')
+    cleanup_objects(input_objects=input_objects,
+                    out_objects=out_objects,
+                    min_size=min_size,
+                    mask_on=mask_on,
+                    drop_na=drop_na,
+                    out_mask_vec=out_mask_vec,
+                    out_mask_img=out_mask_img)

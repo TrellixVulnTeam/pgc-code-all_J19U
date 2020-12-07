@@ -1,0 +1,24 @@
+{
+  "seg": {
+    "headwall": {
+      "algorithm": "grm",
+      "threshold": "100",
+      "iterations": "100",
+      "speed": 1,
+      "spectral": 0.3,
+      "spatial": 50.0
+    },
+    "rts": {
+      "img": "E:\\disbr007\\umn\\2020sep27_eureka\\img\\ortho_WV02_20140703_test_aoi\\WV02_20140703013631_1030010032B54F00_14JUL03013631-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_468.tif",
+      "algorithm": "grm",
+      "threshold": "100",
+      "iterations": "100",
+      "speed": 1,
+      "spectral": 0.3,
+      "spatial": 50.0
+    }
+  },
+  "zonal_stats": {
+    "file": "E:\\disbr007\\umn\\2020sep27_eureka\\config\\zonal_stats.json"
+  }
+}
