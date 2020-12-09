@@ -64,11 +64,13 @@ def contains_any_objects(geometry, others, centroid=True,
 
 
 #%% In and out paths
-super_obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\grm' \
-              r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
-              r'M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_468_' \
-              r'bst250x0ni0s0spec0x5spat25x0_cln_zs.shp'
+version = 5
+# super_obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\grm' \
+#               r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
+#               r'M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_468_' \
+#               r'bst250x0ni0s0spec0x5spat25x0_cln_zs.shp'
 # super_obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch_2020nov30\so.shp'
+super_obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch_2020nov30\so2.shp'
 hw_obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\hw_seg' \
         r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-' \
         r'M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi_' \
@@ -76,10 +78,10 @@ hw_obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\hw_seg' \
 # hw_obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch_2020nov30\sbo.shp'
 
 hw_candidates_p = r'E:\disbr007\umn\2020sep27_eureka\scratch_2020nov30' \
-                  r'\hw_candidates.geosjon'
+                  r'\hw_candidates{}.shp'.format(version)
 
 rts_candidates_p = r'E:\disbr007\umn\2020sep27_eureka\scratch_2020nov30' \
-                  r'\rts_candidates4.geojson'
+                  r'\rts_candidates{}.shp'.format(version)
 
 aoi_p = r'E:\disbr007\umn\2020sep27_eureka\aois\test_aoi_sub.shp'
 aoi_p = None
@@ -92,8 +94,9 @@ slope_mean = 'Slope_mean'
 rug_mean = 'RugIn_mean'
 sa_rat_mean = 'SAratio_me'
 elev_mean = 'elev_mean'
-delev_mean = 'dDEM_mean'
+pan_mean = 'pan_mean'
 dndvi_mean = 'dNDVI_mean'
+delev_mean = 'dDEM_mean'
 # mdfm_mean = 'MDFM_mean'
 # edged_mean = 'EdgDen_mea'
 # cclass_maj = 'CClass_maj'
@@ -105,7 +108,9 @@ value_fields = [
     (slope_mean, 'mean'),
     (rug_mean, 'mean'),
     (sa_rat_mean, 'mean'),
-    (elev_mean, 'mean')
+    (elev_mean, 'mean'),
+    (delev_mean, 'mean'),
+    (dndvi_mean, 'mean')
     # (mdfm_mean, 'mean'),
     # (edged_mean, 'mean'),
     # (cclass_maj, 'majority')
@@ -255,6 +260,11 @@ hwc.objects[hw_candidate] = hwc.objects.apply(
 # hwc.write_objects(hw_candidates_p,
 #                   to_str_cols=to_str_cols,
 #                   overwrite=True)
+# hwc_centroid = ImageObjects(
+#     copy.deepcopy(hwc.objects.set_geometry(hwc.objects.geometry.centroid)))
+# hwc_centroid.write_objects(hw_candidates_p.replace('hw_candidates',
+#                                                    'hw_candidates_centroid{}'.format(version),
+#                            overwrite=True)
 
 #%% Find RTS
 #%% RTS Rules
@@ -313,58 +323,73 @@ logger.info('RTS candidates found: '
             '{}'.format(len(so.objects[so.objects[rts_candidate]])))
 #%% Write RTS candidates
 # logger.info('Writing headwall candidates...')
-# so.write_objects(rts_candidates_p.replace('es.', 'es2.'),
-#                  to_str_cols=to_str_cols,
-#                  overwrite=True)
-#%%
+so.write_objects(rts_candidates_p.replace('es.', 'es{}.'.format(version)),
+                 to_str_cols=to_str_cols,
+                 overwrite=True)
+
+#%% Region growing
 logger.info('Growing candidates objects...')
+
+#%% Determine merge seeds - where merging/growing will begin from
+rules = [{'rule_type': 'threshold',
+          'in_field': contains_hw,
+          'op': operator.eq,
+          'threshold': True},
+         {'rule_type': 'threshold',
+          'in_field': rts_candidate,
+          'op': operator.eq,
+          'threshold': True}]
+merge_ids = so.merge_seeds(rules=rules)
+
+#%%
 # Find neighbors for objects that contain headwall candidate
-so.get_neighbors(so.objects[so.objects[contains_hw]==True])
+# so.get_neighbors(so.objects[so.objects[contains_hw]==True])
 
 
 #%% Get values for fields that growing is based on
-so.compute_neighbor_values(value_field=delev_mean)
+# so.compute_neighbor_values(value_field=delev_mean)
 
 
 #%% Rules for growing
-# Candidates to grow into
-r_grow_delev = (delev_mean, operator.lt, 0)  # difference in DEMs < 0
-# TODO: Make this criteria for starting point, not requirement to be merged.
-#  When growing, must pass 'contains' to merged object (or recompute but
-#  that'd be slower).
-r_grow_contains_hw = (contains_hw, operator.eq, True)  # must contain hw
-# TODO: Add rules:
+# TODO: Add ability to sort merge candidates by fields, then add rules:
 #  1. grow into closest elev
 #  2. grow into closest NDVI
 #  3. grow closest pan
 
+# Objects must meet the following to be grown into
+# Simple thresholds
+r_delev = (delev_mean, operator.lt, -0.2)  # difference in DEMs < 0
+r_ndvi = (ndvi_mean, operator.lt, 0.02)  # ndvi
+r_slope = (slope_mean, operator.gt, 3.0)  # slope
+fields_ops_thresholds = [r_ndvi, r_delev, r_slope]
 
-fields_ops_thresholds = [r_grow_delev,
-                         r_grow_contains_hw]
+# fields_ops_thresholds = None
+# Pairwise
+# r_p_pan = {'threshold': {'field': pan_mean,
+#                          'op': operator.lt,
+#                          'threshold': 'self'}}
+# r_p_med = {'threshold': {'field': med_mean,
+#                          'op': operator.lt,
+#                          'threshold': 'self'}}
+r_p_elev = {'threshold': {'field': elev_mean,
+                          'op': operator.lt,
+                          'threshold': 'self'}}
+# pairwise_criteria = [r_p_med, r_p_med]
+pairwise_criteria = [r_p_elev]
+# pairwise_criteria = None
+
+# Growing will be ordered based on closest values in these fields
+grow_fields = [delev_mean, pan_mean]
 
 # Determines merge paths
-so.pseudo_merging(fields_ops_thresholds=fields_ops_thresholds,
-                  pairwise_criteria=None)
-#%%
-# Does merging
-so.merge()
-so.write_objects(super_obj_p.replace('.shp', 'merged.shp'))
+so.pseudo_merging(mc_fields_ops_thresholds=fields_ops_thresholds,
+                  pairwise_criteria=pairwise_criteria,
+                  grow_fields=grow_fields,
+                  merge_seeds=True,
+                  max_iter=1)
+#%% Merge
+# so.merge()
 
-#%% object with value within distance
-# obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs.shp'
-# obj = gpd.read_file(obj_p)
-# field = 'CurPr_mean'
-# candidate_value = 25
-# dist_to_value = -25
-# dist = 2
-#
-# selected = obj[obj[field] > candidate_value]
-#
-# for i, r in selected.iterrows():
-#     if i == 348:
-#         tgdf = gpd.GeoDataFrame([r], crs=obj.crs)
-#         within_area = gpd.GeoDataFrame(geometry=tgdf.buffer(dist), crs=obj.crs)
-#         # overlay
-#         # look up values for features in overlay matches
-#         # if meet dist to value, True
-
+#%% Write
+so.write_objects(super_obj_p.replace('.shp', 'merged{}.shp'.format(version)),
+                 overwrite=True)

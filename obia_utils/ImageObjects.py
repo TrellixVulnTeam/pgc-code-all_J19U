@@ -75,8 +75,12 @@ def pairwise_match(row, possible_match, pairwise_criteria):
             #                                       met))
             criteria_met.append(met)
         elif criteria_type == 'threshold':
+            if params['threshold'] == 'self':
+                threshold = row[params['field']]
+            else:
+                threshold = params['threshold']
             met = params['op'](possible_match[params['field']],
-                               params['threshold'])
+                               threshold)
             # logger.debug('{} {} {} {}: {}'.format(params['field'],
             #                                       criteria_type,
             #                                       params['op'],
@@ -91,7 +95,7 @@ def z_score(value, mean, std):
     return (value - mean) / std
 
 
-def abs_distance(value1, value2, std):
+def abs_stds(value1, value2, std):
     return abs((value1 - value2) / std)
 
 
@@ -117,7 +121,11 @@ class ImageObjects:
         # Merge column names
         self.mc_fld = 'merge_candidates'
         self.mp_fld = 'merge_path'
-        self.m_fld = 'm_fld'
+        self.m_fld = 'mergeable'
+        self.m_seed_fld = 'merge_seed'
+        self.m_ct_fld = 'merge_count'
+        self.continue_iter = 'continue_iter'
+        self.mergeable_ids = None
         # List of (field_name, summary_stat) to be recalculated after merging
         self.value_fields = value_fields
         # List of boolean fields holding result of apply a rule
@@ -137,6 +145,20 @@ class ImageObjects:
             self.objects.index.name = 'index'
         if not self.objects.index.is_unique:
             logger.warning('Non-unique index not supported.')
+
+    def check_neb(self,neb):
+        for i, row in self.objects.iterrows():
+            if isinstance(row[self.nebs_fld], list):
+                if neb in row[self.nebs_fld]:
+                    print('check_neb: ', i, row[self.nebs_fld])
+
+    def print_info(self):
+        pass
+        # for i in (41, 43, 50):
+            # print(i, '\n', self.objects.loc[i][[self.nebs_fld,
+            #                                     self.mp_fld,
+            #                                     self.mc_fld,
+            #                                     self.m_fld]])
 
     @property
     def fields(self):
@@ -181,7 +203,7 @@ class ImageObjects:
         value = self.objects.at[index_value, value_field]
         return value
 
-    def get_neighbors(self, subset=None):
+    def get_neighbors(self, subset=None, recompute=False):
         """Creates a new column containing IDs of neighbors as list of
         indicies."""
         # If no subset is provided, use the whole dataframe
@@ -196,12 +218,13 @@ class ImageObjects:
         labels = []
         # Iterate over rows, for each row, get indicies of all features
         # it touches
-        logger.debug('Getting neighbors for {} '
-                     'features...'.format(len(subset)))
+        # logger.debug('Getting neighbors for {} '
+        #              'features...'.format(len(subset)))
         # TODO: Make apply function?
-        for index, row in tqdm(subset.iterrows(),
-                               total=len(subset),
-                               desc='Finding neighbors'):
+        # for index, row in tqdm(subset.iterrows(),
+        #                        total=len(subset),
+        #                        desc='Finding neighbors'):
+        for index, row in subset.iterrows():
             neighbors = self.objects[self.objects.geometry
                                      .touches(row['geometry'])].index.tolist()
             # If the feature is considering itself a neighbor remove it from
@@ -224,44 +247,74 @@ class ImageObjects:
         # Combine the neighbors dataframe back into the main dataframe
         self.objects.update(nebs)
 
-        logger.debug('Neighbor computation complete.')
+        # logger.debug('Neighbor computation complete.')
 
         return self.objects[self.objects.index.isin(subset.index)]
 
     def replace_neighbor(self, old_neb, new_neb, update_merges=False):
-        """Replace old_neb with new_newb in every objects list of
-        neighbors. Optionally, update merge_path fields as well."""
-        def _rowwise_replace_neighbor(neighbors, old_neb, new_neb):
+        """Replace old_neb with new_neb in every objects list of
+        neighbors. Optionally, update merge_path field as well."""
+        def _rowwise_replace_neighbor(row, old_neb, new_neb, replace_field):
             # if not isinstance(neighbors, (list, pd.Series)):
             #     if pd.isnull(neighbors):
             #         neighbors = neighbors
-            if old_neb in neighbors:
-                neighbors = [n for n in neighbors if n != old_neb]
-                if new_neb not in neighbors:
-                    neighbors.append(new_neb)
+            if isinstance(row[replace_field], list):
+                neighbors = row[replace_field]
+                if old_neb in neighbors:
+                    neighbors = [n for n in neighbors if n != old_neb]
+                    # if the new neighbor is not in the list of neighbors already
+                    # and the current row is the new neighbor itself, add it
+                    if new_neb not in neighbors and row.name != new_neb:
+                        neighbors.append(new_neb)
+            else:
+                neighbors = row[replace_field]
+
             return neighbors
 
-        self.objects[self.nebs_fld] = self.objects[self.nebs_fld].apply(
-            lambda x: _rowwise_replace_neighbor(x, old_neb, new_neb)
-            if isinstance(x, list) else x)
+        # self.objects[self.nebs_fld] = self.objects[self.nebs_fld].apply(
+        #     lambda x: _rowwise_replace_neighbor(x, old_neb, new_neb)
+        #     if isinstance(x, list) else x)
+
+        self.objects[self.nebs_fld] = self.objects.apply(
+            lambda x: _rowwise_replace_neighbor(x,
+                                                old_neb,
+                                                new_neb,
+                                                self.nebs_fld),
+            axis=1)
+
         if update_merges:
-            self.objects[self.mp_fld] = self.objects[self.mp_fld].apply(
-                lambda x: _rowwise_replace_neighbor(x, old_neb, new_neb)
-                if isinstance(x, list) else x)
+            # self.objects[self.mp_fld] = self.objects[self.mp_fld].apply(
+            #     lambda x: _rowwise_replace_neighbor(x, old_neb, new_neb)
+            #     if isinstance(x, list) else x)
+            self.objects[self.mp_fld] = self.objects.apply(
+                lambda x: _rowwise_replace_neighbor(x,
+                                                    old_neb,
+                                                    new_neb,
+                                                    self.mp_fld),
+                axis=1)
 
     def replace_neighbor_value(self, neb_v_fld, old_neb, new_neb, new_value):
         """Replace old_nebs value in neb_v_fld with new_neb and new_nebs
         value, new_value."""
-        def _rowwise_replace_nv(neb_values, old_neb, new_neb, new_value):
+        def _rowwise_replace_nv(row, neb_v_fld, old_neb, new_neb, new_value):
+            neb_values = row[neb_v_fld]
             if old_neb in neb_values.keys():
                 neb_values.pop(old_neb)
                 neb_values[new_neb] = new_value
             return neb_values
 
-        self.objects[neb_v_fld] = self.objects[neb_v_fld].apply(
-            lambda x: _rowwise_replace_nv(x, old_neb,
-                                          new_neb, new_value)
-            if isinstance(x, dict) else x)
+        # self.objects[neb_v_fld] = self.objects[neb_v_fld].apply(
+        #     lambda x: _rowwise_replace_nv(x, old_neb,
+        #                                   new_neb, new_value)
+        #     if isinstance(x, dict) else x)
+        self.objects[neb_v_fld] = self.objects.apply(
+            lambda x: _rowwise_replace_nv(x,
+                                          neb_v_fld,
+                                          old_neb,
+                                          new_neb,
+                                          new_value)
+            if isinstance(x, dict) else x,
+            axis=1)
 
     def neighbor_features(self, subset=None):
         """
@@ -313,7 +366,8 @@ class ImageObjects:
         # neighbor pair
         src_lut = pd.DataFrame({neb_src_fld: source_ids, neb_id_fld: neighbor_ids})
 
-        # Find each neighbor feature in the master GeoDataFrame, creating a new GeoDataFrame
+        # Find each neighbor feature in the master GeoDataFrame,
+        # creating a new GeoDataFrame
         neighbor_feats = gpd.GeoDataFrame()
         for ni in neighbor_ids:
             # feat = self.objects[self.objects[unique_id] == ni]
@@ -386,6 +440,43 @@ class ImageObjects:
 
         return self.objects[self.objects.index.isin(subset.index)]
 
+    def merge_seeds(self, rules):
+        """Find objects to use as merge seeds based on the passed rules
+
+        Parameters
+        ---------
+        rules : list
+            List of dictionaries of kwa to pass to apply_single_rule:
+            {rule_type: '', in_field: '', op: '', threshold: ''}
+
+        Returns
+        -------
+        List of IDs to use as merge seeds.
+        """
+        # Get a single series indicating if all conditions are True across each
+        # row
+        is_merge_seed = (pd.DataFrame([self.apply_single_rule(**kwargs)
+                                       for kwargs in rules])
+                         .transpose()
+                         .all(axis=1))
+        self.objects[self.m_seed_fld] = is_merge_seed
+
+        return is_merge_seed.index
+
+    def update_mergeable_ids(self, max_iter):
+        """Returns list of IDs that are True in the specified fields"""
+        if max_iter:
+            self.objects[self.continue_iter] = (self.objects[self.m_ct_fld] < max_iter)
+
+        self.mergeable_ids = list(self.objects[
+                                       self.objects[[self.m_seed_fld,
+                                                     self.mc_fld,
+                                                     self.m_fld,
+                                                     self.continue_iter]]
+                                  .all(axis='columns')==True]
+                                  .index)
+        return self.mergeable_ids
+
     def find_merge_candidates(self, fields_ops_thresholds):
         """
         Marks columns that meet each merge criteria (field op threshold)
@@ -400,95 +491,137 @@ class ImageObjects:
         ------
         None : updates self.objects in place
         """
-        df = pd.DataFrame(
-            [op(self.objects[field], threshold) for field, op, threshold in
-             fields_ops_thresholds]).transpose()
+        if fields_ops_thresholds is not None:
+            df = pd.DataFrame(
+                [op(self.objects[field], threshold) for field, op, threshold in
+                 fields_ops_thresholds]).transpose()
+            self.objects[self.mc_fld] = df.all(axis='columns')
+        else:
+            self.objects[self.mc_fld] = True
 
-        self.objects[self.mc_fld] = df.all(axis='columns')
-
-    def pseudo_merging(self, fields_ops_thresholds, pairwise_criteria):
+    def pseudo_merging(self, mc_fields_ops_thresholds, pairwise_criteria,
+                       grow_fields=None,
+                       merge_seeds=False,
+                       max_iter=None):
         """
         pairwise_criteria : dict
         Dict of critiria, supported types:
             'within': {'field': "field_name", 'range': "within range"}
             'threshold: {'field': "field_name, 'op', operator comparison fxn,
                          'threshold': value to use in fxn}
+        merge_seeds : bool
+            True if merge_seeds have been computed and should be used, if not
+            all objects are considered merge seeds.
         """
         logger.info('Beginning pseudo-merge to determine merges...')
+        # Initiate count of merges per object
+        self.objects[self.m_ct_fld] = 0
 
         # Get objects that meet merge criteria
-        self.find_merge_candidates(fields_ops_thresholds)
+        self.find_merge_candidates(mc_fields_ops_thresholds)
 
         logger.debug('Merge candidates found: {:,}'.format(
             len(self.objects[self.objects[self.mc_fld] == True])))
         # Get neighbor values for all neighbors of objects being considered
 
-        # Sort
+        # Sort by area
         self.objects = self.objects.sort_values(by=self.area_fld)
 
-        # Set all objects as possible mergeable
+        # Set all objects as possibly mergeable, this field is later used to
+        # mark features that have been checked and no merge found as no longer
+        # mergeable
         self.objects[self.m_fld] = True
-        # Initialize empty list to store "merge path" -> ordered neighbor
-        # IDs to be merged
+
+        # Check if merge_seeds provided, if not mark all objects as seeds
+        if not merge_seeds:
+            self.objects[self.m_seed_fld] = True
+        logger.debug('Merge seeds found: '
+                     '{}'.format(len(self.objects[self.objects[self.m_seed_fld]])))
+
+        # Initialize empty lists to store "merge path" -> ordered list of
+        # neighbors IDs to merge into
         self.objects[self.mp_fld] = [[] for i in range(self.num_objs)]
 
-        # Get all fields that are considered in merging
-        merge_fields = [fot[0] for fot in fields_ops_thresholds
-                        if fot[1] != operator.eq]
+        # Determine all mergable IDs
+        if max_iter is None:
+            self.objects[self.continue_iter] = False
+        self.update_mergeable_ids(max_iter=max_iter)
 
-        # Dataframe to hold objects that will be merged later
-        # self.to_be_merged = gpd.GeoDataFrame()
-        # While there are rows that are mergeable and that haven't been
-        # checked, look for a possible merge to a neighbor
-        while self.objects[[self.mc_fld, self.m_fld]].all(
-                axis='columns').any():
-            # Get the first row that is a merge_candidate and marked mergeable
-            r = (self.objects[self.objects[self.mc_fld] &
-                              self.objects[self.m_fld]].iloc[0])
+        # Get neighbors for mergeable IDs
+        self.get_neighbors(subset=self.objects[
+            self.objects.index.isin(self.mergeable_ids)])
+
+        # If no grow fields provided, use all value fields
+        if grow_fields is None:
+            grow_fields = self.value_fields
+
+        self.print_info()
+
+        # While there are rows that are merge_seeds and
+        # that haven't been checked and there are merge_candidates,
+        # look for a possible merge to a neighbor
+        while self.mergeable_ids:
+            logger.debug('Mergeable IDs: {}'.format(len(self.mergeable_ids)))
+            # Get the first row that is all of:
+            # merge_seed, merge_candidate, marked mergeable
+            r = self.objects.loc[self.mergeable_ids[0]]
+
             # Get ID of row
             i = r.name
-
+            # logger.debug('Current ID: {}'.format(i))
             # Check that neighbor value fields have been computed for all
             # merge fields, if not compute
-            for mf in merge_fields:
-                merge_nv_field = self._nv_field_name(mf)
+            for gf in grow_fields:
+                merge_nv_field = self._nv_field_name(gf)
+                # TODO: better check for computed_neighbor values
+                # if not all(neighbors in merge_field.keys()) (apply)
                 if merge_nv_field not in r.index:
-                    self.compute_neighbor_values(mf)
+                    self.compute_neighbor_values(gf)
 
-            # Find best match, which is closest value in merge field, given
-            # pairwise criteria are all met
+            # Find best match, which is closest value in terms of standard
+            # deviations summed for all merge fields, given pairwise criteria
+            # are all met
             best_match = None
 
-            # Init dict to hold all absolute distances for each neighbor
-            neighbor_abs_distance = {n: [] for n in r[self.nebs_fld]
-                                     if n is not None}
-            # Compute number of std away from current row for each neighbor
-            # for each merge_field, in order to choose best neighbor to merge
-            # with
+            # Init dict to hold all standard deviations for current ID for
+            # each neighbor:
+            # {neighbor_id1: [std of merge_field1, std of merge_field2, ...],
+            #  neighbor_id2: [...]}
+            neighbor_abs_stds = {n: [] for n in r[self.nebs_fld]
+                                 if n is not None}
+            # Compute number of std away from current row's value for each
+            # neighbor for each merge_field, in order to choose best neighbor
+            # to merge with
             for neb_id in r[self.nebs_fld]:
-                possible_match = self.objects.loc[neb_id, :]
-                # Check if neighbor meets pairwise criteria
-                if not pairwise_match(r, possible_match, pairwise_criteria):
-                    neighbor_abs_distance.pop(neb_id)
+                # Skip if marked unmergeable
+                if not self.objects.at[neb_id, self.m_fld]:
                     continue
-                for mf in merge_fields:
-                    neighbor_abs_distance[neb_id].append(
-                        abs_distance(r[mf], possible_match[mf],
-                                     std=self.object_stats.loc['std', mf]))
+                # Get the neighbors row, containing all values
+                possible_match = self.objects.loc[neb_id, :]
+                # Check if neighbor meets pairwise criteria, if not skip
+                if pairwise_criteria is not None and \
+                        not all([pairwise_match(r, possible_match, pc)
+                                 for pc in pairwise_criteria]):
+                    neighbor_abs_stds.pop(neb_id)
+                    continue
+                # Get number of standard deviations
+                for gf in grow_fields:
+                    neighbor_abs_stds[neb_id].append(
+                        abs_stds(r[gf], possible_match[gf],
+                                 std=self.object_stats.loc['std', gf]))
 
-                # if pairwise_match(r, possible_match, pairwise_criteria):
-                #     best_match = possible_match
-                #     break
+            self.print_info()
 
             # Find neighbor with least total std away from feature considering
             # all merge fields
-            if len(neighbor_abs_distance.keys()) != 0:
-                best_match_id = min(neighbor_abs_distance.keys(),
-                                    key=lambda k: sum(neighbor_abs_distance[k]))
+            best_match_id = None
+            if len(neighbor_abs_stds.keys()) != 0:
+                best_match_id = min(neighbor_abs_stds.keys(),
+                                    key=lambda k: sum(neighbor_abs_stds[k]))
                 best_match = self.objects.loc[best_match_id, :]
+                # logger.debug('Match found: {}'.format(best_match_id))
 
             if best_match is not None:
-                # logger.debug('match: {}'.format(best_match_id))
                 # Update value fields with approriate aggregate,
                 # e.g.: weighted mean
                 for vf, agg_type in self.value_fields:
@@ -523,53 +656,71 @@ class ImageObjects:
                 self.objects.at[best_match_id, self.area_fld] = (
                         r[self.area_fld] + best_match[self.area_fld])
 
+                self.print_info()
+                # Calculate neighbors for best match if not already
+                if not isinstance(best_match[self.nebs_fld], (list, pd.Series)):
+                    if pd.isnull(best_match[self.nebs_fld]):
+                        self.get_neighbors(
+                            self.objects[
+                                self.objects.index.isin([best_match_id])])
+                self.print_info()
+
                 # Replace current object with best match in all neighbor fields
                 # and merge_paths
                 self.replace_neighbor(i, best_match_id, update_merges=True)
 
-                # Update neighbor value fields that had current object
+                # Update neighbor value fields that had current object as
+                # neighbor
                 for vf, nvf in self.nv_fields:
                     self.replace_neighbor_value(nvf, i, best_match_id,
                                                 self.objects.at[best_match_id,
                                                                 vf])
-
+                self.print_info()
                 # Update merge_path
                 # Get all of the feature to be merged's merge_path ids and add
                 # them to best match objects merge_path
+                # TODO ensure not adding self to merge_path
                 self.objects.at[best_match_id, self.mp_fld].extend(
                     r[self.mp_fld])
-                # Store id to merge in new (best_match) object's merge_path
+                # Store ID to merge in new (best_match) object's merge_path
                 # field
                 self.objects.at[best_match_id, self.mp_fld].append(i)
 
-                # Copy features that will be merged to temp gdf
-                # self.to_be_merged = pd.concat([self.to_be_merged,
-                #                                gpd.GeoDataFrame([r])])
-            else:
-                pass
-                # logger.debug('No match')
+                # Mark as merge_seed
+                self.objects.at[best_match_id, self.m_seed_fld] = True
 
-            # Mark feature as no longer mergeable - either it was psuedo-merged
-            # or else it had no best match
+            # Mark original feature as no longer mergeable, it was either
+            # "merged" or there was no possible match
             self.objects.at[i, self.mp_fld] = []
             self.objects.at[i, self.m_fld] = False
-            # Continue checking candidates, the one that was just checked will
-            # be skipped
-            self.find_merge_candidates(fields_ops_thresholds)
+            self.objects.at[i, self.mc_fld] = False
+            self.print_info()
+
+            self.merge()
+
+            # Recalculate merge candidates, using new (merged) values
+            self.find_merge_candidates(mc_fields_ops_thresholds)
+
+            # Resort by area so smallest possible merge object is checked next
+            self.objects = self.objects.sort_values(by=self.area_fld)
+
+            self.update_mergeable_ids(max_iter=max_iter)
+            # print('Best match ID: {}'.format(best_match_id))
+
+            # logger.debug('\n{}'.format(self.objects[
+            #     self.objects[self.mp_fld].apply(lambda x: len(x) > 0)][self.mp_fld]))
 
     def merge(self):
         # merge features that have a merge path
-        logger.info('Performing calculated merges...')
-        logger.info('Objects before merge: {:,}'.format(self.num_objs))
+        # logger.debug('Performing calculated merges...')
+        # logger.debug('Objects before merge: {:,}'.format(self.num_objs))
         for i, r in self.objects[
                 self.objects[self.mp_fld].map(lambda d: len(d)) > 0].iterrows():
+            logger.debug('Merging: {} to {}'.format(i, r[self.mp_fld]))
             # Create gdf of current row and the features to merge with it.
             # Important that the current row is first, as it contains the
             # correct aggregated values and the dissolve function defaults
             # to keeping the first rows values
-            # to_merge = pd.concat([gpd.GeoDataFrame([r]), self.to_be_merged[
-                # self.to_be_merged.index.isin(r[self.mp_fld])]])
-            logger.debug('Merging: {} to {}'.format(i, r[self.mp_fld]))
             to_merge = pd.concat([gpd.GeoDataFrame([r]), self.objects[
                 self.objects.index.isin(r[self.mp_fld])]])
             to_merge['temp'] = 1
@@ -577,6 +728,8 @@ class ImageObjects:
             to_merge.index = [i]
             # Zero out merge_path
             to_merge[self.mp_fld] = [[]]
+            # Add to merge count
+            to_merge[self.m_ct_fld] = to_merge[self.m_ct_fld] + len(r[self.mp_fld])
             # TODO: confirm whether it is there or not
             if 'temp' in to_merge.columns:
                 to_merge.drop(columns='temp', inplace=True)
@@ -584,7 +737,7 @@ class ImageObjects:
             self.objects.drop(r[self.mp_fld] + [i], inplace=True)
             # Add merged object back in
             self.objects = pd.concat([self.objects, to_merge])
-        logger.info('Objects after merge: {:,}'.format(self.num_objs))
+        # logger.debug('Objects after merge: {:,}'.format(self.num_objs))
 
     # def determine_adj_thresh(self, neb_values_fld, value_thresh, value_op, out_field, subset=None):
     #     """Determines if each row is has neighbor that meets the value
@@ -690,13 +843,11 @@ class ImageObjects:
     def apply_single_rule(self, rule_type, in_field, op, threshold,
                           out_field=None, **kwargs):
         """
-        Apply rule to objects, returning boolean series indicating of each
+        Apply rule to objects, returning boolean series indicating if each
         object meets the rule.
 
         Parameters
         ---------
-        out_field : str
-            The field to store the boolean results of the rule in.
         rule_type : str
             The type of rule to apply, one of: 'threshold', 'adjacent'
         in_field : str
@@ -705,6 +856,8 @@ class ImageObjects:
             Operator to use in rule, one of operator.[lt, gt, le, ge, eq]
         threshold : float, int, str
             The value to compare in_field to using op.
+        out_field : str
+            The field to store the boolean results of the rule in.
         **kwargs : dict
             Keyword arguments to pass through to sub functions
             For rule_type == 'adjacent', these can be
