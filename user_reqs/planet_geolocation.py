@@ -1,6 +1,6 @@
 import geopandas as gpd
 
-from selection_utils.db_utils import Postgres, generate_sql, intersect_aoi_where
+from selection_utils.db import Postgres, generate_sql, intersect_aoi_where
 from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')

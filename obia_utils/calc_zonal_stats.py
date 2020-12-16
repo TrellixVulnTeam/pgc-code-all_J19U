@@ -20,6 +20,7 @@ from skimage.feature import greycomatrix, greycoprops
 
 from misc_utils.logging_utils import create_logger
 from misc_utils.gdal_tools import auto_detect_ogr_driver
+from misc_utils.gpd_utils import write_gdf
 
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -124,7 +125,8 @@ def compute_stats(gdf, raster, name,
     return gdf
 
 
-def calc_zonal_stats(shp, rasters, names,
+def calc_zonal_stats(shp, rasters,
+                     names=None,
                      stats=['min', 'max', 'mean', 'count', 'median'],
                      area=True,
                      compactness=False,
@@ -200,7 +202,7 @@ def calc_zonal_stats(shp, rasters, names,
     for r in rasters:
         if not os.path.exists(r):
             logger.error('Raster does not exist: {}'.format(r))
-            raise Exception
+            logger.error(FileNotFoundError)
 
     # Iterate rasters and compute stats for each
     for r, n, s, bs in zip(rasters, names, stats, bands):
@@ -245,10 +247,10 @@ def calc_zonal_stats(shp, rasters, names,
         os.makedirs(os.path.dirname(out_path))
     logger.info('Writing segments with statistics to: {}'.format(out_path))
     driver = auto_detect_ogr_driver(out_path, name_only=True)
-    seg.to_file(out_path, driver=driver)
+    # seg.to_file(out_path, driver=driver)
+    write_gdf(seg, out_path)
 
-    logger.info('Done.')
-
+    return out_path
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -302,3 +304,4 @@ if __name__ == '__main__':
                      compactness=args.compactness,
                      roundness=args.roundness,
                      out_path=args.out_path)
+    logger.info('Done.')

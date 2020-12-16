@@ -37,8 +37,8 @@ objects['rts'] = objects.geometry.centroid.apply(
 fig, ax = plt.subplots(1, 1, figsize=(20,20))
 objects.plot(ax=ax, column='MED_mean', edgecolor='grey', linewidth=0.2,
              vmin=-0.5, vmax=0.5)
-# rts.plot(ax=ax, color='none', edgecolor='red', linewidth=1)
-(objects[objects['rts']==True].dissolve(by='rts')
+# rts.py.plot(ax=ax, color='none', edgecolor='red', linewidth=1)
+(objects[objects['rts.py']==True].dissolve(by='rts.py')
  .plot(ax=ax, color='none',edgecolor='red', linewidth=1.25))
 fig.show()
 

@@ -6,6 +6,7 @@ from osgeo import gdal
 import pandas as pd
 import geopandas as gpd
 
+from misc_utils.gpd_utils import write_gdf
 from misc_utils.RasterWrapper import Raster
 from misc_utils.logging_utils import create_logger
 
@@ -28,7 +29,7 @@ def load_objs(objects):
 def remove_small_objects(objects, min_size):
     logger.info('Removing objects with area less than {}'.format(min_size))
     objects = objects[objects.geometry.area >= min_size]
-    logger.info('Objects kept: {:,}'.format(len(keep_objs)))
+    logger.info('Objects kept: {:,}'.format(len(objects)))
 
     return objects
 
@@ -93,9 +94,12 @@ def cleanup_objects(input_objects,
         keep_objs = remove_null_objects(keep_objs, fields=drop_na)
 
     logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
-                                                          out_objects))
+                                                            out_objects))
     keep_objs.to_file(out_objects)
-    logger.info('Done.')
+    write_gdf(keep_objs, out_objects)
+
+    return out_objects
+    # logger.info('Done.')
 
 
 if __name__ == '__main__':

@@ -118,6 +118,7 @@ class ImageObjects:
         self.nebs_fld = 'neighbors'
         self._area_fld = 'area'
         self.compact_fld = 'compactness'
+        self.class_fld = 'class'
         # Merge column names
         self.mc_fld = 'merge_candidates'
         self.mp_fld = 'merge_path'
@@ -138,6 +139,8 @@ class ImageObjects:
         # Neighbor value fields
         self.nv_fields = list()
         self.objects[self.nebs_fld] = np.NaN
+        # Rules
+        self._rule_fld_name = 'in_field' # field name in rule dictionaries
 
         # TODO: check for unique index, create if not
         # Name index if unnamed
@@ -221,10 +224,10 @@ class ImageObjects:
         # logger.debug('Getting neighbors for {} '
         #              'features...'.format(len(subset)))
         # TODO: Make apply function?
-        # for index, row in tqdm(subset.iterrows(),
-        #                        total=len(subset),
-        #                        desc='Finding neighbors'):
-        for index, row in subset.iterrows():
+        for index, row in tqdm(subset.iterrows(),
+                               total=len(subset),
+                               desc='Finding neighbors'):
+        # for index, row in subset.iterrows():
             neighbors = self.objects[self.objects.geometry
                                      .touches(row['geometry'])].index.tolist()
             # If the feature is considering itself a neighbor remove it from
@@ -905,8 +908,8 @@ class ImageObjects:
             sr = self.apply_single_rule(**r)
             all_results.append(sr)
 
-        # Get single series indicating if True across all results
-        # TODO: row of NaNs beino returned as True
+        # Get single series indicating if True across all result rows
+        # FIXME: row of NaNs being returned as True
         results = pd.DataFrame(all_results).transpose().apply(
             lambda row: all([v for v in row]), axis=1)
 
@@ -915,3 +918,48 @@ class ImageObjects:
 
         return results
 
+    def classify_objects(self, class_name,
+                         threshold_rules=None,
+                         adj_rules=None,
+                         overwrite_class=False):
+        """Classify objects according to rules passed. The class_name will
+        be placed in the 'class' field of objects. If overwrite_class is
+        False, any existing values in the 'class' field will be maintained
+        and only objects with a Null class will be classified."""
+        # TODO: optimize so that only unclassified objects have the other
+        #  rules applied, as adjacency rules can take a while
+        # Create class field if it doesn't exist
+        if self.class_fld not in self.fields:
+            self.objects[self.class_fld] = None
+
+        # Get boolean series for each rule
+        all_results = []
+        if threshold_rules:
+            thresholds_results = self.apply_rules(threshold_rules)
+            all_results.append(thresholds_results)
+        if adj_rules:
+            if threshold_rules:
+                self.get_neighbors(subset=self.objects.loc[thresholds_results])
+            for r in adj_rules:
+                self.compute_neighbor_values(r[self._rule_fld_name])
+            adj_results = self.apply_rules(adj_rules)
+            all_results.append(adj_results)
+
+        update_rows = pd.DataFrame(all_results).transpose().apply(
+            lambda row: all([v for v in row]), axis=1)
+
+        # Add class name to rows that meet criteria
+        if overwrite_class:
+            # Update all rows that meet rules
+            logger.info("Classifying {:,} objects".format(
+                len(self.objects.loc[update_rows, self.class_fld])))
+            self.objects.loc[update_rows, self.class_fld] = class_name
+        else:
+            # Update only rows that meet rules AND are not classified
+            logger.info("Classifying {:,} objects".format(
+                len(self.objects.loc[
+                update_rows & self.objects[self.class_fld].isnull(),
+                                       self.class_fld])))
+            self.objects.loc[
+                update_rows & self.objects[self.class_fld].isnull(),
+                                           self.class_fld] = class_name
