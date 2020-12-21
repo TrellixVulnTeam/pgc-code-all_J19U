@@ -23,7 +23,7 @@ gdal.UseExceptions()
 ogr.UseExceptions()
 
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 # sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'INFO')
 
 
@@ -94,7 +94,7 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
         # TODO: Handle this with platform.sys and pathlib.Path objects
         raster_p = raster_p.replace(r'\\', os.sep)
         raster_p = raster_p.replace(r'/', os.sep)
-        logger.info(raster_p)
+        # logger.info(raster_p)
 
         # Create out_path if not provided
         if not out_path:
@@ -107,7 +107,7 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
             raster_out_path = out_path
 
         # Clip to shape
-        logger.info('Clipping: {}\n{}---> {}'.format(os.path.basename(raster_p), (' ' * 49), raster_out_path))
+        logger.debug('Clipping:\n{}\n\t---> {}'.format(os.path.basename(raster_p), raster_out_path))
         if os.path.exists(raster_out_path) and not overwrite:
             logger.warning('Outpath exists, skipping: {}'.format(raster_out_path))
             pass

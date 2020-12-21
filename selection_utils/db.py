@@ -17,6 +17,8 @@ db_confs = {
                                       'config', 'sandwich-pool.dem.json'),
     'danco.footprint': os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                     'config', 'danco.footprint.json'),
+    'sandwich-pool.dgarchive': os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                      'config', 'sandwich-pool.dgarchive.json'),
 }
 
 
@@ -146,7 +148,7 @@ class Postgres(object):
         return results
 
     def get_sql_count(self, sql):
-        count_sql = re.sub('SELECT (.*) FROM', 'SELECT COUNT(\\1) FROM', sql)
+        count_sql = re.sub('SELECT (.*) FROM', 'SELECT COUNT(\\1) FROM ', sql)
         logger.debug('Count sql: {}'.format(count_sql))
         self.cursor.execute(count_sql)
         count = self.cursor.fetchall()[0][0]

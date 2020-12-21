@@ -90,7 +90,8 @@ def read_data(filepath):
     return df
 
 
-def clean_dataframe(dataframe, keep_swir, out_path=None, drop_mfp=False):
+def clean_dataframe(dataframe, keep_swir, out_path=None, drop_mfp=False,
+                    drop_online_only=False):
     '''
     remove unnecessary columns, SWIR, duplicates. rename GE columns
     '''
@@ -121,13 +122,16 @@ def clean_dataframe(dataframe, keep_swir, out_path=None, drop_mfp=False):
     len_after = len(dataframe)
     if len_b4 != len_after:
         logger.info('Duplicates removed: {:,}'.format(len_b4 - len_after))
+        logger.info('Remaining IDs: {:,}'.format(len_after))
     dataframe['platform'] = dataframe.apply(locate_swir, axis=1)
 
     # Remove onhand
     if drop_mfp:
         logger.info('Dropping IDs in MFP...')
+        if drop_online_only:
+            logger.info('(Online only)')
         len_b4 = len(dataframe)
-        dataframe = dataframe[~dataframe['catalogid'].isin(mfp_ids())]
+        dataframe = dataframe[~dataframe['catalogid'].isin(mfp_ids(online=drop_online_only))]
         len_after = len(dataframe)
         if len_b4 != len_after:
             logger.info('IDs found in MFP and removed: {}'.format(len_b4-len_after))
@@ -235,7 +239,7 @@ def write_master(dataframe, outpath, outnamebase, output_suffix, order_date, kee
 
 
 def create_sheets(filepaths, output_suffix, order_date, keep_swir, fullname, out_path=None,
-                  drop_mfp=False):
+                  drop_mfp=False, drop_online_only=False):
     '''
     create sheets based on platforms present in list, including one formatted for entering into gsheets
     filepath: path to ids. can be txt, dbf, excel, csv, or dataframe
@@ -266,7 +270,8 @@ def create_sheets(filepaths, output_suffix, order_date, keep_swir, fullname, out
     logger.info('Total IDs found: {:,}'.format(len(dataframe)))
 
     # Remove unneccessary columns, rename others
-    dataframe = clean_dataframe(dataframe, keep_swir, project_path, drop_mfp=drop_mfp)
+    dataframe = clean_dataframe(dataframe, keep_swir, project_path,
+                                drop_mfp=drop_mfp, drop_online_only=drop_online_only)
 
     # Drop any duplicates
     dataframe = dataframe.drop_duplicates(subset='catalogid')
@@ -324,6 +329,7 @@ def create_sheets(filepaths, output_suffix, order_date, keep_swir, fullname, out
     write_master(dataframe, project_path, project_base, output_suffix, order_date, keep_swir, 
                  fullname=fullname)
     logger.info('IDs written to sheets: {:,}'.format(ids_written))
+
     return all_platforms_dict
 
 
@@ -335,6 +341,9 @@ if __name__ == '__main__':
                         help="Output sheets suffix. E.g. 'PGC_order_2019_[out_name]_WV01_1of2'")
     parser.add_argument('--drop_mfp', action='store_true',
                         help='Removing any IDs found in the master footprint before creating sheets.')
+    parser.add_argument('--drop_online_only', action='store_true',
+                        help='When used with --drop_mfp, drop only online or '
+                             'tape records, keep offline in sheets.')
     parser.add_argument("-fn", "--fullname", type=str,
                         help="""Overwrite default naming schema and use what is provided here plus sensor
                                 and sheet numbers.""")
@@ -343,7 +352,17 @@ if __name__ == '__main__':
     parser.add_argument("--out_path", type=str, help="Directory to write sheets to.")
     parser.add_argument("--keep_swir", action='store_true', 
                         help="Use flag to write a list of SWIR IDs")
-    
+
+    # sys.argv = [r'C:\code\pgc-code-all\img_orders\img_order_sheets.py',
+    #             '-i',
+    #             r'E:\disbr007\imagery_orders\NASA_order_2020dec17_adapt_replenish'
+    #             '\SSAr2.2_all_zones_missing_ntflist_ids.txt',
+    #             '-fn',
+    #             'NASA_order_2020dec17_adapt_replenish',
+    #             '--drop_mfp',
+    #             '--drop_online_only',
+    # ]
+
     args = parser.parse_args()
     
     input_files = args.input_files
@@ -353,11 +372,12 @@ if __name__ == '__main__':
     out_path = args.out_path
     keep_swir = args.keep_swir # True/False
     drop_mfp = args.drop_mfp
+    drop_online_only = args.drop_online_only
         
     logger.info("Creating sheets...\n")
     create_sheets(filepaths=input_files, output_suffix=out_suffix,
                   fullname=fullname, order_date=order_date, 
                   keep_swir=keep_swir, out_path=out_path,
-                  drop_mfp=drop_mfp)
+                  drop_mfp=drop_mfp, drop_online_only=drop_online_only)
 
     logger.info('Complete.')

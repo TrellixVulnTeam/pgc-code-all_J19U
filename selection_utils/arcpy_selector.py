@@ -273,6 +273,8 @@ def select_by_id(selector, imagery_index, id_field='CATALOG_ID', where=None,
     logger.debug('Where clause for ID selection: {}\n'.format(where))
 
     logger.info('Making selection by IDs...')
+    # logger.warning(where[:500])
+    # logger.warning(where[-550:])
     selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
 
     if join_field:
@@ -516,6 +518,8 @@ if __name__ == '__main__':
                          argdef_min_year=argdef_min_year, argdef_max_year=argdef_max_year,
                          argdef_months=argdef_months)
 
+    logger.warning(where[:250])
+    logger.warning(where[-250:])
     selection = select_footprints(selector=selector, input_type=input_type,
                                   imagery_index=imagery_index, join_field=join_field,
                                   selector_field=selector_field,

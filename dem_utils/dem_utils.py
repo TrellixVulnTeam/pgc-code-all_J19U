@@ -11,6 +11,7 @@ import platform
 import re
 
 from osgeo import gdal
+import pandas as pd
 import geopandas as gpd
 import shapely
 
@@ -20,13 +21,13 @@ from misc_utils.raster_clip import clip_rasters
 from misc_utils.RasterWrapper import Raster
 
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def dem_pair(name1, name2):
     """Create name for pair of DEMs"""
     names = sorted([name1, name2])
-    pairname = '{}_{}'.format(names[0], names[1])
+    pairname = '{}-{}'.format(names[0], names[1])
 
     return pairname
 
@@ -50,7 +51,7 @@ def calc_ovlp_perc(geom1, geom2, ovlp_geom):
 
 
 def dems2dems_ovlp(dems, 
-                   name='pairname', 
+                   name='PAIRNAME',
                    combo_name='pair', intersect_geom='inters_geom',
                    lsuffix='d1', rsuffix='d2',
                    ovlp_area_name='ovlp_area', ovlp_perc_name='ovlp_perc',
@@ -95,8 +96,13 @@ def dems2dems_ovlp(dems,
 
     # Create ID column for each pair
     sj[combo_name] = sj.apply(lambda x: dem_pair(x[name_left], x[name_right]), axis=1)
+
+    # Set index as combined name
+    sj.set_index(combo_name, inplace=True)
+
     # Drop duplicates where dem1 -> dem2 == dem2 -> dem1 (reciprocal matches)
-    sj = sj.drop_duplicates(subset=combo_name, keep='first')
+    sj = sj[~sj.index.duplicated(keep='first')]
+    # sj = sj.drop_duplicates(subset=combo_name, keep='first')
 
     # Get intersection area, calculate sqkm, % overlap
     sj[intersect_geom] = sj.apply(lambda x: intersect_pair(x[geom_left], x[geom_right]), axis=1)
@@ -114,16 +120,26 @@ def dems2dems_ovlp(dems,
 
 def dems2aoi_ovlp(dems, aoi, aoi_ovlp_area_col='aoi_ovlp_area', aoi_ovlp_perc_col='aoi_ovlp_perc'):
     """Compute overlap between dem footprints and an aoi"""
-    aoi_ovlp = gpd.overlay(dems, aoi, how='intersection')
+    dems_idx_name = dems.index.name
+    if dems_idx_name is None:
+        dems_idx_name = 'index'
 
-    dems[aoi_ovlp_area_col] = [round(a, 2) for a in list(aoi_ovlp.geometry.area)]
-    dems[aoi_ovlp_perc_col] = [round(p, 2) for p in list(aoi_ovlp.geometry.area / aoi.geometry.area.values[0])]
+    aoi_ovlp = gpd.overlay(dems.reset_index(), aoi, how='intersection')
+    aoi_ovlp.set_index(dems_idx_name, inplace=True)
+    aoi_ovlp[aoi_ovlp_area_col] = aoi_ovlp.geometry.area.apply(
+                                    lambda x: round(x, 5))
+    dems = pd.merge(dems, aoi_ovlp[aoi_ovlp_area_col],
+                    left_index=True, right_index=True)
+    dems[aoi_ovlp_perc_col] = dems[aoi_ovlp_area_col].apply(
+                                lambda x: x / aoi.geometry.area.values[0])
+    # dems[aoi_ovlp_area_col] = [round(a, 2) for a in list(aoi_ovlp.geometry.area)]
+    # dems[aoi_ovlp_perc_col] = [round(p, 2) for p in list(aoi_ovlp.geometry.area / aoi.geometry.area.values[0])]
 
     return dems
 
 
 def compute_density(mt_p, aoi_p):
-    logger.info('Computing density...')
+    logger.debug('Computing density...')
     aoi = gpd.read_file(aoi_p)
     if len(aoi) == 1:
         geom_area = aoi.geometry.area
@@ -169,7 +185,7 @@ def combined_density(mt1, mt2, aoi, in_mem_epsg=None, clip=False, out_path=None)
         gdf.to_file(aoi)
     
     if clip:
-        logger.info('Clipping matchtags before comparing...')
+        logger.debug('Clipping matchtags before comparing...')
         mt1, mt2 = clip_rasters(aoi, [mt1, mt2], in_mem=True)
     
     if not out_path:

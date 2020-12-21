@@ -139,6 +139,8 @@ clarie_repos
 # DB connections
 config/danco.footprint.json
 config/sandwich-pool.dem.json
+config/sandwich-pool.dgarchive.json
+config/*
 
 # development file
 scratch.py

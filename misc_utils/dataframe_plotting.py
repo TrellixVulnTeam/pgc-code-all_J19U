@@ -17,20 +17,20 @@ import numpy as np
 
 # plt.style.use('ggplot')
 
-SMALL_SIZE = 8
-
-MEDIUM_SIZE = 18
-BIGGER_SIZE = 24
-
-plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=SMALL_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=SMALL_SIZE)  # fontsize of the figure title
-
-edgecolor = 'white'
+# SMALL_SIZE = 8
+#
+# MEDIUM_SIZE = 18
+# BIGGER_SIZE = 24
+#
+# plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+# plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+# plt.rc('axes', labelsize=SMALL_SIZE)    # fontsize of the x and y labels
+# plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+# plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+# plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+# plt.rc('figure', titlesize=SMALL_SIZE)  # fontsize of the figure title
+#
+# edgecolor = 'white'
 
 def y_fmt(y, pos):
     '''
@@ -127,8 +127,8 @@ def plot_timeseries_stacked(df, date_col, id_col, category_col, freq, ax=None, a
     return dfc_agg, percent
 
 
-def plot_cloudcover(df, cloudcover_col, ax=None):
-    """
-    Plots cloudcover histogram.
-    """
-    df.hist(column=cloudcover_col, edgecolor=edgecolor, ax=ax)
+# def plot_cloudcover(df, cloudcover_col, ax=None):
+#     """
+#     Plots cloudcover histogram.
+#     """
+#     df.hist(column=cloudcover_col, edgecolor=edgecolor, ax=ax)

@@ -16,8 +16,8 @@ import geopandas as gpd
 from shapely.geometry import Point
 from tqdm import tqdm
 
-from dem_utils import get_aux_file, nunatak2windows, get_dem_image1_id
-from valid_data import valid_percent
+from .dem_utils import get_aux_file, nunatak2windows, get_dem_image1_id
+from .valid_data import valid_percent
 from selection_utils.db import Postgres, generate_sql, intersect_aoi_where
 # from selection_utils.query_danco import query_footprint
 from misc_utils.id_parse_utils import read_ids, write_ids
@@ -95,8 +95,9 @@ def dem_selector(AOI_PATH=None,
     DEM_SCENE_DB = 'sandwich-pool.dem'  # Sandwich DEM database
     DEM_SCENE_LYR =  'dem.scene_dem_master'  # Sandwich DEM footprint tablename
     # TODO: Move this to a config file with MFP location
-    DEM_STRIP_GDB = r'E:\disbr007\dem\setsm\footprints\dem_strips_v4_20200825.gdb'
-    DEM_STRIP_LYR = Path(DEM_STRIP_GDB).stem #'dem_strips_v4_20200825'
+    DEM_STRIP_GDB = r'E:\disbr007\dem\setsm\footprints\dem_strips_v4_20201120.gdb'
+    DEM_STRIP_LYR = Path(DEM_STRIP_GDB).stem #'dem_strips_v4_20201120'
+    DEM_STRIP_GDB_CRS = 'epsg:4326'
 
     # These are only used when verifying that DEMs exist - not necessary for sandwich or Eriks gdb)
     WINDOWS_OS = 'Windows' # value returned by platform.system() for windows
@@ -161,8 +162,13 @@ def dem_selector(AOI_PATH=None,
         # Load DEM index or footprint
         if not DEM_FP:
             logger.info('Loading DEMs footprint from: {}'.format(DEM_STRIP_GDB))
-            dems = gpd.read_file(DEM_STRIP_GDB, layer=DEM_STRIP_LYR, driver='OpenFileGDB',
-                                 bbox=aoi)
+            if aoi.crs != DEM_STRIP_GDB_CRS:
+                aoi_bbox = aoi.to_crs(DEM_STRIP_GDB_CRS)
+            else:
+                aoi_bbox = aoi
+            dems = gpd.read_file(DEM_STRIP_GDB, layer=DEM_STRIP_LYR,
+                                 driver='OpenFileGDB',
+                                 bbox=aoi_bbox)
             logger.debug('DEMs footprint loaded: {:,}'.format(len(dems)))
         else:
             logger.info('Reading provided DEM footprint...')
