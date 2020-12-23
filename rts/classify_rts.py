@@ -83,7 +83,7 @@ def classify_rts(sub_objects_path,
     sa_rat_mean = 'SAratio_me'
     elev_mean = 'elev_mean'
     pan_mean = 'pan_mean'
-    dndvi_mean = 'dNDVI_mean'
+    # dndvi_mean = 'dNDVI_mean'
     delev_mean = 'dDEM_mean'
     # mdfm_mean = 'MDFM_mean'
     # edged_mean = 'EdgDen_mea'
@@ -98,7 +98,7 @@ def classify_rts(sub_objects_path,
         (sa_rat_mean, 'mean'),
         (elev_mean, 'mean'),
         (delev_mean, 'mean'),
-        (dndvi_mean, 'mean')
+        # (dndvi_mean, 'mean')
         # (mdfm_mean, 'mean'),
         # (edged_mean, 'mean'),
         # (cclass_maj, 'majority')

@@ -14,7 +14,8 @@ import os, logging, argparse
 import geopandas as gpd
 # import shapely
 
-from misc_utils.gdal_tools import check_sr, ogr_reproject, get_raster_sr, remove_shp
+from misc_utils.gdal_tools import check_sr, ogr_reproject, get_raster_sr, \
+    remove_shp
 from misc_utils.id_parse_utils import read_ids
 from misc_utils.logging_utils import create_logger
 
@@ -101,22 +102,29 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
             if not out_dir:
                 logger.debug('NO OUT_DIR')
             # Create outpath
-            raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
+            raster_out_name = '{}{}.tif'.format(
+                os.path.basename(raster_p).split('.')[0], out_suffix)
             raster_out_path = os.path.join(out_dir, raster_out_name)
         else:
             raster_out_path = out_path
 
         # Clip to shape
-        logger.debug('Clipping:\n{}\n\t---> {}'.format(os.path.basename(raster_p), raster_out_path))
+        logger.debug('Clipping:\n{}\n\t---> '
+                     '{}'.format(os.path.basename(raster_p),
+                                 raster_out_path))
         if os.path.exists(raster_out_path) and not overwrite:
-            logger.warning('Outpath exists, skipping: {}'.format(raster_out_path))
+            logger.warning('Outpath exists, skipping: '
+                           '{}'.format(raster_out_path))
             pass
         else:
             raster_ds = gdal.Open(raster_p, gdal.GA_ReadOnly)
             x_res = raster_ds.GetGeoTransform()[1]
             y_res = raster_ds.GetGeoTransform()[5]
-            warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True,
-                                            targetAlignedPixels=True, xRes=x_res, yRes=y_res)
+            warp_options = gdal.WarpOptions(cutlineDSName=shp_p,
+                                            cropToCutline=True,
+                                            targetAlignedPixels=True,
+                                            xRes=x_res,
+                                            yRes=y_res)
             gdal.Warp(raster_out_path, raster_ds, options=warp_options)
             # Close the raster
             raster_ds = None

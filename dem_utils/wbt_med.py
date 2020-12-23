@@ -7,6 +7,8 @@ from subprocess import PIPE
 from misc_utils.logging_utils import create_logger
 
 
+logger = create_logger(__name__, 'sh', 'INFO')
+
 # Params
 wbt = 'whitebox_tools.exe'
 med = 'MaxElevationDeviation'
@@ -53,6 +55,8 @@ def wbt_med(dem, out_dir=None, out_mag=None, out_scale=None,
         run_subprocess(cmd)
 
     logger.info('Done')
+
+    return out_mag
 
 
 if __name__ == '__main__':

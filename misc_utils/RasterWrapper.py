@@ -86,7 +86,6 @@ class Raster:
 
         return ulx, uly, lrx, lry
 
-
     def raster_bounds(self):
         """
         GDAL only version of getting bounds for a single raster.
@@ -99,7 +98,6 @@ class Raster:
         lry = uly + (gt[5] * self.y_sz)
 
         return ulx, lry, lrx, uly
-
 
     def raster_bbox(self):
         """
@@ -116,7 +114,6 @@ class Raster:
         bbox = box(lrx, lry, ulx, uly)
 
         return bbox
-
 
     def GetBandAsArray(self, band_num, mask=True):
         """
@@ -149,14 +146,12 @@ class Raster:
 
         return ndvi
 
-
     def mndwi_array(self, green_num, swir_num):
         green = self.GetBandAsArray(green_num)
         swir = self.GetBandAsArray(swir_num)
         mndwi = (green - swir) / (green + swir)
 
         return mndwi
-
 
     def ArrayWindow(self, projWin):
         """
@@ -169,7 +164,6 @@ class Raster:
 
         return self.arr_window
 
-
     def geo2pixel(self, geocoord):
         """
         Convert geographic coordinates to pixel coordinates
@@ -179,7 +173,6 @@ class Raster:
         px = int(np.around((geocoord[1] - self.geotransform[0]) / self.geotransform[1]))
 
         return (py, px)
-
 
     def projWin2pixelWin(self, projWin):
         """
@@ -192,7 +185,6 @@ class Raster:
         plry, plrx = self.geo2pixel(lr)
 
         return [pulx, puly, plrx, plry]
-
 
     def ReadStackedArray(self, stacked=True):
         '''
@@ -221,36 +213,35 @@ class Raster:
         else:
             return band_arrays
 
-    # def stack_arrays(self, arrays):
-    #     """
-    #     Stack a list of arrays into a np.dstack array, changing fill values to match the
-    #     source.
+    def stack_arrays(self, arrays):
+        """
+        Stack a list of arrays into a np.dstack array, changing fill values to match the
+        source.
 
-    #     Parameters
-    #     ----------
-    #     arrays: list
-    #         List of arrays to be stacked, not including source array
+        Parameters
+        ----------
+        arrays: list
+            List of arrays to be stacked, not including source array
 
-    #     Returns
-    #     -------
-    #     np.array : Depth = len(arrays)
-    #     """
-    #     logger.debug('Stacking arrays...')
-    #     src_arr = self.MaskedArray
-    #     stacked = np.dstack([src_arr])
+        Returns
+        -------
+        np.array : Depth = len(arrays)
+        """
+        logger.debug('Stacking arrays...')
+        src_arr = self.MaskedArray
+        stacked = np.dstack([src_arr])
 
-    #     for i, arr in enumerate(arrays):
-    #         if np.ma.isMaskedArray(arr):
-    #             arr_mask = arr.mask
-    #             arr.set_fill_value(self.nodata_val)
-    #             arr = arr.filled(arr.fill_value)
-    #             np.ma.masked_where(arr_mask is True, arr)
-    #         stacked = np.dstack([stacked, arr])
-    #     # The process of stacking is change the fill value - change back to nodata_val
-    #     stacked.set_fill_value(self.nodata_val)
+        for i, arr in enumerate(arrays):
+            if np.ma.isMaskedArray(arr):
+                arr_mask = arr.mask
+                arr.set_fill_value(self.nodata_val)
+                arr = arr.filled(arr.fill_value)
+                np.ma.masked_where(arr_mask is True, arr)
+            stacked = np.dstack([stacked, arr])
+        # The process of stacking is change the fill value - change back to nodata_val
+        stacked.set_fill_value(self.nodata_val)
 
-    #     return stacked
-
+        return stacked
 
     def WriteArray(self, array, out_path, stacked=False, fmt='GTiff',
                    dtype=None, nodata_val=None):
@@ -280,21 +271,22 @@ class Raster:
 
         # Create output file
         driver = gdal.GetDriverByName(fmt)
-        dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, bands=depth, eType=dtype)
+        dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, bands=depth,
+                               eType=dtype)
         dst_ds.SetGeoTransform(self.geotransform)
         dst_ds.SetProjection(self.prj.ExportToWkt())
 
         # Loop through each layer of array and write as band
         for i in range(depth):
             if stacked:
-                lyr = array[:, :, i]
+                lyr = array[:, :, i].filled()
                 band = i + 1
                 dst_ds.GetRasterBand(band).WriteArray(lyr)
                 dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
             else:
                 # logger.info(array.dtype)
                 band = i + 1
-                dst_ds.GetRasterBand(band).WriteArray(array)
+                dst_ds.GetRasterBand(band).WriteArray(array.filled())
                 dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
 
         dst_ds = None

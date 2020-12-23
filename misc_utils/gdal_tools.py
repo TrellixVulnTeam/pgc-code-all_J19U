@@ -345,7 +345,8 @@ def minimum_bounding_box(rasters):
     return projWin
 
 
-def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip', out_format='tif'):
+def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip',
+               out_format='tif'):
     '''
     Takes a list of rasters and translates (clips) them to the minimum bounding box.
 

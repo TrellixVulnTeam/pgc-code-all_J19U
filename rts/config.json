@@ -1,4 +1,21 @@
 {
+  "project": {
+    "EPSG": 3413
+  },
+  "pansharpen": {
+    "t": "UInt16",
+    "c": "mr"
+  },
+  "dem_deriv": {
+    "med": {
+      "min_scale": 1,
+      "max_scale": 25,
+      "step": 1
+    },
+    "curv": {
+      "curv_type": "ProfileCurvature"
+    }
+  },
   "headwall": {
     "seg": {
       "algorithm": "grm",
