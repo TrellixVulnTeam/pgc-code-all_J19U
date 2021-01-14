@@ -75,19 +75,15 @@ def classify_rts(sub_objects_path,
     logger.info('Classifying RTS...')
     #%% Fields
     # Existing fields
-    med_mean = 'MED_mean'
-    cur_mean = 'CurPr_mean'
-    ndvi_mean = 'NDVI_mean'
-    slope_mean = 'Slope_mean'
-    rug_mean = 'RugIn_mean'
-    sa_rat_mean = 'SAratio_me'
-    elev_mean = 'elev_mean'
-    pan_mean = 'pan_mean'
-    # dndvi_mean = 'dNDVI_mean'
-    delev_mean = 'dDEM_mean'
-    # mdfm_mean = 'MDFM_mean'
-    # edged_mean = 'EdgDen_mea'
-    # cclass_maj = 'CClass_maj'
+    med_mean = 'med_mean'
+    cur_mean = 'curv_mean'
+    ndvi_mean = 'ndvi_mean'
+    slope_mean = 'slope_mean'
+    rug_mean = 'ruggedness'
+    sa_rat_mean = 'sar_mean'
+    elev_mean = 'dem_mean'
+    pan_mean = 'img_mean'
+    delev_mean = 'diff_mean'
 
     value_fields = [
         (med_mean, 'mean'),
@@ -98,10 +94,6 @@ def classify_rts(sub_objects_path,
         (sa_rat_mean, 'mean'),
         (elev_mean, 'mean'),
         (delev_mean, 'mean'),
-        # (dndvi_mean, 'mean')
-        # (mdfm_mean, 'mean'),
-        # (edged_mean, 'mean'),
-        # (cclass_maj, 'majority')
         ]
 
     # Created columns
@@ -124,7 +116,7 @@ def classify_rts(sub_objects_path,
     r_ruggedness = create_rule(rule_type='threshold',
                                in_field=rug_mean,
                                op=operator.gt,
-                               threshold=0.25,
+                               threshold=0.2,
                                out_field=True)
     # Surface Area Ratio
     r_saratio = create_rule(rule_type='threshold',
@@ -150,6 +142,12 @@ def classify_rts(sub_objects_path,
                         op=operator.lt,
                         threshold=0,
                         out_field=True)
+    # Curvature (high)
+    r_curve = create_rule(rule_type='threshold',
+                          in_field=cur_mean,
+                          op=operator.gt,
+                          threshold=2.5,
+                          out_field=True)
     # Difference in DEMs
     r_delev = create_rule(rule_type='threshold',
                           in_field=delev_mean,
@@ -163,6 +161,7 @@ def classify_rts(sub_objects_path,
                            r_slope,
                            r_ndvi,
                            r_med,
+                           r_curve,
                            r_delev]
 
     # Adjacency rules
@@ -236,18 +235,18 @@ def classify_rts(sub_objects_path,
                          threshold_rules=r_simple_thresholds,
                          adj_rules=r_adj_rules)
     logger.info('Headwall candidates found: {:,}'.format(
-        hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate]))
+        len(hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate])))
 
     #%% Write headwall candidates
     logger.info('Writing headwall candidates...')
     hwc.write_objects(headwall_candidates_out,
                       to_str_cols=to_str_cols,
                       overwrite=True)
-    if headwall_candiates_centroid_out:
+    if headwall_candidates_centroid_out:
         hwc_centroid = ImageObjects(
             copy.deepcopy(
                 hwc.objects.set_geometry(hwc.objects.geometry.centroid)))
-        hwc_centroid.write_objects(headwall_candiates_centroid_out,
+        hwc_centroid.write_objects(headwall_candidates_centroid_out,
                                    overwrite=True)
 
 
@@ -256,16 +255,17 @@ def classify_rts(sub_objects_path,
     logger.info('Loading RTS candidate objects...')
     so = ImageObjects(super_objects_path,
                       value_fields=value_fields)
-    #%%
     logger.info('Determining RTS candidates...')
 
     #%% Find objects that contain headwalls of a higher elevation than themselves
     so.objects[contains_hw] = so.objects.apply(
-        lambda x: contains_any_objects(x.geometry,
-                                       hwc.objects[hwc.objects[hw_candidate]],
-                                       threshold=x[elev_mean],
-                                       other_value_field=elev_mean,
-                                       op=operator.gt), axis=1)
+        lambda x: contains_any_objects(
+            x.geometry,
+            hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate],
+            threshold=x[elev_mean],
+            other_value_field=elev_mean,
+            op=operator.gt),
+        axis=1)
 
     #%% Classify
     so.classify_objects(class_name=rts_candidate,

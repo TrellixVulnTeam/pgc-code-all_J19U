@@ -1,6 +1,7 @@
 import argparse
 import copy
 import os
+from pathlib import PurePath
 
 from osgeo import gdal
 import pandas as pd
@@ -17,6 +18,8 @@ gdal.SetConfigOption('CHECK_DISK_FREE_SPACE', 'FALSE')
 
 
 def load_objs(objects):
+    if isinstance(objects, PurePath):
+        objects = str(objects)
     # Load objects
     # TODO: Read in chunks, parallelize, recombine and write
     logger.info('Reading in objects...')
@@ -79,7 +82,8 @@ def cleanup_objects(input_objects,
                     mask_on=None,
                     out_mask_img=None,
                     out_mask_vec=None,
-                    drop_na=None):
+                    drop_na=None,
+                    overwrite=False):
 
     keep_objs = load_objs(input_objects)
 
@@ -96,10 +100,9 @@ def cleanup_objects(input_objects,
     logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
                                                             out_objects))
     keep_objs.to_file(out_objects)
-    write_gdf(keep_objs, out_objects)
+    write_gdf(keep_objs, out_objects, overwrite=overwrite)
 
     return out_objects
-    # logger.info('Done.')
 
 
 if __name__ == '__main__':
@@ -124,6 +127,8 @@ if __name__ == '__main__':
     parser.add_argument('--out_mask_vec', type=os.path.abspath,
                         help='Path to write intermediate mask vector '
                              'polygonized from mask raster.')
+    parser.add_argument('--overwrite', action='store_true',
+                        help='Overwrite outfile if it exists.')
 
     import sys
     # sys.argv = [r'C:\code\pgc-code-all\obia_utils\cleanup_objects.py',
@@ -148,6 +153,7 @@ if __name__ == '__main__':
     out_objects = args.out_objects
     out_mask_img = args.out_mask_img
     out_mask_vec = args.out_mask_vec
+    overwrite = args.overwrite
 
     cleanup_objects(input_objects=input_objects,
                     out_objects=out_objects,
@@ -155,4 +161,5 @@ if __name__ == '__main__':
                     mask_on=mask_on,
                     drop_na=drop_na,
                     out_mask_vec=out_mask_vec,
-                    out_mask_img=out_mask_img)
+                    out_mask_img=out_mask_img,
+                    overwrite=overwrite)

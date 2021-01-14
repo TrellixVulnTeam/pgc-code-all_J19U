@@ -172,11 +172,11 @@ def compute_density(mt_p, aoi_p):
 def combined_density(mt1, mt2, aoi, in_mem_epsg=None, clip=False, out_path=None):
     """Get density for two matchtags over AOI"""
     # Ensure both matchtags exist
-    if not os.path.exists(mt1) or not os.path.exists(mt2):
-        for mt in [mt1, mt2]:
-            if not os.path.exists(mt):
-                logger.error('Matchtag file not found: {}'.format(mt))
-        return -9999
+    # if not os.path.exists(mt1) or not os.path.exists(mt2):
+    #     for mt in [mt1, mt2]:
+    #         if not os.path.exists(mt):
+    #             logger.error('Matchtag file not found: {}'.format(mt))
+    #     return -9999
     
     # Determine type of aoi
     # If shapely geometry, save to in-memory file
@@ -295,14 +295,14 @@ def difference_dems(dem1, dem2, out_dem=None, in_mem=False):
 
     return out_dem
 
-dem1 = r'E:\disbr007\umn\2020sep27_eureka\dems\sel' \
-       r'\WV02_20140703_1030010033A84300_1030010032B54F00' \
-       r'\WV02_20140703_1030010033A84300_1030010032B54F00' \
-       r'_2m_lsf_seg1_dem_masked.tif'
-dem2 = r'E:\disbr007\umn\2020sep27_eureka\dems\sel' \
-       r'\WV02_20110811_103001000D198300_103001000C5D4600' \
-       r'\WV02_20110811_103001000D198300_103001000C5D4600' \
-       r'_2m_lsf_seg1_dem_masked.tif'
-out = r'C:\temp\diff2.tif'
-
-difference_dems(dem1, dem2, out_dem=out)
+# dem1 = r'E:\disbr007\umn\2020sep27_eureka\dems\sel' \
+#        r'\WV02_20140703_1030010033A84300_1030010032B54F00' \
+#        r'\WV02_20140703_1030010033A84300_1030010032B54F00' \
+#        r'_2m_lsf_seg1_dem_masked.tif'
+# dem2 = r'E:\disbr007\umn\2020sep27_eureka\dems\sel' \
+#        r'\WV02_20110811_103001000D198300_103001000C5D4600' \
+#        r'\WV02_20110811_103001000D198300_103001000C5D4600' \
+#        r'_2m_lsf_seg1_dem_masked.tif'
+# out = r'C:\temp\diff2.tif'
+#
+# difference_dems(dem1, dem2, out_dem=out)

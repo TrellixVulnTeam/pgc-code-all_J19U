@@ -52,9 +52,10 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
     rasters : LIST or STR
         List of rasters to clip, or if STR, path to single raster.
     out_prj_shp : os.path.abspath
-        Path to create the projected shapefile if necessary to match raster prj.
+        Path to create the projected shapefile if necessary to match raster prj
     """
-    # TODO: Fix permission error if out_prj_shp not supplied -- create in-mem OGR?
+    # TODO: Fix permission error if out_prj_shp not supplied -- create in-mem
+    #  OGR?
     # Use in memory directory if specified
     if out_dir is None:
         in_mem = True
@@ -95,7 +96,6 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
         # TODO: Handle this with platform.sys and pathlib.Path objects
         raster_p = raster_p.replace(r'\\', os.sep)
         raster_p = raster_p.replace(r'/', os.sep)
-        # logger.info(raster_p)
 
         # Create out_path if not provided
         if not out_path:

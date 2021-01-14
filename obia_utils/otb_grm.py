@@ -38,20 +38,23 @@ def run_subprocess(command):
     logger.debug('Err: {}'.format(error.decode()))
 
 
-def create_outname(image_source=None, out_seg=None, out_dir=None,
-                   criterion=None, threshold=None, num_iterations=None,
-                   speed=None,spectral=None, spatial=None):
+def create_outname(img=None, out_seg=None, out_dir=None,
+                   criterion='bs', threshold=None, niter=0,
+                   speed=0, spectral=0.5, spatial=0.5,
+                   out_format='vector', name_only=False):
     # Create output names as needed
     if out_seg is None:
         if out_dir is None:
-            out_dir = os.path.dirname(image_source)
-        out_name = os.path.basename(image_source).split('.')[0]
+            out_dir = os.path.dirname(img)
+        out_name = os.path.basename(img).split('.')[0]
         out_name = '{}_{}t{}ni{}s{}spec{}spat{}.tif'.format(out_name, criterion,
                                                             str(threshold).replace('.', 'x'),
-                                                            num_iterations, speed,
+                                                            niter, speed,
                                                             str(spectral).replace('.', 'x'),
                                                             str(spatial).replace('.', 'x'))
         out_seg = os.path.join(out_dir, out_name)
+    if name_only and out_format == 'vector':
+        out_seg = out_seg.replace('tif', 'shp')
 
     return out_seg
 
@@ -99,13 +102,13 @@ def otb_grm(img,
     """
     # Create ouput name based on input parameters
     if out_seg is None:
-        out_seg = create_outname(image_source=img,
+        out_seg = create_outname(img=img,
                                  out_seg=out_seg,
                                  out_dir=out_dir,
                                  criterion=criterion,
                                  speed=speed,
                                  threshold=threshold,
-                                 num_iterations=niter,
+                                 niter=niter,
                                  spectral=spectral,
                                  spatial=spatial)
 
@@ -172,8 +175,8 @@ def otb_grm(img,
         logger.debug('Removing raster segmentation...')
         os.remove(out_seg)
         out_seg = vec_seg # For returning path to segments
-    return out_seg
 
+    return out_seg
 
 
 if __name__ == "__main__":
@@ -269,4 +272,5 @@ if __name__ == "__main__":
             niter=num_iterations,
             speed=speed,
             spectral=spectral,
-            spatial=spatial)
+            spatial=spatial,
+            out_dir=out_dir)

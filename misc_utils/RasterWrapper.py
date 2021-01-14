@@ -286,7 +286,10 @@ class Raster:
             else:
                 # logger.info(array.dtype)
                 band = i + 1
-                dst_ds.GetRasterBand(band).WriteArray(array.filled())
+                if isinstance(array, np.ma.MaskedArray):
+                    dst_ds.GetRasterBand(band).WriteArray(array.filled())
+                else:
+                    dst_ds.GetRasterBand(band).WriteArray(array)
                 dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
 
         dst_ds = None

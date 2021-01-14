@@ -6,7 +6,7 @@ Created on Fri Jan  3 10:50:59 2020
 Logging module helper functions
 """
 
-import datetime
+from datetime import datetime
 
 import logging
 import os

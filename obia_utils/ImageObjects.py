@@ -893,6 +893,7 @@ class ImageObjects:
     def apply_rules(self, rules, out_field=None):
         """
         Apply a number of rules to objects.
+
         Parameters
         ----------
         rules : list

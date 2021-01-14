@@ -142,5 +142,6 @@ config/sandwich-pool.dem.json
 config/sandwich-pool.dgarchive.json
 config/*
 
-# development file
-scratch.py
+# development files
+scratch/*
+scratch/otb_grm_name_simplify.py

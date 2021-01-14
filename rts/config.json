@@ -1,6 +1,8 @@
 {
   "project": {
-    "EPSG": 3413
+    "EPSG": 3413,
+    "OUT_VEC_FMT": ".shp",
+    "AOI": "E:\\disbr007\\umn\\2020sep27_eureka\\aois\\test_aoi.shp"
   },
   "pansharpen": {
     "t": "UInt16",
@@ -20,63 +22,61 @@
     "seg": {
       "algorithm": "grm",
       "params": {
-        "img": "E:\\disbr007\\umn\\2020sep27_eureka\\img\\ortho_WV02_20140703_test_aoi\\WV02_20140703013631_1030010032B54F00_14JUL03013631-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi.tif",
-        "out_dir": "E:\\disbr007\\umn\\2020sep27_eureka\\seg\\hw_seg",
         "criterion": "bs",
         "threshold": 100,
-        "niter": 100,
+        "niter": 0,
         "speed": 1,
         "spectral": 0.3,
-        "spatial": 50.0
+        "spatial": 250
       }
     },
     "cleanup": {
       "cleanup": 1,
       "params": {
-        "out_objects": 0,
         "mask_on": "E:\\disbr007\\umn\\2020sep27_eureka\\dems\\sel\\WV02_20140703_1030010033A84300_1030010032B54F00_test_aoi\\WV02_20140703_1030010033A84300_1030010032B54F00_2m_lsf_seg1_dem_masked_test_aoi.tif",
-        "min_size": 0.5
+        "min_size": 0.5,
+        "overwrite": true
       }
     },
     "zonal_stats": {
       "params": {
         "rasters": ["E:\\disbr007\\umn\\2020sep27_eureka\\config\\zonal_stats.json"]
-      }
+      },
+      "stats": ["mean"]
     },
     "classification": {
-      "headwall_candidates_out": "E:\\disbr007\\umn\\2020sep27_eureka\\seg\\hw_seg\\hw_candidates.shp",
-      "headwall_candidates_out_centroid": "E:\\disbr007\\umn\\2020sep27_eureka\\seg\\hw_seg\\hw_candidates_centroid.shp"
+      "headwall_class_out": 1,
+      "headwall_class_out_centroid": 1
     }
   },
   "rts": {
     "seg": {
       "algorithm": "grm",
       "params": {
-        "img": "E:\\disbr007\\umn\\2020sep27_eureka\\img\\ortho_WV02_20140703_test_aoi\\WV02_20140703013631_1030010032B54F00_14JUL03013631-M1BS-500287602150_01_P009_u16mr3413_pansh_test_aoi.tif",
-        "out_dir": "E:\\disbr007\\umn\\2020sep27_eureka\\seg\\rts_seg",
         "criterion": "bs",
-        "threshold": 250,
-        "niter": 500,
-        "speed": 1,
-        "spectral": 0.4,
-        "spatial": 25.0
+        "threshold": 750,
+        "niter": 0,
+        "speed": 0,
+        "spectral": 0.6,
+        "spatial": 100
       }
     },
     "cleanup": {
       "cleanup": 1,
       "params": {
-        "out_objects": 0,
         "mask_on": "E:\\disbr007\\umn\\2020sep27_eureka\\dems\\sel\\WV02_20140703_1030010033A84300_1030010032B54F00_test_aoi\\WV02_20140703_1030010033A84300_1030010032B54F00_2m_lsf_seg1_dem_masked_test_aoi.tif",
-        "min_size": 0.5
+        "min_size": 0.5,
+        "overwrite": true
       }
     },
     "zonal_stats": {
       "params": {
         "rasters": ["E:\\disbr007\\umn\\2020sep27_eureka\\config\\zonal_stats.json"]
-      }
+      },
+      "stats": ["mean"]
     },
     "classification":  {
-      "rts_candidates_out": "E:\\disbr007\\umn\\2020sep27_eureka\\seg\\rts_seg\rts_candidates.shp"
+      "rts_class_out": 1
     }
   }
 }

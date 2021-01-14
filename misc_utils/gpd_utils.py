@@ -308,7 +308,7 @@ def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
 def write_gdf(src_gdf, out_footprint, to_str_cols=None,
               out_format=None, date_format=None,
               nan_to=None,
-              overwrite=False,
+              overwrite=True,
               **kwargs):
     gdf = copy.deepcopy(src_gdf)
 
@@ -341,6 +341,8 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
 
     if out_footprint.exists():
         if overwrite:
+            logger.warning('Overwriting existing file: '
+                           '{}'.format(out_footprint))
             os.remove(out_footprint)
         else:
             logger.warning('Out file exists and overwrite not specified, '

@@ -32,24 +32,27 @@ logger = create_logger(__name__, 'sh', 'INFO')
 # def calc_glcm(patch, distance = [5], angles=[0], levels=)
 
 def load_stats_dict(stats_json):
-    with open(stats_json) as jf:
-        data = json.load(jf)
-        # rasters = [d['path'] for n, d in data.items()]
-        # names = [n for n, d in data.items()]
-        # stats = [d['stats'] for n, d in data.items()]
+    if isinstance(stats_json, str):
+        if os.path.exists(stats_json):
+            with open(stats_json) as jf:
+                data = json.load(jf)
+        else:
+            logger.error('Zonal stats file not found: {}'.format(stats_json))
+    elif isinstance(stats_json, dict):
+        data = stats_json
 
-        names = []
-        rasters = []
-        stats = []
-        bands = []
-        for n, d in data.items():
-            names.append(n)
-            rasters.append(d['path'])
-            stats.append(d['stats'])
-            if 'bands' in d.keys():
-                bands.append(d['bands'])
-            else:
-                bands.append(None)
+    names = []
+    rasters = []
+    stats = []
+    bands = []
+    for n, d in data.items():
+        names.append(n)
+        rasters.append(d['path'])
+        stats.append(d['stats'])
+        if 'bands' in d.keys():
+            bands.append(d['bands'])
+        else:
+            bands.append(None)
 
     return rasters, names, stats, bands
 
@@ -197,12 +200,14 @@ def calc_zonal_stats(shp, rasters,
             else:
                 # Raster paths directly passed
                 stats = [stats for i in range(len(rasters))]
+    elif isinstance(rasters, dict):
+        rasters, names, stats, bands = load_stats_dict(rasters)
 
     # Confirm all rasters exist before starting
     for r in rasters:
         if not os.path.exists(r):
             logger.error('Raster does not exist: {}'.format(r))
-            logger.error(FileNotFoundError)
+            logger.error('FileNotFoundError')
 
     # Iterate rasters and compute stats for each
     for r, n, s, bs in zip(rasters, names, stats, bands):
