@@ -14,7 +14,6 @@ echo $src
 echo $dst
 
 cmd="gdal_translate -of ${fmt} ${src} ${dst}"
-
 if [ ! -e ${dst} ]
 then
 	echo $cmd

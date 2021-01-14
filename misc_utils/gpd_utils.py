@@ -23,7 +23,7 @@ import multiprocessing
 from misc_utils.logging_utils import create_logger
 
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 def multiprocess_gdf(fxn, gdf, *args, num_cores=None, **kwargs):
@@ -307,20 +307,28 @@ def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
 
 def write_gdf(src_gdf, out_footprint, to_str_cols=None,
               out_format=None, date_format=None,
-              overwrite=False):
+              nan_to=None,
+              overwrite=True,
+              **kwargs):
     gdf = copy.deepcopy(src_gdf)
 
     if not isinstance(out_footprint, pathlib.PurePath):
         out_footprint = Path(out_footprint)
 
+    # convert NaNs to empty string
+    if nan_to:
+        gdf = gdf.replace(np.nan, nan_to, regex=True)
+
     # remove datetime - specifiy datetime if desired format
     if not gdf.select_dtypes(include=['datetime64']).columns.empty:
         datetime2str_df(gdf, date_format=date_format)
+
     # convert columns that store lists to strings
     if to_str_cols:
         for col in to_str_cols:
-            gdf[col] = [','.join(map(str, l)) if len(l) > 0
-                        else '' for l in gdf[col]]
+            logger.debug('Converting to string field: {}'.format(col))
+            gdf[col] = [','.join(map(str, l)) if isinstance(l, (dict, list))
+                        and len(l) > 0 else '' for l in gdf[col]]
 
     logger.debug('Writing to file: {}'.format(out_footprint))
     if not out_format:
@@ -333,6 +341,8 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
 
     if out_footprint.exists():
         if overwrite:
+            logger.warning('Overwriting existing file: '
+                           '{}'.format(out_footprint))
             os.remove(out_footprint)
         else:
             logger.warning('Out file exists and overwrite not specified, '
@@ -341,13 +351,17 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
 
     # write out in format specified
     if out_format == 'shp':
-        gdf.to_file(out_footprint)
+        gdf.to_file(out_footprint, **kwargs)
     elif out_format == 'geojson':
+        if gdf.crs != 4326:
+            logger.warning('Attempting to write GeoDataFrame with non-WGS84 '
+                           'CRS to GeoJSON. Reprojecting to WGS84.')
+            gdf = gdf.to_crs('epsg:4326')
         gdf.to_file(out_footprint,
-                    driver='GeoJSON')
+                    driver='GeoJSON', **kwargs)
     elif out_format == 'gpkg':
         gdf.to_file(out_footprint.parent, layer=out_footprint.stem,
-                    driver='gpkg')
+                    driver='GPKG', **kwargs)
     else:
         logger.error('Unrecognized format: {}'.format(out_format))
 

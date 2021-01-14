@@ -14,7 +14,8 @@ import os, logging, argparse
 import geopandas as gpd
 # import shapely
 
-from misc_utils.gdal_tools import check_sr, ogr_reproject, get_raster_sr, remove_shp
+from misc_utils.gdal_tools import check_sr, ogr_reproject, get_raster_sr, \
+    remove_shp
 from misc_utils.id_parse_utils import read_ids
 from misc_utils.logging_utils import create_logger
 
@@ -23,7 +24,7 @@ gdal.UseExceptions()
 ogr.UseExceptions()
 
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 # sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'INFO')
 
 
@@ -51,9 +52,10 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
     rasters : LIST or STR
         List of rasters to clip, or if STR, path to single raster.
     out_prj_shp : os.path.abspath
-        Path to create the projected shapefile if necessary to match raster prj.
+        Path to create the projected shapefile if necessary to match raster prj
     """
-    # TODO: Fix permission error if out_prj_shp not supplied -- create in-mem OGR?
+    # TODO: Fix permission error if out_prj_shp not supplied -- create in-mem
+    #  OGR?
     # Use in memory directory if specified
     if out_dir is None:
         in_mem = True
@@ -94,29 +96,35 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
         # TODO: Handle this with platform.sys and pathlib.Path objects
         raster_p = raster_p.replace(r'\\', os.sep)
         raster_p = raster_p.replace(r'/', os.sep)
-        logger.info(raster_p)
 
         # Create out_path if not provided
         if not out_path:
             if not out_dir:
                 logger.debug('NO OUT_DIR')
             # Create outpath
-            raster_out_name = '{}{}.tif'.format(os.path.basename(raster_p).split('.')[0], out_suffix)
+            raster_out_name = '{}{}.tif'.format(
+                os.path.basename(raster_p).split('.')[0], out_suffix)
             raster_out_path = os.path.join(out_dir, raster_out_name)
         else:
             raster_out_path = out_path
 
         # Clip to shape
-        logger.info('Clipping: {}\n{}---> {}'.format(os.path.basename(raster_p), (' ' * 49), raster_out_path))
+        logger.debug('Clipping:\n{}\n\t---> '
+                     '{}'.format(os.path.basename(raster_p),
+                                 raster_out_path))
         if os.path.exists(raster_out_path) and not overwrite:
-            logger.warning('Outpath exists, skipping: {}'.format(raster_out_path))
+            logger.warning('Outpath exists, skipping: '
+                           '{}'.format(raster_out_path))
             pass
         else:
             raster_ds = gdal.Open(raster_p, gdal.GA_ReadOnly)
             x_res = raster_ds.GetGeoTransform()[1]
             y_res = raster_ds.GetGeoTransform()[5]
-            warp_options = gdal.WarpOptions(cutlineDSName=shp_p, cropToCutline=True,
-                                            targetAlignedPixels=True, xRes=x_res, yRes=y_res)
+            warp_options = gdal.WarpOptions(cutlineDSName=shp_p,
+                                            cropToCutline=True,
+                                            targetAlignedPixels=True,
+                                            xRes=x_res,
+                                            yRes=y_res)
             gdal.Warp(raster_out_path, raster_ds, options=warp_options)
             # Close the raster
             raster_ds = None

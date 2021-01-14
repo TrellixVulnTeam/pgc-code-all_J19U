@@ -21,7 +21,7 @@ from misc_utils.gdal_tools import get_raster_stats
 
 
 #### Set up logger
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 #### Function definition
@@ -41,7 +41,8 @@ def otb_texture_haralick(img,
                          xrad=2, yrad=2,
                          xoff=1, yoff=1,
                          nbin=8,
-                         out_image=None):
+                         out_image=None,
+                         out_dir=None):
     """
     Wrapper for OTB Haralick texture features. Computes Haralick, advanced 
     and higher order texture features on every pixel in the selected channel
@@ -80,6 +81,15 @@ def otb_texture_haralick(img,
     if not img_min and not img_max:
         img_min, img_max, _mean, _std = get_raster_stats(img)
 
+    if out_image is None:
+        if out_dir is None:
+            out_dir = os.path.dirname(img)
+        out_name = os.path.basename(img).split('.')[0]
+        out_name = '{}_c{}t{}_imin{}imax{}xr{}yr{}xo{}yo{}nb{}.tif'.format(
+            out_name, channel, texture[:3], str(img_min).replace('.', 'x'),
+            str(img_max).replace('.', 'x'), xrad, yrad, xoff, yoff, nbin)
+        out_image = os.path.join(out_dir, out_name)
+
     # Build the command
     cmd = """otbcli_HaralickTextureExtraction
              -in {}
@@ -112,7 +122,7 @@ def otb_texture_haralick(img,
     run_subprocess(cmd)
     run_time_finish = datetime.datetime.now()
     run_time = run_time_finish - run_time_start
-    too_fast = datetime.timedelta(seconds=10)
+    too_fast = datetime.timedelta(seconds=5)
     if run_time < too_fast:
         logger.warning("Execution completed quickly, likely due to an error. "
                        "Did you activate OTB env first?\n"
@@ -147,8 +157,9 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--texture',
                         # nargs='+',
                         choices=['simple', 'advanced', 'higher'],
-                        help="""Texture set selection, may choose more than one. If multiple,
-                                output is multiband image, one band per selection.""")
+                        help="Texture set selection, may choose more than "
+                             "one. If multiple, output is multiband image, "
+                             "one band per selection.")
     parser.add_argument('-imn', '--image_min',
                         type=float,
                         help='Minimum value in the input image.')
@@ -217,25 +228,23 @@ if __name__ == '__main__':
     logger = create_logger(__name__, 'sh',
                            handler_level=handler_level)
 
-    if out_image is None:
-        if out_dir is None:
-            out_dir = os.path.dirname(img)
-        out_name = os.path.basename(img).split('.')[0]
-        out_name = '{}_c{}t{}_imin{}imax{}xr{}yr{}xo{}yo{}nb{}.tif'.format(out_name,
-                                                                         channel,
-                                                                         texture[:3],
-                                                                         str(img_min).replace('.', 'x'),
-                                                                         str(img_max).replace('.', 'x'),
-                                                                         xrad, yrad,
-                                                                         xoff, yoff,
-                                                                         nbin,
-                                                                         )
-        out_image = os.path.join(out_dir, out_name)
-
-        
-    # Run command    
+    import sys
+    os.chdir(r'E:\disbr007\umn\2020sep27_eureka')
+    sys.argv = [r'C:\code\pgc-code-all\otb_texture_haralick.py',
+                '-i',
+                'img\ortho_WV02_20140703_test_aoi'
+                '\WV02_20140703013631_1030010032B54F00_14JUL03013631-'
+                'P1BS-500287602150_01_P009_u16mr3413_test_aoi.tif',
+                '-od',
+                'img\glcm',
+                '-t',
+                'simple',
+                '-ld',
+                'logs']
+    # Run command
     otb_texture_haralick(img=img,
                          out_image=out_image,
+                         out_dir=out_dir,
                          channel=channel,
                          texture=texture,
                          img_min=img_min,

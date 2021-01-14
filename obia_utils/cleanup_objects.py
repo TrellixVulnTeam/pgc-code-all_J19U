@@ -1,11 +1,13 @@
 import argparse
 import copy
 import os
+from pathlib import PurePath
 
 from osgeo import gdal
 import pandas as pd
 import geopandas as gpd
 
+from misc_utils.gpd_utils import write_gdf
 from misc_utils.RasterWrapper import Raster
 from misc_utils.logging_utils import create_logger
 
@@ -16,6 +18,8 @@ gdal.SetConfigOption('CHECK_DISK_FREE_SPACE', 'FALSE')
 
 
 def load_objs(objects):
+    if isinstance(objects, PurePath):
+        objects = str(objects)
     # Load objects
     # TODO: Read in chunks, parallelize, recombine and write
     logger.info('Reading in objects...')
@@ -28,7 +32,7 @@ def load_objs(objects):
 def remove_small_objects(objects, min_size):
     logger.info('Removing objects with area less than {}'.format(min_size))
     objects = objects[objects.geometry.area >= min_size]
-    logger.info('Objects kept: {:,}'.format(len(keep_objs)))
+    logger.info('Objects kept: {:,}'.format(len(objects)))
 
     return objects
 
@@ -71,6 +75,36 @@ def remove_null_objects(objects, fields=['all']):
 
     return keep_objs
 
+
+def cleanup_objects(input_objects,
+                    out_objects,
+                    min_size=None,
+                    mask_on=None,
+                    out_mask_img=None,
+                    out_mask_vec=None,
+                    drop_na=None,
+                    overwrite=False):
+
+    keep_objs = load_objs(input_objects)
+
+    if min_size:
+        keep_objs = remove_small_objects(objects=keep_objs,
+                                         min_size=min_size)
+    if mask_on:
+        keep_objs = mask_objs(objs=keep_objs, mask_on=mask_on,
+                              out_mask_img=out_mask_img,
+                              out_mask_vec=out_mask_vec)
+    if drop_na:
+        keep_objs = remove_null_objects(keep_objs, fields=drop_na)
+
+    logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
+                                                            out_objects))
+    keep_objs.to_file(out_objects)
+    write_gdf(keep_objs, out_objects, overwrite=overwrite)
+
+    return out_objects
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Utility for cleaning up '
                                                  'image-objects after '
@@ -93,6 +127,8 @@ if __name__ == '__main__':
     parser.add_argument('--out_mask_vec', type=os.path.abspath,
                         help='Path to write intermediate mask vector '
                              'polygonized from mask raster.')
+    parser.add_argument('--overwrite', action='store_true',
+                        help='Overwrite outfile if it exists.')
 
     import sys
     # sys.argv = [r'C:\code\pgc-code-all\obia_utils\cleanup_objects.py',
@@ -110,27 +146,20 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    raster = args.raster
+    mask_on = args.raster
     drop_na = args.drop_na
     min_size = args.min_size
     input_objects = args.input_objects
     out_objects = args.out_objects
     out_mask_img = args.out_mask_img
     out_mask_vec = args.out_mask_vec
-    
-    keep_objs = load_objs(input_objects)
+    overwrite = args.overwrite
 
-    if min_size:
-        keep_objs = remove_small_objects(objects=keep_objs,
-                                         min_size=min_size)
-    if raster:
-        keep_objs = mask_objs(objs=keep_objs, mask_on=raster,
-                              out_mask_img=out_mask_img,
-                              out_mask_vec=out_mask_vec)
-    if drop_na:
-        keep_objs = remove_null_objects(keep_objs, fields=drop_na)
-
-    logger.info('Writing kept objects ({}) to: {}'.format(len(keep_objs),
-                                                          out_objects))
-    keep_objs.to_file(out_objects)
-    logger.info('Done.')
+    cleanup_objects(input_objects=input_objects,
+                    out_objects=out_objects,
+                    min_size=min_size,
+                    mask_on=mask_on,
+                    drop_na=drop_na,
+                    out_mask_vec=out_mask_vec,
+                    out_mask_img=out_mask_img,
+                    overwrite=overwrite)

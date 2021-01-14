@@ -16,9 +16,9 @@ import geopandas as gpd
 from shapely.geometry import Point
 from tqdm import tqdm
 
-from dem_utils import get_aux_file, nunatak2windows, get_dem_image1_id
-from valid_data import valid_percent
-from selection_utils.db_utils import Postgres, generate_sql, intersect_aoi_where
+from .dem_utils import get_aux_file, nunatak2windows, get_dem_image1_id
+from .valid_data import valid_percent
+from selection_utils.db import Postgres, generate_sql, intersect_aoi_where
 # from selection_utils.query_danco import query_footprint
 from misc_utils.id_parse_utils import read_ids, write_ids
 from misc_utils.logging_utils import create_logger
@@ -28,6 +28,8 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 # TODO: speed up by reprojecting once when warping/checking valid percentage (workaround impl.)
 # TODO: change writing of dem FP with valid percents to actual location, not scratch
 # TODO: Double check duplicate DEMS for each AOI
+
+IS_XTRACK = 'IS_XTRACK'
 
 
 def dem_selector(AOI_PATH=None, 
@@ -93,10 +95,11 @@ def dem_selector(AOI_PATH=None,
     #### PARAMETERS ####
     # TODO: Make this an arg: scenes or strips (if strips use Eriks gdb)
     DEM_SCENE_DB = 'sandwich-pool.dem'  # Sandwich DEM database
-    DEM_SCENE_LYR =  'dem.scene_dem_master'  # Sandwich DEM footprint tablename
+    DEM_SCENE_LYR = 'dem.scene_dem_master'  # Sandwich DEM footprint tablename
     # TODO: Move this to a config file with MFP location
-    DEM_STRIP_GDB = r'E:\disbr007\dem\setsm\footprints\dem_strips_v4_20200825.gdb'
-    DEM_STRIP_LYR = Path(DEM_STRIP_GDB).stem #'dem_strips_v4_20200825'
+    DEM_STRIP_GDB = r'E:\disbr007\dem\setsm\footprints\dem_strips_v4_20201120.gdb'
+    DEM_STRIP_LYR = Path(DEM_STRIP_GDB).stem #'dem_strips_v4_20201120'
+    DEM_STRIP_GDB_CRS = 'epsg:4326'
 
     # These are only used when verifying that DEMs exist - not necessary for sandwich or Eriks gdb)
     WINDOWS_OS = 'Windows' # value returned by platform.system() for windows
@@ -161,8 +164,13 @@ def dem_selector(AOI_PATH=None,
         # Load DEM index or footprint
         if not DEM_FP:
             logger.info('Loading DEMs footprint from: {}'.format(DEM_STRIP_GDB))
-            dems = gpd.read_file(DEM_STRIP_GDB, layer=DEM_STRIP_LYR, driver='OpenFileGDB',
-                                 bbox=aoi)
+            if aoi.crs != DEM_STRIP_GDB_CRS:
+                aoi_bbox = aoi.to_crs(DEM_STRIP_GDB_CRS)
+            else:
+                aoi_bbox = aoi
+            dems = gpd.read_file(DEM_STRIP_GDB, layer=DEM_STRIP_LYR,
+                                 driver='OpenFileGDB',
+                                 bbox=aoi_bbox)
             logger.debug('DEMs footprint loaded: {:,}'.format(len(dems)))
         else:
             logger.info('Reading provided DEM footprint...')
@@ -176,30 +184,39 @@ def dem_selector(AOI_PATH=None,
                 dems = dems[dems[select_field].isin(select_ids)]
             except KeyError:
                 logger.error("Field '{}' not found in DEM footprint. "
-                             "Available fields:\n{}".format(select_field,
-                                                            '\n'.join(list(dems))))
-            logger.debug('DEMs remaining after: {} in {}'.format(select_field, select_ids))
+                             "Available fields:\n"
+                             "{}".format(select_field, '\n'.join(list(dems))))
+            logger.debug('DEMs remaining after:'
+                         ' {} in {}'.format(select_field, select_ids))
         if MIN_DATE:
             dems = dems[dems[fields['DATE_COL']] > MIN_DATE]
-            logger.debug('DEMs remaining after min_date > {}: {:,}'.format(MIN_DATE, len(dems)))
+            logger.debug('DEMs remaining after min_date > {}: '
+                         '{:,}'.format(MIN_DATE, len(dems)))
         if MAX_DATE:
             dems = dems[dems[fields['DATE_COL']] < MAX_DATE]
-            logger.debug('DEMs remaining after max_date < {}: {:,}'.format(MAX_DATE, len(dems)))
+            logger.debug('DEMs remaining after max_date < {}: '
+                         '{:,}'.format(MAX_DATE, len(dems)))
         if RES:
             dems = dems[dems[fields['RES_COL']] == RES]
-            logger.debug('DEMs remaining after resolution = {}: {:,}'.format(RES, len(dems)))
+            logger.debug('DEMs remaining after resolution = {}: '
+                         '{:,}'.format(RES, len(dems)))
         if MULTISPEC:
             dems = dems[dems[fields['SENSOR_COL']].isin(['WV02', 'WV03'])]
-            logger.debug('DEMs remaining after multispectral selction: {:,}'.format(len(dems)))
+            logger.debug('DEMs remaining after multispectral selection: '
+                         '{:,}'.format(len(dems)))
         if DENSITY_THRESH:
             dems = dems[dems[fields['DENSITY_COL']] > DENSITY_THRESH]
-            logger.debug('DEMs remaining after density > {}: {:,}'.format(DENSITY_THRESH, len(dems)))
+            logger.debug('DEMs remaining after density > {}: '
+                         '{:,}'.format(DENSITY_THRESH, len(dems)))
         if INTRACK:
-            int_pat = re.compile('(WV01|WV02|WV03)')
-            dems = dems[dems[fields['PAIRNAME']].str.contains(int_pat) == True]
-            logger.debug('DEMs remaining after selecting only intrack: {:,}'.format(len(dems)))
+            dems = dems[dems[IS_XTRACK] == 0]
+            # int_pat = re.compile('(WV01|WV02|WV03)')
+            # dems = dems[dems[fields['PAIRNAME']].str.contains(int_pat) == True]
+            logger.debug('DEMs remaining after selecting only intrack: '
+                         '{:,}'.format(len(dems)))
 
-        logger.debug('Remaining DEMs after initial subsetting: {:,}'.format(len(dems)))
+        logger.debug('Remaining DEMs after initial subsetting: '
+                     '{:,}'.format(len(dems)))
         if len(dems) == 0:
             logger.warning('No DEMS found.')
             # sys.exit()
@@ -315,7 +332,6 @@ def dem_selector(AOI_PATH=None,
         for row in tqdm(dems[[fields['VALID_ON'], VALID_PERC]].itertuples(index=True),
                         total=len(dems)):
             vp = valid_percent(gdal_ds=row[1])
-            # vp = valid_percent_clip(AOI_PATH, row[1]) # Index is row[0], then passed columns
             dems.at[row.Index, VALID_PERC] = vp
         if VALID_THRESH:
             dems = dems[dems[VALID_PERC] > VALID_THRESH]
@@ -327,7 +343,8 @@ def dem_selector(AOI_PATH=None,
         dems.to_file(OUT_DEM_FP)
     # Write list of IDs out
     if OUT_ID_LIST:
-        logger.info('Writing list of DEM catalogids to file: {}'.format(OUT_ID_LIST))
+        logger.info('Writing list of DEM catalogids to file: '
+                    '{}'.format(OUT_ID_LIST))
         if IMAGE1_IDS:
             logger.info('Locating Image 1 IDs for each DEM...')
             dems['META_TXT'] = dems[fields['PLATFORM_PATH']]. \
@@ -341,11 +358,13 @@ def dem_selector(AOI_PATH=None,
         write_ids(dem_ids, OUT_ID_LIST)
     # Write list of filepaths to DEMs
     if OUT_FILEPATH_LIST:
-        logger.info('Writing selected DEM system filepaths to: {}'.format(OUT_FILEPATH_LIST))
+        logger.info('Writing selected DEM system filepaths to: '
+                    '{}'.format(OUT_FILEPATH_LIST))
         try:
             filepaths = list(dems[fields['PLATFORM_PATH']])
         except KeyError as e:
-            logger.error('PLATOFRM_PATH field not found - use --locate_dems flag to generate field.')
+            logger.error('PLATOFRM_PATH field not found - use --locate_dems '
+                         'flag to generate field.')
             logger.error(e)
             sys.exit()
         write_ids(filepaths, OUT_FILEPATH_LIST)
@@ -390,16 +409,20 @@ if __name__ == '__main__':
     parser.add_argument('--aoi_path', type=os.path.abspath,
                         help='Path to AOI to select DEMs over.')
     parser.add_argument('--coords', nargs='+',
-                        help='Coordinates to use rather than AOI shapefile. Lon Lat')
+                        help='Coordinates to use rather than AOI shapefile. '
+                             'Lon Lat')
     parser.add_argument('--select_ids', type=os.path.abspath,
-                        help='List of IDs to select. Specify field in DEM index to select from using "--select_field"')
+                        help='List of IDs to select. Specify field in DEM index'
+                             ' to select from using "--select_field"')
     parser.add_argument('--select_field', type=str, action='append',
-                        help='Field in DEM index to select IDs in --select_ids from.')
+                        help='Field in DEM index to select IDs in --select_ids '
+                             'from.')
     # parser.add_argument('--dem_source', type=str, choices=['scene_dem', ])
     parser.add_argument('--out_dem_footprint', type=os.path.abspath,
                         help="Path to write shapefile of selected DEMs.")
     parser.add_argument('--out_id_list', type=os.path.abspath,
-                        help="Path to write text file of selected DEM's catalogids.")
+                        help="Path to write text file of selected DEM's "
+                             "catalogids.")
     id_write_group.add_argument('--both_ids', action='store_true',
                         help="Write both source IDs out.")
     id_write_group.add_argument('--image1_ids', action='store_true',
@@ -419,20 +442,31 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--resolution', type=float, choices=[0.5, 2.0, 2],
                         help='Restrict to a specific resolution.')
     parser.add_argument('-ms', '--multispectral', action='store_true',
-                        help='Use to select only DEMs from multispectral sources.')
+                        help='Use to select only DEMs from multispectral '
+                             'sources.')
     parser.add_argument('--density_threshold', type=float,
                         help='Minimum density to include in selection.')
     parser.add_argument('--valid_threshold', type=float,
-                        help="""Threshold percent of non-Nodata pixels for each DEM.
-                                Not recommended for large selections.""")
+                        help="""Threshold percent of non-Nodata pixels for each
+                         DEM. Not recommended for large selections.""")
     parser.add_argument('--calc_valid', action='store_true',
-                        help='Use to calculate percent non-NoData pixels for each DEM.')
+                        help='Use to calculate percent non-NoData pixels for '
+                             'each DEM.')
     parser.add_argument('--valid_on', type=str, choices=aux_files,
-                        help='DEM or auxillary file to calculate percent valid on.')
+                        help='DEM or auxillary file to calculate percent valid '
+                             'on.')
     parser.add_argument('--scenes', action='store_true',
-                        help="Use to select scenes from sandwich-pool.scene_dem rather than strips.")
+                        help="Use to select scenes from sandwich-pool.scene_dem"
+                             " rather than strips.")
     parser.add_argument('--locate_dems', action='store_true',
-                        help='Use to verify existence of DEMs.')
+                        help='Use to verify existence of DEMs. Required if '
+                             'using --calc_valid')
+
+    # os.chdir(r'E:\disbr007\umn\accuracy_assessment\mj_ward1')
+    # sys.argv = [r'C:\code\pgc-code-all\dem_utils\dem_selector.py',
+    #             '--aoi_path', r'aoi\mj_ward1_3413.shp',
+    #             '--out_dem_footprint', r'scratch\all_dems_2m_06_07_08_09_ms',
+    #             '--calc_valid', '--valid_on', 'matchtag']
 
     args = parser.parse_args()
 

@@ -117,6 +117,8 @@ def copy_dems(footprint_path, output_directory, location=None,
                          'ortho.tif',
                          'matchtag.tif',
                          'bitmask.tif',
+                         'dem_10m_shade',
+                         'masked'
                          ]
         if skip_ortho:
             logger.debug('Skipping ortho files.')

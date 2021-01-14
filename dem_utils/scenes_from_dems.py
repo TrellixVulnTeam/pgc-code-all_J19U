@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import geopandas as gpd
 
-from selection_utils.db_utils import Postgres
+from selection_utils.db import Postgres
 from selection_utils.danco_utils import get_stereo_ids
 from misc_utils.logging_utils import create_logger
 

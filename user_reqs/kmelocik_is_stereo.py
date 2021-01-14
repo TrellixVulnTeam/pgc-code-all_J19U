@@ -4,7 +4,7 @@ import pandas as pd
 import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger
-from selection_utils.db_utils import Postgres
+from selection_utils.db import Postgres
 
 logger = create_logger(__name__, 'sh', 'INFO')
 

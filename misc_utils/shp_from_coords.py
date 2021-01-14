@@ -40,7 +40,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     coords = args.point
-    print(coords)
     bbs = args.bounding_box
     src_file = args.src_file
 

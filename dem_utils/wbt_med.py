@@ -1,11 +1,13 @@
 import argparse
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 import subprocess
 from subprocess import PIPE
 
 from misc_utils.logging_utils import create_logger
 
+
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # Params
 wbt = 'whitebox_tools.exe'
@@ -24,6 +26,10 @@ def wbt_med(dem, out_dir=None, out_mag=None, out_scale=None,
             min_scale=1, max_scale=50, step=5, vw=False,
             dryrun=False):
     logger.info('Setting up whitebox_tool.exe MaxElevationDeviation')
+    if not isinstance(dem, PurePath):
+        dem = Path(dem)
+    if not isinstance(out_dir, PurePath):
+        out_dir = Path(out_dir)
     if not out_mag:
         out_mag = out_dir / '{}_med_mag_{}-{}-{}{}'.format(dem.stem, min_scale,
                                                            max_scale, step, dem.suffix)
@@ -53,6 +59,8 @@ def wbt_med(dem, out_dir=None, out_mag=None, out_scale=None,
         run_subprocess(cmd)
 
     logger.info('Done')
+
+    return out_mag
 
 
 if __name__ == '__main__':

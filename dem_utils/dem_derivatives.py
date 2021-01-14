@@ -40,7 +40,7 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
                              "TRI", "TPI", "Roughness"]
     if derivative not in supported_derivatives:
         logger.error('Unsupported derivative type. Must be one of: {}'.format(supported_derivatives))
-        sys.exit()
+        raise Exception
 
 #    out_name = '{}_{}.tif'.format(os.path.basename(input_dem).split('.')[0], derivative)
 #    out_path = os.path.join(os.path.dirname(input_dem), out_name)
@@ -49,7 +49,7 @@ def gdal_dem_derivative(input_dem, output_path, derivative, return_array=False, 
         # dem_options = gdal.DEMProcessingOptions(args)
     logger.info('Creating and writing {} to: {}'.format(derivative, output_path))
     status = gdal.DEMProcessing(output_path, input_dem, derivative, **args)
-    logger.info(status)
+    # logger.info(status)
 
     if return_array:
         array = Raster(output_path).Array

@@ -51,7 +51,10 @@ def wbt_curvature(in_dem, out_curv=None, out_dir=None, curv_type=curv_prof, dryr
         run_subprocess(cmd)
     else:
         logger.info(cmd)
+
     logger.info('Done.')
+
+    return out_curv
 
 
 if __name__ == '__main__':

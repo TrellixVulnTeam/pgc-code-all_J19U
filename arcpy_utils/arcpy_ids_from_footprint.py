@@ -11,7 +11,7 @@ import os
 from tqdm import tqdm
 
 
-def get_field_values(fc, field, unique):
+def get_field_values(fc, field, unique, where):
     '''
     Returns a list of all values in a given field
     fc: feature class
@@ -19,7 +19,7 @@ def get_field_values(fc, field, unique):
     unique: if True, returns a set of the values
     '''
     ## Set up arcpy cursor and list to store ids
-    cursor = arcpy.SearchCursor(fc)
+    cursor = arcpy.SearchCursor(fc, where_clause=where)
     ids = []
     num_rows = int(arcpy.GetCount_management(fc)[0])
     print(num_rows)
@@ -50,8 +50,10 @@ if __name__ == '__main__':
     parser.add_argument('field', type=str, help='Field in feature class.')
     parser.add_argument('out_path', type=os.path.abspath, help='Path to write ids to.')
     parser.add_argument('--unique', '-u', action='store_true', help='Use flag to return only unique ids (no duplicates)')
+    parser.add_argument('--where', help='Where clause to apply to feature class before selecting IDs.')
     
     args = parser.parse_args()
     
-    ids = get_field_values(args.feature_class, args.field, unique=args.unique)
+    ids = get_field_values(args.feature_class, args.field, unique=args.unique,
+                           where=args.where)
     write_ids(ids, args.out_path)

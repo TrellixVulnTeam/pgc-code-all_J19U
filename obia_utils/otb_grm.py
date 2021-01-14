@@ -8,15 +8,24 @@ import argparse
 import datetime
 import os
 from pathlib import Path
+import platform
 import subprocess
 from subprocess import PIPE
-
-from osgeo import gdal
 
 from misc_utils.logging_utils import create_logger, create_logfile_path
 from misc_utils.gdal_tools import gdal_polygonize
 # from cleanup_objects import mask_objs
 # from misc_utils.RasterWrapper import Raster
+
+
+logger = create_logger(__name__, 'sh', 'INFO')
+
+# Constants
+# Init OTB env
+if platform.system() == 'Windows':
+    otb_init = r"C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat"
+elif platform.system() == 'Linux':
+    otb_init = r"module load OTB"
 
 
 # Function definition
@@ -29,15 +38,38 @@ def run_subprocess(command):
     logger.debug('Err: {}'.format(error.decode()))
 
 
+def create_outname(img=None, out_seg=None, out_dir=None,
+                   criterion='bs', threshold=None, niter=0,
+                   speed=0, spectral=0.5, spatial=0.5,
+                   out_format='vector', name_only=False):
+    # Create output names as needed
+    if out_seg is None:
+        if out_dir is None:
+            out_dir = os.path.dirname(img)
+        out_name = os.path.basename(img).split('.')[0]
+        out_name = '{}_{}t{}ni{}s{}spec{}spat{}.tif'.format(out_name, criterion,
+                                                            str(threshold).replace('.', 'x'),
+                                                            niter, speed,
+                                                            str(spectral).replace('.', 'x'),
+                                                            str(spatial).replace('.', 'x'))
+        out_seg = os.path.join(out_dir, out_name)
+    if name_only and out_format == 'vector':
+        out_seg = out_seg.replace('tif', 'shp')
+
+    return out_seg
+
+
 def otb_grm(img,
             threshold,
             out_seg=None,
-            out_format='raster',
+            out_dir=None,
+            out_format='vector',
             criterion='bs',
             niter=0,
             speed=0,
-            cw=0.5,
-            sw=0.5,):
+            spectral=0.5,
+            spatial=0.5,
+            init_otb_env=True):
     """
     Run the Orfeo Toolbox GenericRegionMerging command via the command line.
     Requires that OTB environment is activated
@@ -56,39 +88,37 @@ def otb_grm(img,
         Merging iterations, 0 = no additional merging
     speed : int, optional
         Boost segmentation speed. The default is 0.
-    cw : float, optional
+    spectral : float, optional
         How much to consider spectral similarity. The default is 0.5.
-    sw : float, optional
+    spatial : float, optional
         How much to consider spatial similarity, i.e. shape. The default is 0.5.
+    out_format : str
+        Format to write segmentation out as {raster, vector}
 
     Returns
     -------
     None.
 
     """
-    # # Log input image information
-    # TODO: This is not working due to OTB using it's own GDAL.
-    # src = Raster(img)
-    # x_sz = src.x_sz
-    # y_sz = src.y_sz
-    # depth = src.depth
-    # src = None
+    # Create ouput name based on input parameters
+    if out_seg is None:
+        out_seg = create_outname(img=img,
+                                 out_seg=out_seg,
+                                 out_dir=out_dir,
+                                 criterion=criterion,
+                                 speed=speed,
+                                 threshold=threshold,
+                                 niter=niter,
+                                 spectral=spectral,
+                                 spatial=spatial)
 
-    # logger.info("""Running OTB Generic Region Merging...
-    #                Input image: {}
-    #                Image X Size: {}
-    #                Image Y Size: {}
-    #                Image # Bands: {}
-    #                Out image:   {}
-    #                Criterion:   {}
-    #                Threshold:   {}
-    #                # Iterate:   {}
-    #                Spectral:    {}
-    #                Spatial:     {}""".format(img, x_sz, y_sz, depth,
-    #                                          out_seg, criterion, threshold,
-    #                                          niter, cw, sw))
+    out_seg_parent = Path(out_seg).parent
+    if not out_seg_parent.exists():
+        logger.info('Creating directory for output:\n '
+                    '{}'.format(out_seg_parent))
+        os.makedirs(out_seg_parent)
 
-
+    # Log input image information
     logger.info("""Running OTB Generic Region Merging...
                     Input image: {}
                     Out image:   {}
@@ -99,7 +129,7 @@ def otb_grm(img,
                     Spectral:    {}
                     Spatial:     {}""".format(img, out_seg, out_format,
                                               criterion, threshold,
-                                              niter, cw, sw))
+                                              niter, spectral, spatial))
     # Build the command
     cmd = """otbcli_GenericRegionMerging
              -in {}
@@ -112,12 +142,15 @@ def otb_grm(img,
                               criterion,
                               threshold,
                               niter,
-                              cw,
-                              sw)
+                              spectral,
+                              spatial)
 
     # Remove whitespace, newlines
     cmd = cmd.replace('\n', '')
     cmd = ' '.join(cmd.split())
+    # Add environment init before calling segmentation
+    if init_otb_env:
+        cmd = '{} && {}'.format(otb_init, cmd)
 
     # Run command
     logger.debug(cmd)
@@ -128,11 +161,10 @@ def otb_grm(img,
     run_time = run_time_finish - run_time_start
     too_fast = datetime.timedelta(seconds=10)
     if run_time < too_fast:
-        logger.warning("""Execution completed quickly, likely due to an error. Did you activate
-                          OTB env first?
-                          "C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat" or
-                          module load otb/6.6.1
-                          """)
+        logger.warning("Execution completed quickly, likely due to an error. "
+                       "Did you activate OTB env first?\n"
+                       "'C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat'\nor\n"
+                       "module load otb/6.6.1")
     logger.info('GenericRegionMerging finished. Runtime: {}'.format(str(run_time)))
     
     if out_format == 'vector':
@@ -142,7 +174,9 @@ def otb_grm(img,
         logger.info('Segmentation created at: {}'.format(vec_seg))
         logger.debug('Removing raster segmentation...')
         os.remove(out_seg)
+        out_seg = vec_seg # For returning path to segments
 
+    return out_seg
 
 
 if __name__ == "__main__":
@@ -161,6 +195,7 @@ if __name__ == "__main__":
                                 created in a standardized fashion following:
                                 [input_filename]_c[criterion]t[threshold]ni[num_iterations]s[speed]spec[spectral]spat[spatial].tif""")
     parser.add_argument('-of', '--out_format', choices=['raster', 'vector'],
+                        default='vector',
                         help='Format of output segmentation.')
     parser.add_argument('-t', '--threshold',
                         type=float,
@@ -194,7 +229,7 @@ if __name__ == "__main__":
                              'shape')
     parser.add_argument('-l', '--log_file',
                         type=os.path.abspath,
-                        default='otb_lsms_log.txt',
+                        default='otb_grm.log',
                         help='Path to write log file to.')
     parser.add_argument('-ld', '--log_dir',
                         type=os.path.abspath,
@@ -214,18 +249,6 @@ if __name__ == "__main__":
     spectral = args.spectral
     spatial = args.spatial
 
-    # Create output names as needed
-    if out_seg is None:
-        if out_dir is None:
-            out_dir = os.path.dirname(image_source)
-        out_name = os.path.basename(image_source).split('.')[0]
-        out_name = '{}_{}t{}ni{}s{}spec{}spat{}.tif'.format(out_name, criterion,
-                                                            str(threshold).replace('.', 'x'),
-                                                            num_iterations, speed,
-                                                            str(spectral).replace('.', 'x'),
-                                                            str(spatial).replace('.', 'x'))
-        out_seg = os.path.join(out_dir, out_name)
-
     # Set up logger
     handler_level = 'INFO'
     log_file = args.log_file
@@ -238,8 +261,7 @@ if __name__ == "__main__":
     logger = create_logger(__name__, 'fh',
                            handler_level='DEBUG',
                            filename=args.log_file)
-    logger = create_logger(__name__, 'sh',
-                           handler_level=handler_level)
+
 
     # Run segmentation
     otb_grm(img=image_source,
@@ -249,5 +271,6 @@ if __name__ == "__main__":
             criterion=criterion,
             niter=num_iterations,
             speed=speed,
-            cw=spectral,
-            sw=spatial)
+            spectral=spectral,
+            spatial=spatial,
+            out_dir=out_dir)

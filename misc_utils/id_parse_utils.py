@@ -27,7 +27,8 @@ logger = create_logger(__name__, 'sh', 'INFO')
 ordered_path = r'C:\code\pgc-code-all\config\ordered_ids.txt'
 # Directory holding order sheets
 ordered_directory = r'E:\disbr007\imagery_orders'
-
+# Offline IDs path
+offline_ids_path = r'E:\pgc_index\pgcImageryIndexV6_2020nov23_offline_ids.txt'
 
 def type_parser(filepath):
     '''
@@ -395,6 +396,7 @@ def pgc_index_path(ids=False):
     if ids:
         index_path = content[1].strip('\n')
     logger.debug('PGC index path loaded: {}'.format(index_path))
+
     return index_path
 
 
@@ -427,13 +429,20 @@ def locate_ids(df, cat_id_field):
 
     # df['location'] = df[cat_id_field].apply(lambda x: locate_id(x, pgc_ids, nasa_ids, ordered_ids))
 
+def get_offline_ids():
+    offline_ids = set(read_ids(offline_ids_path))
+    return offline_ids
 
-def mfp_ids():
+def mfp_ids(online=False):
     """
     Returns all catalogids in the current masterfootprint.
     """
     ids_path = pgc_index_path(ids=True)
     ids = set(read_ids(ids_path))
+    if online is True:
+        offline_ids = get_offline_ids()
+        ids = ids.difference(offline_ids)
+
     return ids
 
 
@@ -665,7 +674,8 @@ def create_s_filepath(scene_id, strip_id, acqdate, prod_code):
 
 
 #%% Update ordered
-def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA')):
+def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA'),
+                   new_only=True):
     # TODO: Add a config file that is a list of filepaths that have already been processed,
     # TODO: then only read files not in that list
     """Update the text file of ordered IDs by reading from order sheets"""
@@ -696,10 +706,11 @@ def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA')):
         last_dir = None
         for f in files:
             f_path = os.path.join(root, f)
-            # Check if file newer than last update
-            if not os.path.getmtime(f_path) > last_update:
-                # print('skipping already read file.')
-                continue
+            if new_only:
+                # Check if file newer than last update
+                if not os.path.getmtime(f_path) > last_update:
+                    # print('skipping already read file.')
+                    continue
             cur_dir = os.path.basename(os.path.dirname(os.path.join(root, f)))
             if exclude and not any(ex in cur_dir for ex in exclude):
                 if cur_dir != last_dir:

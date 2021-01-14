@@ -139,3 +139,9 @@ clarie_repos
 # DB connections
 config/danco.footprint.json
 config/sandwich-pool.dem.json
+config/sandwich-pool.dgarchive.json
+config/*
+
+# development files
+scratch/*
+scratch/otb_grm_name_simplify.py

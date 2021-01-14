@@ -7,6 +7,8 @@ Created on Thu May 14 12:19:21 2020
 import copy
 import operator
 import matplotlib.pyplot as plt
+import numpy as np
+import sys
 
 import pandas as pd
 import geopandas as gpd
@@ -16,135 +18,265 @@ from misc_utils.gpd_utils import select_in_aoi
 from obia_utils.ImageObjects import ImageObjects
 
 
-
 pd.options.mode.chained_assignment = None
 
-logger = create_logger(__name__, 'sh', 'INFO')
-
-plt.style.use('pycharm')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 #%%
-obj_p = r'E:\disbr007\umn\2020sep27_eureka\seg\grm_ms' \
-        r'\WV02_20140703013631_1030010032B54F00_14JUL03013631-M1BS-' \
-        r'500287602150_01_P009_u16mr3413_pansh_test_aoi_468_' \
-        r'bst250x0ni0s0spec0x25spat25x0_cln.shp'
-aoi_p = r'E:\disbr007\umn\2020sep27_eureka\aois\test_aoi_sub.shp'
-aoi = gpd.read_file(aoi_p)
-
-# Existing column name
-med_mean = 'MED_mean'
-cur_mean = 'CurPr_mean'
-ndvi_mean = 'NDVI_mean'
-slope_mean = 'Slope_mean'
-mdfm_mean = 'MDFM_mean'
-edged_mean = 'EdgDen_mea'
-cclass_maj = 'CClass_maj'
+def rule_field_name(rule):
+    fn = '{}_{}{}'.format(rule['in_field'],
+                           str(rule['op'])[-3:-1],
+                           str(rule['threshold']).replace('.', 'x'))
+    if rule['rule_type'] == 'adjacent':
+        fn = '{}_{}'.format('adj', fn)
+    return fn
 
 
-#%%
-value_fields = [(mdfm_mean, 'mean'), (med_mean, 'mean'),
-                (cur_mean, 'mean'), (ndvi_mean, 'mean'),
-                (edged_mean, 'mean'), (slope_mean, 'mean'),
-                (cclass_maj, 'majority')
-                ]
+def create_rule(rule_type, in_field, op, threshold, out_field=None, **kwargs):
+    rule = {'rule_type': rule_type,
+            'in_field': in_field,
+            'op': op,
+            'threshold': threshold}
 
-if aoi_p:
-    logger.info('Subsetting objects to AOI...')
-    gdf = select_in_aoi(gpd.read_file(obj_p), aoi, centroid=True)
-    ios = ImageObjects(objects_path=gdf, value_fields=value_fields)
-else:
-    ios = ImageObjects(objects_path=obj_p, value_fields=value_fields)
+    if out_field is True:
+        rule['out_field'] = rule_field_name(rule)
 
-#%% Merging parameters
-# Merge column names
-merge_candidates = 'merge_candidates'
-merge_path = 'merge_path'
-mergeable = 'mergeable'
-
-#%%
-# Args
-# Criteria to determine candidates to be merged. This does not limit
-# which objects they may be merge to, that is done with pairwise criteria.
-merge_criteria = [
-                  (ios.area_fld, operator.lt, 1000000),
-                  (ndvi_mean, operator.lt, 0),
-                  # (med_mean, operator.lt, 0.3),
-                  # (slope_mean, operator.gt, 2)
-                 ]
-# Criteria to check between a merge candidate and merge option
-pairwise_criteria = {
-    # 'within': {'field': cur_mean, 'range': 10},
-    'threshold': {'field': ndvi_mean, 'op': operator.lt, 'threshold': 0}
-}
-#%%
-# Get neighbor ids into a list in column 'neighbors'
-ios.get_neighbors()
-#%%
-ios.compute_area()
-# ios.calc_object_stats()
-ios.compute_neighbor_values(cur_mean)
+    return rule
 
 
-#%% RULESET
-# TODO: Revisit naming of adjacency fields
-#%% High curvature adjacent to low curvature
-high_curv = 25
-low_curv = -25
-curv_h_adj_l = 'curv_gt25_adj_lt25'
-ios.adjacent_to(in_field=cur_mean, op=operator.lt, thresh=low_curv,
-                src_field=cur_mean, src_op=operator.gt, src_thresh=high_curv,
-                out_field=curv_h_adj_l)
-#%% Adjacent to both high and low curvature
-curv_adj_hl = 'adj_gt25_lt25'
-ios.objects[curv_adj_hl] = (ios.adjacent_to(in_field=cur_mean, op=operator.lt,
-                                            thresh=low_curv) &
-                            (ios.adjacent_to(in_field=cur_mean, op=operator.gt,
-                                             thresh=high_curv)))
-#%% NDVI less than 0 adjacent greater than 0
-ndvi_lt0_adj_gt0 = 'ndvi_lt0_adj_gt0'
-ndvi_adj = ios.adjacent_to(in_field=ndvi_mean, op=operator.gt, thresh=0,
-                           src_field=ndvi_mean, src_op=operator.lt, src_thresh=0,
-                           out_field=ndvi_lt0_adj_gt0)
-#%% NDVI adjacent to less than 0 and greater than 0
-ndvi_adj_gt0_lt0 = 'adj_ndvi_lt0_gt0'
-ios.objects[ndvi_adj_gt0_lt0] = (ios.adjacent_to(in_field=ndvi_mean, op=operator.lt,
-                                            thresh=0) &
-                            (ios.adjacent_to(in_field=ndvi_mean, op=operator.gt,
-                                             thresh=0)))
-#%%
-# Determines merge paths
-# ios.pseudo_merging(merge_fields=[med_mean, ndvi_mean],
-#                    merge_criteria=merge_criteria,
-#                    pairwise_criteria=pairwise_criteria)
-#%%
-# Does merging
-# ios.merge()
-#%%
-logger.info('Writing...')
-out_footprint = r'E:\disbr007\umn\2020sep27_eureka\scratch\adj_obj_bool.geojson'
-ios.write_objects(out_footprint, overwrite=True)
+def contains_any_objects(geometry, others, centroid=True,
+                         threshold=None,
+                         other_value_field=None,
+                         op=None):
+    """Determines if any others are in geometry, optionally using the
+    centroids of others, optionally using a threshold on others to
+    reduce the number of others that are considered"""
+    if threshold:
+        # Subset others to only include those that meet threshold provided
+        others = others[op(others[other_value_field], threshold)]
+
+    # Determine if object contains others
+    if centroid:
+        others_geoms = others.geometry.centroid.values
+    else:
+        others_geoms = others.geometry.values
+    contains = np.any([geometry.contains(og) for og in others_geoms])
+
+    return contains
 
 
-#%% object with value within distance
-# obj_p = r'E:\disbr007\umn\2020sep27_eureka\scratch\region_grow_objs.shp'
-# obj = gpd.read_file(obj_p)
-# field = 'CurPr_mean'
-# candidate_value = 25
-# dist_to_value = -25
-# dist = 2
-#
-# selected = obj[obj[field] > candidate_value]
-#
-# for i, r in selected.iterrows():
-#     if i == 348:
-#         tgdf = gpd.GeoDataFrame([r], crs=obj.crs)
-#         within_area = gpd.GeoDataFrame(geometry=tgdf.buffer(dist), crs=obj.crs)
-#         # overlay
-#         # look up values for features in overlay matches
-#         # if meet dist to value, True
+def classify_rts(sub_objects_path,
+                 super_objects_path,
+                 headwall_candidates_out=None,
+                 headwall_candidates_centroid_out=None,
+                 rts_candidates_out=None,
+                 aoi_path=None):
+    logger.info('Classifying RTS...')
+    #%% Fields
+    # Existing fields
+    med_mean = 'med_mean'
+    cur_mean = 'curv_mean'
+    ndvi_mean = 'ndvi_mean'
+    slope_mean = 'slope_mean'
+    rug_mean = 'ruggedness'
+    sa_rat_mean = 'sar_mean'
+    elev_mean = 'dem_mean'
+    pan_mean = 'img_mean'
+    delev_mean = 'diff_mean'
 
-#%% Plotting
-fig, ax = plt.subplots(1, 1)
-ios.objects.plot(ax=ax)
-fig.show()
+    value_fields = [
+        (med_mean, 'mean'),
+        (cur_mean, 'mean'),
+        (ndvi_mean, 'mean'),
+        (slope_mean, 'mean'),
+        (rug_mean, 'mean'),
+        (sa_rat_mean, 'mean'),
+        (elev_mean, 'mean'),
+        (delev_mean, 'mean'),
+        ]
+
+    # Created columns
+
+    simple_thresholds = 'hw_simple_thresholds'
+    adj_rules = 'adj_rules'
+    hw_candidate = 'headwall_candidate'
+
+    rts_simple_thresholds = 'rts_simple_threshold'
+    contains_hw = 'contains_hw'
+    rts_candidate = 'rts_candidate'
+    truth = 'truth'
+
+    # Columns to be converted to strings before writing
+    to_str_cols = []
+
+    #%% RULESET
+    # Headwall Rules
+    # Ruggedness
+    r_ruggedness = create_rule(rule_type='threshold',
+                               in_field=rug_mean,
+                               op=operator.gt,
+                               threshold=0.2,
+                               out_field=True)
+    # Surface Area Ratio
+    r_saratio = create_rule(rule_type='threshold',
+                            in_field=sa_rat_mean,
+                            op=operator.gt,
+                            threshold=1.01,
+                            out_field=True)
+    # Slope
+    r_slope = create_rule(rule_type='threshold',
+                          in_field=slope_mean,
+                          op=operator.gt,
+                          threshold=8,
+                          out_field=True)
+    # NDVI
+    r_ndvi = create_rule(rule_type='threshold',
+                         in_field=ndvi_mean,
+                         op=operator.lt,
+                         threshold=0,
+                         out_field=True)
+    # MED
+    r_med = create_rule(rule_type='threshold',
+                        in_field=med_mean,
+                        op=operator.lt,
+                        threshold=0,
+                        out_field=True)
+    # Curvature (high)
+    r_curve = create_rule(rule_type='threshold',
+                          in_field=cur_mean,
+                          op=operator.gt,
+                          threshold=2.5,
+                          out_field=True)
+    # Difference in DEMs
+    r_delev = create_rule(rule_type='threshold',
+                          in_field=delev_mean,
+                          op=operator.lt,
+                          threshold=-0.5,
+                          out_field=True)
+
+    # All simple threshold rules
+    r_simple_thresholds = [r_ruggedness,
+                           r_saratio,
+                           r_slope,
+                           r_ndvi,
+                           r_med,
+                           r_curve,
+                           r_delev]
+
+    # Adjacency rules
+    # Adjacent Curvature
+    r_adj_high_curv = create_rule(rule_type='adjacent',
+                                  in_field=cur_mean,
+                                  op=operator.gt,
+                                  threshold=30,
+                                  out_field=True)
+    r_adj_low_curv = create_rule(rule_type='adjacent',
+                                 in_field=cur_mean,
+                                 op=operator.lt,
+                                 threshold=-30,
+                                 out_field=True)
+    # Adjacent MED
+    r_adj_low_med = create_rule(rule_type='adjacent',
+                                in_field=med_mean,
+                                op=operator.lt,
+                                threshold=-0.2,
+                                out_field=True)
+    # All adjacent rules
+    r_adj_rules = [r_adj_low_curv, r_adj_high_curv, r_adj_low_med]
+
+
+    #%% RTS Rules
+    r_rts_ndvi = create_rule(rule_type='threshold',
+                             in_field=ndvi_mean,
+                             op=operator.lt,
+                             threshold=0,
+                             out_field=True)
+    r_rts_med = create_rule(rule_type='threshold',
+                            in_field=med_mean,
+                            op=operator.lt,
+                            threshold=0,
+                            out_field=True)
+    r_rts_slope = create_rule(rule_type='threshold',
+                              in_field=slope_mean,
+                              op=operator.gt,
+                              threshold=3,
+                              out_field=True)
+    r_rts_delev = create_rule(rule_type='threshold',
+                              in_field=delev_mean,
+                              op=operator.gt,
+                              threshold=-0.5)
+    r_rts_conhw = create_rule(rule_type='threshold',
+                              in_field=contains_hw,
+                              op=operator.eq,
+                              threshold=True)
+
+    r_rts_simple_thresholds = [r_rts_ndvi,
+                               r_rts_med,
+                               r_rts_slope,
+                               r_rts_conhw]
+
+
+    #%% HEADWALL CANDIDATES
+    #%% Load candidate headwall objects
+    logger.info('Loading headwall candidate objects...')
+    if aoi_path:
+        aoi = gpd.read_file(aoi_path)
+        logger.info('Subsetting objects to AOI...')
+        gdf = select_in_aoi(gpd.read_file(sub_objects_path), aoi, centroid=True)
+        hwc = ImageObjects(objects_path=gdf, value_fields=value_fields)
+    else:
+        hwc = ImageObjects(objects_path=sub_objects_path, value_fields=value_fields)
+
+
+    #%% Classify headwalls
+    logger.info('Determining headwall candidates...')
+    hwc.classify_objects(hw_candidate,
+                         threshold_rules=r_simple_thresholds,
+                         adj_rules=r_adj_rules)
+    logger.info('Headwall candidates found: {:,}'.format(
+        len(hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate])))
+
+    #%% Write headwall candidates
+    logger.info('Writing headwall candidates...')
+    hwc.write_objects(headwall_candidates_out,
+                      to_str_cols=to_str_cols,
+                      overwrite=True)
+    if headwall_candidates_centroid_out:
+        hwc_centroid = ImageObjects(
+            copy.deepcopy(
+                hwc.objects.set_geometry(hwc.objects.geometry.centroid)))
+        hwc_centroid.write_objects(headwall_candidates_centroid_out,
+                                   overwrite=True)
+
+
+    #%% RETROGRESSIVE THAW SLUMPS
+    #%% Load super objects
+    logger.info('Loading RTS candidate objects...')
+    so = ImageObjects(super_objects_path,
+                      value_fields=value_fields)
+    logger.info('Determining RTS candidates...')
+
+    #%% Find objects that contain headwalls of a higher elevation than themselves
+    so.objects[contains_hw] = so.objects.apply(
+        lambda x: contains_any_objects(
+            x.geometry,
+            hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate],
+            threshold=x[elev_mean],
+            other_value_field=elev_mean,
+            op=operator.gt),
+        axis=1)
+
+    #%% Classify
+    so.classify_objects(class_name=rts_candidate,
+                        threshold_rules=r_rts_simple_thresholds)
+
+    logger.info('RTS candidates found: {}'.format(
+        len(so.objects[so.objects[so.class_fld] == rts_candidate])))
+    #%% Write RTS candidates
+    logger.info('Writing headwall candidates...')
+    so.write_objects(rts_candidates_out,
+                     to_str_cols=to_str_cols,
+                     overwrite=True)
+
+    return rts_candidates_out

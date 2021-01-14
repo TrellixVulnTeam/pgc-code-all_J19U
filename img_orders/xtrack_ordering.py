@@ -47,7 +47,8 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 # sublogger = create_logger('selection_utils.query_danco', 'sh', 'INFO')
 
 
-def create_where(sensors=None, min_date=None, max_date=None, min_ovlp=None, max_datediff=None,
+def create_where(sensors=None, min_date=None, max_date=None, min_ovlp=None,
+                 min_datediff=None, max_datediff=None,
                  max_suneldiff=None, min_meansunel=None, within_sensor=False,
                  noh=True, projects=None, region_names=None):
     """Create where clause"""
@@ -74,6 +75,9 @@ def create_where(sensors=None, min_date=None, max_date=None, min_ovlp=None, max_
     if min_ovlp:
         where = check_where(where)
         where += "(perc_ovlp >= {})".format(min_ovlp)
+    if min_datediff:
+        where = check_where(where)
+        where += "(datediff >= {})".format(min_datediff)
     if max_datediff:
         where = check_where(where)
         where += "(datediff <= {})".format(max_datediff)
@@ -114,6 +118,7 @@ def main(args):
     min_ovlp = args.min_ovlp
     max_suneldiff = args.max_suneldiff
     min_meansunel = args.min_meansunel
+    min_datediff = args.min_datediff
     max_datediff = args.max_datediff
     aoi_path = args.aoi
     projects = args.projects
@@ -135,10 +140,13 @@ def main(args):
             os.makedirs(os.path.dirname(out_footprint))
 
     where = create_where(sensors=sensors, min_date=min_date, max_date=max_date,
-                         max_datediff=max_datediff, min_ovlp=min_ovlp,
-                         max_suneldiff=max_suneldiff, min_meansunel=min_meansunel,
-                         within_sensor=within_sensor, noh=remove_oh,
-                         projects=projects, region_names=region_names)
+                         min_datediff=min_datediff, max_datediff=max_datediff,
+                         min_ovlp=min_ovlp, max_suneldiff=max_suneldiff,
+                         min_meansunel=min_meansunel,
+                         within_sensor=within_sensor,
+                         noh=remove_oh,
+                         projects=projects,
+                         region_names=region_names)
 
     logger.info('Getting size of table with query...')
     table_total = count_table(xtrack_tbl, where=where)
@@ -218,7 +226,8 @@ def main(args):
         noh_str = ' not_on_hand'
     else:
         noh_str = ''
-    logger.info('Finding {:,} out of {:,} IDs{}, starting with largest area...'.format(num_ids, len(master), noh_str))
+    logger.info('Finding {:,} out of {:,} IDs{}, starting with largest '
+                'area...'.format(num_ids, len(master), noh_str))
 
     out_ids = set()
     kept_rows = set()
@@ -281,6 +290,8 @@ if __name__ == '__main__':
                         help='Minimum suneldif to include.')
     parser.add_argument('--min_meansunel', type=int,  default=5,
                         help='Minimum mean sunel to include')
+    parser.add_argument('--min_datediff', type=int,
+                        help='Minimum date difference to include.')
     parser.add_argument('--max_datediff', type=int, default=10,
                         help='Maximum date difference to include. ')
     parser.add_argument('--aoi', type=os.path.abspath,

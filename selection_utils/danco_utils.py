@@ -1,4 +1,4 @@
-from selection_utils.db_utils import Postgres, encode_geom_sql
+from selection_utils.db import Postgres, encode_geom_sql
 from selection_utils.query_danco import query_footprint
 
 footprint_db = 'danco.footprint'

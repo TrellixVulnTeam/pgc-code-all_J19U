@@ -345,7 +345,8 @@ def minimum_bounding_box(rasters):
     return projWin
 
 
-def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip', out_format='tif'):
+def clip_minbb(rasters, in_mem=False, out_dir=None, out_suffix='_clip',
+               out_format='tif'):
     '''
     Takes a list of rasters and translates (clips) them to the minimum bounding box.
 
@@ -410,9 +411,6 @@ def gdal_polygonize(img, out_vec, band=1, fieldname='label', overwrite=True):
         GDAL exit code: -1 indicates failure and triggers a logging message.
 
     """
-    
-
-    
     logger.info('Vectorizing raster:\n{}\n-->\n{}\n'.format(img, out_vec))
     if os.path.exists(out_vec) and overwrite:
         vec_base = '{}'.format(os.path.splitext(out_vec)[0])

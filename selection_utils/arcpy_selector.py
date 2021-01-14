@@ -108,6 +108,7 @@ def determine_input_type(selector, selector_field):
 
 
 def create_where(max_cc=None, prod_code=None, sensors=None,
+                 min_date=None, max_date=None,
                  min_x=None, max_x=None, min_y=None, max_y=None,
                  min_year=None, max_year=None, months=None,
                  max_off_nadir=None, spec_type=None,
@@ -135,6 +136,12 @@ def create_where(max_cc=None, prod_code=None, sensors=None,
         sensors_str = str(sensors)[1:-1]
         where += """(sensor IN ({}))""".format(sensors_str)
     # Time selection
+    if min_date:
+        where = check_where(where)
+        where += """(acq_time >= '{}')""".format(min_date)
+    if max_date:
+        where = check_where(where)
+        where += """(acq_time <= '{}')""".format(max_date)
     if min_year != argdef_min_year or max_year != argdef_max_year or months != argdef_months:
         where = check_where(where)
         year_sql = """ acq_time >= '{}-00-00' AND acq_time <= '{}-12-32'""".format(min_year, max_year)
@@ -266,6 +273,8 @@ def select_by_id(selector, imagery_index, id_field='CATALOG_ID', where=None,
     logger.debug('Where clause for ID selection: {}\n'.format(where))
 
     logger.info('Making selection by IDs...')
+    # logger.warning(where[:500])
+    # logger.warning(where[-550:])
     selection = arcpy.MakeFeatureLayer_management(imagery_index, where_clause=where)
 
     if join_field:
@@ -325,6 +334,8 @@ if __name__ == '__main__':
     # Default arguments
     argdef_sensors          = ['QB02', 'IK01', 'GE01', 'WV01', 'WV02', 'WV03']
     argdef_prod_code        = ['M1BS', 'P1BS']
+    argdef_min_date         = '1900-01-01'
+    argdef_max_date         = '3000-01-01'
     argdef_min_year         = '1900'
     argdef_max_year         = '9999'
     argdef_months           = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
@@ -384,6 +395,10 @@ if __name__ == '__main__':
                                   help='Sensors to include. E.g. WV01 WV02')
     attributes_group.add_argument('--spec_type', nargs='+',
                                   help='spec_type to include. eg. SWIR Multispectral')
+    attributes_group.add_argument('--min_date', type=str, default=argdef_min_date,
+                                  help='Minimum date to include: yyyy-mm-dd')
+    attributes_group.add_argument('--max_date', type=str, default=argdef_max_date,
+                                  help='Maximum date to include: yyyy-mm-dd')
     attributes_group.add_argument('--min_year', type=str, default=argdef_min_year,
                                   help='Earliest year to include.')
     attributes_group.add_argument('--max_year', type=str, default=argdef_max_year,
@@ -449,6 +464,8 @@ if __name__ == '__main__':
     prod_code = args.prod_code
     sensors = args.sensors
     spec_type = args.spec_type
+    min_date = args.min_date
+    max_date = args.max_date
     min_year = args.min_year
     max_year = args.max_year
     months = args.months
@@ -493,6 +510,7 @@ if __name__ == '__main__':
         omit_ids = None
 
     where = create_where(max_cc=max_cc, prod_code=prod_code, sensors=sensors,
+                         min_date=min_date, max_date=max_date,
                          min_year=min_year, max_year=max_year, months=months,
                          max_off_nadir=max_off_nadir, spec_type=spec_type,
                          min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y,
@@ -500,6 +518,8 @@ if __name__ == '__main__':
                          argdef_min_year=argdef_min_year, argdef_max_year=argdef_max_year,
                          argdef_months=argdef_months)
 
+    logger.warning(where[:250])
+    logger.warning(where[-250:])
     selection = select_footprints(selector=selector, input_type=input_type,
                                   imagery_index=imagery_index, join_field=join_field,
                                   selector_field=selector_field,

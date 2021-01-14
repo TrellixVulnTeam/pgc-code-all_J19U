@@ -25,5 +25,11 @@
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://sandwich-pool.pgc.umn.edu:5432/planet</jdbc-url>
     </data-source>
+    <data-source source="LOCAL" name="dgarchive" uuid="31099b30-24c6-4894-b99b-930a7a5bf75d">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://sandwich-pool.pgc.umn.edu:5432/dgarchive</jdbc-url>
+    </data-source>
   </component>
 </project>

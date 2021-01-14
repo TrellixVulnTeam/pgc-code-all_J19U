@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://E:/disbr007/umn/accuracy_assessment/.idea/accuracy_assessment.iml" filepath="E:/disbr007/umn/accuracy_assessment/.idea/accuracy_assessment.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/rts.iml" filepath="$PROJECT_DIR$/.idea/rts.iml" />
     </modules>
   </component>
