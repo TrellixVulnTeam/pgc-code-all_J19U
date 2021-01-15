@@ -6,6 +6,7 @@ Created on Wed Oct 30 12:49:36 2019
 """
 import os
 import platform
+from pathlib import Path
 
 
 def get_creds():
@@ -13,11 +14,12 @@ def get_creds():
     creds = []
 
     system = platform.system()
-    if system == 'Linux':
-        creds_loc = os.path.join('/mnt', 'pgc', 'data', 'scratch', 'jeff', 'code', 'pgc-code-all', 'config', 'cred.txt')
-        # creds_loc = os.path.join('pgc-code-all', 'config', 'cred.txt')
-    elif system == 'Windows':
-        creds_loc = r"C:\code\pgc-code-all\config\cred.txt"
+    creds_loc = Path(__file__).parent.parent / 'config' / 'cred.txt'
+    # if system == 'Linux':
+    #     creds_loc = os.path.join('/mnt', 'pgc', 'data', 'scratch', 'jeff', 'code', 'pgc-code-all', 'config', 'cred.txt')
+    #     # creds_loc = os.path.join('pgc-code-all', 'config', 'cred.txt')
+    # elif system == 'Windows':
+    #     creds_loc = r"C:\code\pgc-code-all\config\cred.txt"
     with open(creds_loc, 'r') as cred:
         content = cred.readlines()
         for line in content:

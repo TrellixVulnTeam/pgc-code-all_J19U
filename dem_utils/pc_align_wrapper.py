@@ -151,7 +151,10 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
         run_subprocess(pca_command)
 
         # Read contents of created log file and report translation information
-        log_file = [os.path.join(out_dir, f) for f in os.listdir(out_dir) if '-log-pc_align' in f][0]
+        try:
+            log_file = [os.path.join(out_dir, f) for f in os.listdir(out_dir) if '-log-pc_align' in f][0]
+        except IndexError:
+            logger.error('No "-log-pc_align" file found. Did pc_align run successfuly?')
         with open(log_file, 'r') as lf:
             content = lf.readlines()
             trans_info = 'Translation information:\n'

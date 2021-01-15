@@ -65,7 +65,7 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
         dem1 = None
         arr2 = dem2.MaskedArray
         dem2 = None
-
+        arr2pca = dem2pca.MaskedArray
 
     else:
         arr1 = dem1.MaskedArray
@@ -157,19 +157,26 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
         plt.style.use('ggplot')
         fig, ax = plt.subplots(1,2)
         # Plot unaligned differences with line at 0
-        ax[0].hist(diffs.compressed().flatten(), log=log_scale, bins=bins, edgecolor='white', 
-                alpha=0.75, range=[min([diffs.min(), diffs_pca.min()]), max([diffs.min(), diffs_pca.max()])])
+        ax[0].hist(diffs.compressed().flatten(), log=log_scale, bins=bins,
+                   edgecolor='white', alpha=0.75,
+                   range=[min([diffs.min(), diffs_pca.min()]),
+                          max([diffs.min(), diffs_pca.max()])])
         ax[0].axvline(x=0, linewidth=2, color='black')
         
         # Plot aligned differences with line at 0
-        ax[1].hist(diffs_pca.compressed().flatten(), log=log_scale, bins=bins, edgecolor='white', color='b',
-                alpha=0.75, range=[min([diffs.min(), diffs_pca.min()]), max([diffs.min(), diffs_pca.max()])])
+        ax[1].hist(diffs_pca.compressed().flatten(), log=log_scale, bins=bins,
+                   edgecolor='white', color='b', alpha=0.75,
+                   range=[min([diffs.min(), diffs_pca.min()]),
+                          max([diffs.min(), diffs_pca.max()])])
         ax[1].axvline(x=0, linewidth=2, color='black')
+
         # Annotation and titles        
         ax[0].set_title('Pre-Alignment')
         ax[0].annotate('RMSE: {:.2f}'.format(rmse), xy=(0.05, 0.95), xycoords='axes fraction')
         ax[1].set_title('Post-Alignment')
         ax[1].annotate('RMSE: {:.2f}'.format(rmse_pca), xy=(0.05, 0.95), xycoords='axes fraction')
+
+        ax.legend()
 
         plt.tight_layout()
         

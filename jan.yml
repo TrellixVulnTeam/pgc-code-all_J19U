@@ -1,0 +1,16 @@
+name: jan
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - fiona
+  - gdal
+  - geopandas
+  - psycopg2
+  - rasterio
+  - rasterstats
+  - scikit-image
+  - scipy
+  - shapely
+  - sqlalchemy
