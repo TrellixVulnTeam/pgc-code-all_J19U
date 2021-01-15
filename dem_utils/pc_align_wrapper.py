@@ -29,7 +29,8 @@ from rmse_compare import rmse_compare
 # logger = logging.getLogger(__name__)
 
 
-def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, warp=False, dryrun=False):
+def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
+            rmse=False, use_long_names=False, warp=False, dryrun=False):
     """
     Run pc_align, then point2dem on two input DEMs,
     optionally calculating before and after RMSE's,
@@ -121,7 +122,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
             rmse_outfile = None
             save_plot = None
         pre_rmse = dem_rmse(dem1, dem2,
-                            max_diff=max_diff,
+                            max_diff=max_diff_rmse,
                             outfile=rmse_outfile,
                             plot=True,
                             save_plot=save_plot)
@@ -129,7 +130,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
 
     # PC_ALIGN
     logger.info('Running pc_align...')
-    max_displacement = max_diff
+    max_displacement = max_diff_pca
     # TODO: Make number threads an argument
     threads = 16
     prefix = '{}'.format(dem2_name)
@@ -188,7 +189,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
         save_plot = os.path.join(out_dir, '{}_postRMSE.png'.format(combo_name))
         if not dryrun:
             post_rmse = dem_rmse(dem1, out_dem, 
-                                 max_diff=max_diff,
+                                 max_diff=max_diff_rmse,
                                  outfile=rmse_outfile,
                                  plot=True,
                                  save_plot=save_plot)
@@ -197,7 +198,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
             rmse_compare_outfile = os.path.join(out_dir, '{}_compareRMSE.txt'.format(combo_name))
             rmse_compare_save_plot = os.path.join(out_dir, '{}_compareRMSE.png'.format(combo_name))
             rmse_compare(dem1, dem2, out_dem,
-                         max_diff=max_diff,
+                         max_diff=max_diff_rmse,
                          outfile=rmse_compare_outfile,
                          plot=True,
                          save_plot=rmse_compare_save_plot)
@@ -222,7 +223,9 @@ def pca_p2d(dem1, dem2, out_dir, max_diff=10, rmse=False, use_long_names=False, 
     shutil.move(out_dem, pc_align_dem_dir)
 
 
-def main(dems, out_dir, max_diff=10, dem_ext='tif', dem_fp=None, rmse=False, warp=False, dryrun=False, verbose=False):
+def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None,
+         dem_ext='tif', dem_fp=None, rmse=False, warp=False, dryrun=False,
+         verbose=False):
     """Align DEMs and writes outputs to out_dir."""
     # if verbose:
     #     handler_level = 'DEBUG'
@@ -267,7 +270,8 @@ def main(dems, out_dir, max_diff=10, dem_ext='tif', dem_fp=None, rmse=False, war
     for i, od in enumerate(other_dems):
         logger.info('Processing DEM {} / {}'.format(i + 1, len(other_dems)))
         logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM:    {}'.format(ref_dem, od))
-        pca_p2d(ref_dem, od, max_diff=max_diff, out_dir=out_dir, rmse=rmse,
+        pca_p2d(ref_dem, od, max_diff_pca=max_diff_pca,
+                max_diff_rmse=max_diff_rmse, out_dir=out_dir, rmse=rmse,
                 use_long_names=use_long_names, warp=warp, dryrun=dryrun)
 
     logger.info('Done.')
@@ -296,8 +300,10 @@ if __name__ == '__main__':
                                     reference DEM.""")
     parser.add_argument('--rmse', action='store_true',
                         help='Compute RMSE before and after alignment.')
-    parser.add_argument('--max_diff', type=int, default=10,
-                        help='Maximum difference to use in pc_align and RMSE calculations.')
+    parser.add_argument('--max_diff_pca', type=int, default=10,
+                        help='Maximum difference to use in pc_align.')
+    parser.add_argument('--max_diff_rmse', type=int, default=None,
+                        help='Maximum difference to use in RMSE.')
     parser.add_argument('--logfile', type=os.path.abspath,
                         help='Path to write log file.')
     parser.add_argument('--dryrun', action='store_true',
@@ -312,7 +318,8 @@ if __name__ == '__main__':
     out_dir = args.out_dir
     dem_fp = args.dem_fp
     rmse = args.rmse
-    max_diff = args.max_diff
+    max_diff_pca = args.max_diff_pca
+    max_diff_rmse = args.max_diff_rmse
     logfile = args.logfile
     dryrun = args.dryrun
     verbose = args.verbose
@@ -329,5 +336,6 @@ if __name__ == '__main__':
                                handler_level=handler_level,
                                filename=logfile)
 
-    main(dems, out_dir, max_diff=max_diff, dem_ext=dem_ext, dem_fp=dem_fp,
+    main(dems, out_dir, max_diff_pca=max_diff_pca, max_diff_rmse=max_diff_rmse,
+         dem_ext=dem_ext, dem_fp=dem_fp,
          rmse=rmse, dryrun=dryrun, verbose=verbose)

@@ -18,7 +18,7 @@ from misc_utils.gdal_tools import clip_minbb, match_pixel_size
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
-def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, plot=False,
+def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None, plot=False,
                  save_plot=None, show_plot=False, bins=10, log_scale=True):
     # Load DEMs as arrays
     logger.info('Loading DEMs...')
@@ -38,7 +38,7 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
             dem2 = None
             max = match_pixel_size([p1, p2], r'/vsimem/matching_px.tif', resampleAlg='cubic', in_mem=True)
             dem1 = Raster(p1)
-            dem2 = Raster(output)
+            dem2 = Raster(p2)
             logger.info('DEM1 sz: {} {}'.format(dem1.x_sz, dem1.y_sz))
             logger.info('DEM2 sz: {} {}'.format(dem2.x_sz, dem2.y_sz))
 
@@ -81,15 +81,20 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
     logger.info('Computing RMSE pre-alignment...')
     diffs = arr1 - arr2
     # Remove any differences bigger than max_diff
-    logger.debug('Checking for large differences, max_diff: {}'.format(max_diff))
-    size_uncleaned = diffs.size
-    diffs = diffs[abs(diffs) < max_diff]
-    size_cleaned = diffs.size
-    if size_uncleaned != size_cleaned:
-        logger.debug('Removed differences over max_diff ({}) from RMSE calculation...'.format(max_diff))
-        logger.debug('Size before: {:,}'.format(size_uncleaned))
-        logger.debug('Size after:  {:,}'.format(size_cleaned))
-        logger.debug('Pixels removed: {:.2f}% of overlap area'.format(((size_uncleaned-size_cleaned)/size_uncleaned)*100))
+    if max_diff:
+        logger.debug('Checking for large differences, max_diff: '
+                     '{}'.format(max_diff))
+        size_uncleaned = diffs.size
+        diffs = diffs[abs(diffs) < max_diff]
+
+        size_cleaned = diffs.size
+        if size_uncleaned != size_cleaned:
+            logger.debug('Removed differences over max_diff ({}) from RMSE '
+                         'calculation...'.format(max_diff))
+            logger.debug('Size before: {:,}'.format(size_uncleaned))
+            logger.debug('Size after:  {:,}'.format(size_cleaned))
+            logger.debug('Pixels removed: {:.2f}% of overlap area'.format(
+                ((size_uncleaned-size_cleaned)/size_uncleaned)*100))
 
     sq_diff = diffs**2
     mean_sq = sq_diff.sum() / sq_diff.count()
@@ -118,14 +123,16 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=10, outfile=None, 
     # Compute RMSE
     logger.info('Computing RMSE post-alignment...')
     diffs_pca = arr1 - arr2pca
+
     # Remove any differences bigger than max_diff
-    diffs_pca = diffs_pca[abs(diffs_pca) < max_diff]
-    size_cleaned = diffs.size
-    if size_uncleaned != size_cleaned:
-        logger.debug('Removed differences over max_diff ({}) from RMSE calculation...'.format(max_diff))
-        logger.debug('Size before: {:,}'.format(size_uncleaned))
-        logger.debug('Size after:  {:,}'.format(size_cleaned))
-        logger.debug('Pixels removed: {:.2f}% of overlap area'.format(((size_uncleaned-size_cleaned)/size_uncleaned)*100))
+    if max_diff:
+        diffs_pca = diffs_pca[abs(diffs_pca) < max_diff]
+        size_cleaned = diffs.size
+        if size_uncleaned != size_cleaned:
+            logger.debug('Removed differences over max_diff ({}) from RMSE calculation...'.format(max_diff))
+            logger.debug('Size before: {:,}'.format(size_uncleaned))
+            logger.debug('Size after:  {:,}'.format(size_cleaned))
+            logger.debug('Pixels removed: {:.2f}% of overlap area'.format(((size_uncleaned-size_cleaned)/size_uncleaned)*100))
 
     sq_diff_pca = diffs_pca**2
     mean_sq_pca = sq_diff_pca.sum() / sq_diff_pca.count()
