@@ -30,7 +30,7 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # TODO: Add support for saving image/tif of raw differences
 
-def dem_rmse(dem1_path, dem2_path, max_diff=10, outfile=None, out_diff=None, plot=False,
+def dem_rmse(dem1_path, dem2_path, max_diff=None, outfile=None, out_diff=None, plot=False,
              show_plot=False, save_plot=None, bins=10, log_scale=True):
     # Load DEMs as arrays
     logger.info('Loading DEMs...')
@@ -66,15 +66,16 @@ def dem_rmse(dem1_path, dem2_path, max_diff=10, outfile=None, out_diff=None, plo
     diffs = arr1 - arr2
     
     # Remove any differences bigger than max_diff
-    logger.debug('Checking for large differences, max_diff: {}'.format(max_diff))
-    size_uncleaned = diffs.size
-    diffs = diffs[abs(diffs) < max_diff]
-    size_cleaned = diffs.size
-    if size_uncleaned != size_cleaned:
-        logger.debug('Removed differences over max_diff ({}) from RMSE calculation...'.format(max_diff))
-        logger.debug('Size before: {:,}'.format(size_uncleaned))
-        logger.debug('Size after:  {:,}'.format(size_cleaned))
-        logger.debug('Pixels removed: {:.2f}% of overlap area'.format(((size_uncleaned-size_cleaned)/size_uncleaned)*100))
+    if max_diff:
+        logger.debug('Checking for large differences, max_diff: {}'.format(max_diff))
+        size_uncleaned = diffs.size
+        diffs = diffs[abs(diffs) < max_diff]
+        size_cleaned = diffs.size
+        if size_uncleaned != size_cleaned:
+            logger.debug('Removed differences over max_diff ({}) from RMSE calculation...'.format(max_diff))
+            logger.debug('Size before: {:,}'.format(size_uncleaned))
+            logger.debug('Size after:  {:,}'.format(size_cleaned))
+            logger.debug('Pixels removed: {:.2f}% of overlap area'.format(((size_uncleaned-size_cleaned)/size_uncleaned)*100))
     
     sq_diff = diffs**2
     mean_sq = sq_diff.sum() / sq_diff.count()
