@@ -126,14 +126,16 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None
 
     # Remove any differences bigger than max_diff
     if max_diff:
+        size_uncleaned = diffs.size
         diffs_pca = diffs_pca[abs(diffs_pca) < max_diff]
         size_cleaned = diffs.size
         if size_uncleaned != size_cleaned:
-            logger.debug('Removed differences over max_diff ({}) from RMSE calculation...'.format(max_diff))
+            logger.debug('Removed differences over max_diff ({}) from RMSE '
+                         'calculation...'.format(max_diff))
             logger.debug('Size before: {:,}'.format(size_uncleaned))
             logger.debug('Size after:  {:,}'.format(size_cleaned))
-            logger.debug('Pixels removed: {:.2f}% of overlap area'.format(((size_uncleaned-size_cleaned)/size_uncleaned)*100))
-
+            logger.debug('Pixels removed: {:.2f}% of overlap area'.format(
+                ((size_uncleaned-size_cleaned)/size_uncleaned)*100))
 
     # Remove any differences bigger than max_diff
     if max_diff:
