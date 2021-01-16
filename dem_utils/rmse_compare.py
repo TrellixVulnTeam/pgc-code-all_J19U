@@ -1,22 +1,17 @@
 import argparse
-import logging.config
 import numpy as np
 import os
-import random
 import matplotlib.pyplot as plt
 
-from osgeo import gdal, osr
-import geopandas as gpd
-from shapely.geometry import Point
-
+# from osgeo import gdal, osr
+# import geopandas as gpd
+# from shapely.geometry import Point
 
 from misc_utils.RasterWrapper import Raster
 from misc_utils.logging_utils import create_logger
 from misc_utils.gdal_tools import clip_minbb, match_pixel_size
 
-
-logger = create_logger(__name__, 'sh', 'DEBUG')
-
+logger = create_logger(__name__, 'sh', 'INFO')
 
 def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None, plot=False,
                  save_plot=None, show_plot=False, bins=10, log_scale=True):
@@ -36,7 +31,7 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None
             p2 = dem2.src_path
             dem1 = None
             dem2 = None
-            max = match_pixel_size([p1, p2], r'/vsimem/matching_px.tif', resampleAlg='cubic', in_mem=True)
+            # max = match_pixel_size([p1, p2], r'/vsimem/matching_px.tif', resampleAlg='cubic', in_mem=True)
             dem1 = Raster(p1)
             dem2 = Raster(p2)
             logger.info('DEM1 sz: {} {}'.format(dem1.x_sz, dem1.y_sz))
@@ -187,7 +182,8 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None
         ax[0].hist(diffs.compressed().flatten(), log=log_scale, bins=bins,
                    edgecolor='white', alpha=0.75,
                    range=[min([diffs.min(), diffs_pca.min()]),
-                          max([diffs.min(), diffs_pca.max()])])
+                          max([diffs.min(), diffs_pca.max()])
+                          ])
         ax[0].axvline(x=0, linewidth=2, color='black')
         
         # Plot aligned differences with line at 0
