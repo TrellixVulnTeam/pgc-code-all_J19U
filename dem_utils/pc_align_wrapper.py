@@ -207,20 +207,20 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
     # Move everything else
     # TODO: Clean up how this works -- it is creating dem and misc/dem
     misc_files = [os.path.join(out_dir, x) for x in os.listdir(out_dir)
-                  if os.path.join(out_dir, x) != out_dem]
+                  if os.path.join(out_dir, x) not in [dem1, dem2, out_dem]]
     misc_dir = os.path.join(out_dir, 'misc')
     if not os.path.exists(misc_dir):
         os.makedirs(misc_dir)
 
-    print('Misc_files:\n{}'.format('\n'.join(misc_files)))
+    # print('Misc_files:\n{}'.format('\n'.join(misc_files)))
     for f in misc_files:
         shutil.move(f, misc_dir)
 
     # Move DEM
-    pc_align_dem_dir = os.path.join(out_dir, 'dem')
-    if not os.path.exists(pc_align_dem_dir):
-        os.makedirs(pc_align_dem_dir)
-    shutil.move(out_dem, pc_align_dem_dir)
+    # pc_align_dem_dir = os.path.join(out_dir, 'dem')
+    # if not os.path.exists(pc_align_dem_dir):
+    #     os.makedirs(pc_align_dem_dir)
+    # shutil.move(out_dem, pc_align_dem_dir)
 
 
 def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None,
