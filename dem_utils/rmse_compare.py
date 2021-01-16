@@ -199,7 +199,7 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None
         ax[1].set_title('Post-Alignment')
         ax[1].annotate('RMSE: {:.2f}'.format(rmse_pca), xy=(0.05, 0.95), xycoords='axes fraction')
 
-        ax.legend()
+        # ax.legend()
 
         plt.tight_layout()
         
