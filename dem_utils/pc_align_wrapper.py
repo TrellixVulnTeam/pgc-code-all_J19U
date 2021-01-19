@@ -30,6 +30,7 @@ from rmse_compare import rmse_compare
 
 
 def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
+            ref_pts=None, src_pts=None,
             rmse=False, use_long_names=False, warp=False, dryrun=False):
     """
     Run pc_align, then point2dem on two input DEMs,
@@ -138,12 +139,15 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
     pca_command = """pc_align --save-transformed-source-points
                     --max-displacement {}
                     --threads {}
-                    -o {}
-                    {} {}""".format(max_displacement,
+                    -o {}""".format(max_displacement,
                                     threads,
-                                    os.path.join(out_dir, prefix),
-                                    dem1,
-                                    dem2)
+                                    os.path.join(out_dir, prefix))
+    if src_pts:
+        pca_command += " --max-num-source-points {}".format(src_pts)
+    if ref_pts:
+        pca_command += " --max-num-reference-points {}".format(ref_pts)
+
+    pca_command += " {} {}".format(dem1, dem2)
 
     # Clean up command
     pca_command = clean_re.sub(' ', pca_command)
@@ -153,7 +157,8 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
 
         # Read contents of created log file and report translation information
         try:
-            log_file = [os.path.join(out_dir, f) for f in os.listdir(out_dir) if '-log-pc_align' in f][0]
+            log_file = [os.path.join(out_dir, f) for f in os.listdir(out_dir)
+                        if '-log-pc_align' in f][0]
         except IndexError:
             logger.error('No "-log-pc_align" file found. Did pc_align run successfuly?')
         with open(log_file, 'r') as lf:
@@ -222,23 +227,15 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
     # shutil.move(out_dem, pc_align_dem_dir)
 
 
-def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None,
-         dem_ext='tif', dem_fp=None, rmse=False, warp=False, dryrun=False,
-         verbose=False):
+def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None, ref_pts=None,
+         src_pts=None, dem_ext='tif', dem_fp=None, rmse=False, warp=False,
+         dryrun=False, verbose=False):
     """Align DEMs and writes outputs to out_dir."""
-    # if verbose:
-    #     handler_level = 'DEBUG'
-    # else:
-    #     handler_level = 'INFO'
-    # logger = create_logger(__name__, 'sh',
-    #                        handler_level=handler_level)
-    # logger = create_logger(__name__, 'fh',
-    #                       handler_level=handler_level)
-
     # If a directory is passed, get all files with extension: dem_ext
     # TODO: Make the DEM file selection better (support .vrt's, and more)
     if len(dems) == 1 and os.path.isdir(dems[0]):
-        dems = [os.path.join(dems[0], x) for x in os.listdir(dems[0]) if x.endswith(dem_ext)]
+        dems = [os.path.join(dems[0], x) for x in os.listdir(dems[0])
+                if x.endswith(dem_ext)]
     if dem_fp:
         logger.info('Determining reference DEM based on density in footprint...')
         dem_fp_df = gpd.read_file(dem_fp)
@@ -270,7 +267,8 @@ def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None,
         logger.info('Processing DEM {} / {}'.format(i + 1, len(other_dems)))
         logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM:    {}'.format(ref_dem, od))
         pca_p2d(ref_dem, od, max_diff_pca=max_diff_pca,
-                max_diff_rmse=max_diff_rmse, out_dir=out_dir, rmse=rmse,
+                max_diff_rmse=max_diff_rmse, ref_pts=None, src_pts=None,
+                out_dir=out_dir, rmse=rmse,
                 use_long_names=use_long_names, warp=warp, dryrun=dryrun)
 
     logger.info('Done.')
@@ -303,6 +301,10 @@ if __name__ == '__main__':
                         help='Maximum difference to use in pc_align.')
     parser.add_argument('--max_diff_rmse', type=int, default=None,
                         help='Maximum difference to use in RMSE.')
+    parser.add_argument('--ref_pts', type=int,
+                        help='Number of reference points to consider.')
+    parser.add_argument('--src_pts', type=int,
+                        help='Number of source points to consider.')
     parser.add_argument('--logfile', type=os.path.abspath,
                         help='Path to write log file.')
     parser.add_argument('--dryrun', action='store_true',
@@ -319,6 +321,8 @@ if __name__ == '__main__':
     rmse = args.rmse
     max_diff_pca = args.max_diff_pca
     max_diff_rmse = args.max_diff_rmse
+    ref_pts = args.ref_pts
+    src_pts = args.ref_pts
     logfile = args.logfile
     dryrun = args.dryrun
     verbose = args.verbose
@@ -336,5 +340,5 @@ if __name__ == '__main__':
                                filename=logfile)
 
     main(dems, out_dir, max_diff_pca=max_diff_pca, max_diff_rmse=max_diff_rmse,
-         dem_ext=dem_ext, dem_fp=dem_fp,
+         dem_ext=dem_ext, dem_fp=dem_fp, ref_pts=ref_pts, src_pts=src_pts,
          rmse=rmse, dryrun=dryrun, verbose=verbose)

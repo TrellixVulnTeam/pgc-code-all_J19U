@@ -55,7 +55,8 @@ def run_subprocess(command):
 
 def check_dem_meta(dem1, dem2):
     """
-    Compare metadata (NoData values, projection, resoultion) before running pc_align.
+    Compare metadata (NoData values, projection, resoultion) before running
+    pc_align.
 
     Parameters
     ----------
@@ -66,7 +67,8 @@ def check_dem_meta(dem1, dem2):
 
     Returns
     -------
-    Dict. Bool values for 'resolution', 'nodata', 'srs'. True if match, False if not a match.
+    Dict. Bool values for 'resolution', 'nodata', 'srs'. True if match, False
+    if not a match.
 
     """
     #### GET INFO ABOUT DEMS ####
