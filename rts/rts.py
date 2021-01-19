@@ -65,6 +65,7 @@ diff_k = 'diff'
 classification_k = 'classification'
 hw_class_out_k = 'headwall_class_out'
 hw_class_out_cent_k = 'headwall_class_out_centroid'
+rts_pregrow_out_k = 'rts_pregrow_out'
 rts_class_out_k = 'rts_class_out'
 out_vec_fmt_k = 'OUT_VEC_FMT'
 
@@ -366,6 +367,14 @@ def main(image, dem, dem_prev, project_dir, config,
         hw_class_out_centroid = CLASS_DIR / '{}_cent{}'.format(hw_class_out_k,
                                                                out_vec_fmt)
 
+    # Pass path to classified headwall objects if using previously classified
+    if hw_class in skip_steps:
+        hw_candidates_in = hw_class_out
+    else:
+        hw_candidates_in = None
+
+    if rts_config[classification_k][rts_pregrow_out_k]:
+        rts_pregrow_out = CLASS_DIR / '{}{}'.format(rts_pregrow_out_k, out_vec_fmt)
     if rts_config[classification_k][rts_class_out_k]:
         rts_class_out = CLASS_DIR / '{}{}'.format(rts_class_out_k, out_vec_fmt)
 
@@ -376,8 +385,10 @@ def main(image, dem, dem_prev, project_dir, config,
                         super_objects_path=rts_objects,
                         headwall_candidates_out=hw_class_out,
                         headwall_candidates_centroid_out=hw_class_out_centroid,
+                        rts_pregrow_out=rts_pregrow_out,
                         rts_candidates_out=rts_class_out,
-                        aoi_path=None, )
+                        aoi_path=None,
+                        headwall_candidates_in=hw_candidates_in)
     else:
         logger.info('Using provided classified RTS objects'
                     '\n\t{}'.format(rts_class_out))
@@ -417,27 +428,30 @@ if __name__ == '__main__':
                              'must exist as computed by previous steps.')
     parser.add_argument('--logdir', type=os.path.abspath)
 
-    # os.chdir(r'E:\disbr007\umn\2020sep27_eureka')
-    # sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
-    #             '-img', r'img\ortho_WV02_20140703\WV02_20140703013631_'
-    #                     r'1030010032B54F00_14JUL03013631-M1BS-'
-    #                     r'500287602150_01_P009.tif',
-    #             '-dem', r'dems\sel\WV02_20140703_1030010033A84300_'
-    #                     r'1030010032B54F00\WV02_20140703_1030010033A84300_'
-    #                     r'1030010032B54F00_2m_lsf_seg1_dem_masked.tif',
-    #             '-prev_dem', r'dems\sel\WV02_20110811_103001000D198300_'
-    #                          r'103001000C5D4600_pca'
-    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_'
-    #                          r'2m_lsf_seg1_dem_masked_pca-DEM.tif',
-    #             '-pd', 'rts_test',
-    #             '-aoi', r'aois\test_aoi.shp',
-    #             '--skip_steps', 'pan', 'ndvi', 'hw_seg',
-    #             hw_clean,
-    #             # hw_zs,
-    #             rts_seg, rts_clean,
-    #             # rts_zs
-    #             '--logdir', 'logs',
-    #             ]
+    os.chdir(r'E:\disbr007\umn\2020sep27_eureka')
+    sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
+                '-img', r'img\ortho_WV02_20140703\WV02_20140703013631_'
+                        r'1030010032B54F00_14JUL03013631-M1BS-'
+                        r'500287602150_01_P009.tif',
+                '-dem', r'dems\sel\WV02_20140703_1030010033A84300_'
+                        r'1030010032B54F00\WV02_20140703_1030010033A84300_'
+                        r'1030010032B54F00_2m_lsf_seg1_dem_masked.tif',
+                '-prev_dem', r'dems\sel\WV02_20110811_103001000D198300_'
+                             r'103001000C5D4600_pca'
+                             r'\WV02_20110811_103001000D198300_103001000C5D4600_'
+                             r'2m_lsf_seg1_dem_masked_pca-DEM.tif',
+                '-pd', 'rts_test2021jan18',
+                '-aoi', r'aois\test_aoi.shp',
+                '--skip_steps', 'pan', 'ndvi', 'hw_seg',
+                hw_clean,
+                hw_zs,
+                hw_class,
+                rts_seg, rts_clean,
+                rts_zs,
+                '--config',
+                r'E:\disbr007\umn\2020sep27_eureka\rts_test2021jan18\config.json',
+                '--logdir', 'logs',
+                ]
 
     args = parser.parse_args()
 

@@ -838,6 +838,9 @@ class ImageObjects:
         to_str_cols.extend([nvf for vf, nvf in self.nv_fields])
 
         logger.info('Writing objects to: {}'.format(out_objects))
+        if self.objects.index.name in self.fields:
+            self.objects.index.name = self.objects.index.name + \
+                                      str(np.random.randint(0, 100))
         write_gdf(self.objects.reset_index(), out_objects,
                   to_str_cols=to_str_cols,
                   overwrite=overwrite,
@@ -871,7 +874,7 @@ class ImageObjects:
         # Ensure rule type is supported
         accepted_rule_types = ['threshold', 'adjacent']
         if rule_type not in accepted_rule_types:
-            logger.error('Rule type: {} not recognized. Must be one of: '
+            logger.error('Rule type: "{}" not recognized. Must be one of: '
                          '{}'.format(rule_type, accepted_rule_types))
             raise Exception
 
@@ -960,7 +963,7 @@ class ImageObjects:
             logger.info("Classifying {:,} objects".format(
                 len(self.objects.loc[
                 update_rows & self.objects[self.class_fld].isnull(),
-                                       self.class_fld])))
+                self.class_fld])))
             self.objects.loc[
                 update_rows & self.objects[self.class_fld].isnull(),
-                                           self.class_fld] = class_name
+                self.class_fld] = class_name

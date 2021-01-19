@@ -73,7 +73,7 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
 
     if not skip_srs_check:
         logger.debug('Checking spatial reference match:\n{}\n{}'.format(shp_p, check_raster))
-        sr_match = check_sr(shp_pp, check_raster)
+        sr_match = check_sr(shp_p, check_raster)
         if not sr_match:
             logger.debug('Spatial references do not match. Reprojecting to AOI...')
             if not out_prj_shp:

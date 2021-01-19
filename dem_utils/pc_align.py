@@ -24,20 +24,34 @@ from misc_utils.RasterWrapper import Raster
 # from dem_utils.rmse_compare import rmse_compare
 from dem_rmse import dem_rmse
 
+
 #### FUNCTION DEFINITION ####
-def run_subprocess(command, clean=True):
-    """Run a command as a subprocess, stream output back to logger"""
-    if clean:
-        clean_re = re.compile('(?:\s+|\t+|\n+)')
-        command = clean_re.sub(' ', command)
+# def run_subprocess(command, clean=True):
+#     """Run a command as a subprocess, stream output back to logger"""
+#     if clean:
+#         clean_re = re.compile('(?:\s+|\t+|\n+)')
+#         command = clean_re.sub(' ', command)
+#     proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+#     # proc.wait()
+#     output, error = proc.communicate()
+#     logger.debug('Output: {}'.format(output.decode()))
+#     logger.debug('Err: {}'.format(error.decode()))
+#
+#     return output, error
+#
+def run_subprocess(command):
     proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
-    # proc.wait()
+    for line in iter(proc.stdout.readline, b''):
+        logger.info('(subprocess) {}'.format(line.decode()))
+    proc_err = ""
+    for line in iter(proc.stderr.readline, b''):
+        proc_err += line.decode()
+    if proc_err:
+        logger.info('(subprocess) {}'.format(proc_err))
     output, error = proc.communicate()
     logger.debug('Output: {}'.format(output.decode()))
     logger.debug('Err: {}'.format(error.decode()))
-    
-    return output, error
-    
+
 
 def check_dem_meta(dem1, dem2):
     """
@@ -211,11 +225,11 @@ def run_pc_align(dem1, dem2, max_diff, out_dir, threads=16,
     logger.debug('pc_align command:\n{}\n'.format(pca_command))
     if not dryrun:
         run_subprocess(pca_command)
+    logger.info('pc_align complete.')
 
 
 def get_trans_vector(pc_align_prefix, out_dir):
     """Get the translation vector by reading output file from pc_align call"""
-    
     # Find log file
     log_file = [os.path.join(out_dir, f) for f in os.listdir(out_dir) 
                 if '{}-log-pc_align'.format(pc_align_prefix) in f]
@@ -271,7 +285,7 @@ def apply_trans(dem, trans_vec, out_path):
     dx, dy, dz = trans_vec
     
     # Open source DEM
-    logger.debug('Reading source DEM for translation:\n{}'.format(dem))
+    logger.info('Reading source DEM for translation:\n{}'.format(dem))
     src = Raster(dem)
     
     # Compute new/translated bounds
@@ -283,7 +297,7 @@ def apply_trans(dem, trans_vec, out_path):
     logger.debug('Translated bounds (ulx, uly, lrx, lry): {}'.format(trans_bounds))
     
     # Translate in x-y
-    logger.debug('Applying translation in x-y...')
+    logger.info('Applying translation in x-y...')
     temp_trans = r'/vsimem/temp_trans.vrt'
     trans_options = gdal.TranslateOptions(outputBounds=trans_bounds)
     gdal.Translate(out_path, dem, options=trans_options)
@@ -299,7 +313,6 @@ def apply_trans(dem, trans_vec, out_path):
     src = None
     logger.debug('Translation complete.')
     
-
 
 def cleanup(out_dir):
     """Remove files created by pc_align from the given directory"""
