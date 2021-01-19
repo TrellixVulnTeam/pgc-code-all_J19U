@@ -267,7 +267,7 @@ def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None, ref_pts=None,
         logger.info('Processing DEM {} / {}'.format(i + 1, len(other_dems)))
         logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM:    {}'.format(ref_dem, od))
         pca_p2d(ref_dem, od, max_diff_pca=max_diff_pca,
-                max_diff_rmse=max_diff_rmse, ref_pts=None, src_pts=None,
+                max_diff_rmse=max_diff_rmse, ref_pts=ref_pts, src_pts=src_pts,
                 out_dir=out_dir, rmse=rmse,
                 use_long_names=use_long_names, warp=warp, dryrun=dryrun)
 
