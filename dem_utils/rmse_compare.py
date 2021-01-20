@@ -13,6 +13,7 @@ from misc_utils.gdal_tools import clip_minbb, match_pixel_size
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
+
 def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None, plot=False,
                  save_plot=None, show_plot=False, bins=10, log_scale=True):
     # Load DEMs as arrays
@@ -53,8 +54,8 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None
             logger.debug('DEM2 loaded and array extracted...')
             dem2pca = Raster(clipped[2])
 
-            logger.info('DEM1 sz: {} {}'.format(dem1.x_sz, dem1.y_sz))
-            logger.info('DEM2 sz: {} {}'.format(dem2.x_sz, dem2.y_sz))
+            logger.debug('DEM1 sz: {} {}'.format(dem1.x_sz, dem1.y_sz))
+            logger.debug('DEM2 sz: {} {}'.format(dem2.x_sz, dem2.y_sz))
 
         arr1 = dem1.MaskedArray
         dem1 = None
@@ -177,7 +178,8 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None
     # TODO: Incorporate min/max differences based on max_diff argument
     if plot:
         plt.style.use('ggplot')
-        fig, ax = plt.subplots(1,2)
+        fig, ax = plt.subplots(2, 1)
+
         # Plot unaligned differences with line at 0
         ax[0].hist(diffs.compressed().flatten(), log=log_scale, bins=bins,
                    edgecolor='white', alpha=0.75,
@@ -195,11 +197,13 @@ def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None
 
         # Annotation and titles        
         ax[0].set_title('Pre-Alignment')
-        ax[0].annotate('RMSE: {:.2f}'.format(rmse), xy=(0.05, 0.95), xycoords='axes fraction')
+        ax[0].annotate('RMSE: {:.2f}'.format(rmse), xy=(0.05, 0.95),
+                       xycoords='axes fraction')
         ax[1].set_title('Post-Alignment')
-        ax[1].annotate('RMSE: {:.2f}'.format(rmse_pca), xy=(0.05, 0.95), xycoords='axes fraction')
+        ax[1].annotate('RMSE: {:.2f}'.format(rmse_pca), xy=(0.05, 0.95),
+                       xycoords='axes fraction')
 
-        # ax.legend()
+        plt.legend()
 
         plt.tight_layout()
         

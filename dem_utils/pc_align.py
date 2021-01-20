@@ -296,7 +296,8 @@ def apply_trans(dem, trans_vec, out_path):
     tlrx = tulx + src.x_sz * src.pixel_width
     tlry = tuly + src.y_sz * src.pixel_height
     trans_bounds = [tulx, tuly, tlrx, tlry]
-    logger.debug('Translated bounds (ulx, uly, lrx, lry): {}'.format(trans_bounds))
+    logger.debug('Translated bounds (ulx, uly, lrx, lry): {}'
+                 .format(trans_bounds))
     
     # Translate in x-y
     logger.info('Applying translation in x-y...')
@@ -405,7 +406,8 @@ def pc_align_dems(dems, out_dir, rmse=False, max_diff=10, threads=16,
     if not dryrun:
         # Copy the reference DEM to the output folder
         logger.info('Copying reference DEM to output location.')
-        ref_dem_copy = os.path.join(out_dir, '{}_pcarefDEM'.format(os.path.splitext(ref_dem)[0]))
+        ref_dem_copy = os.path.join(out_dir, '{}_pca_refDEM'
+                                    .format(os.path.splitext(ref_dem)[0]))
         shutil.copyfile(ref_dem, ref_dem_copy)
         if not skip_cleanup:
             cleanup(out_dir=out_dir)
@@ -415,11 +417,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--dems', nargs='+', type=os.path.abspath,
-                        help="""Paths to the DEMs to align or directory of DEMs. The first DEM
-                                passed will be the reference DEM.""")
+                        help="Paths to the DEMs to align or directory of "
+                             "DEMs. The first DEM passed will be the "
+                             "reference DEM.")
     parser.add_argument('--dem_ext', type=str, default='tif',
-                        help="""If dems is a directory, the extension the DEMs share, used
-                              to select DEM files.""")
+                        help="If dems is a directory, the extension the DEMs "
+                             "share, used to select DEM files.")
     parser.add_argument('--out_dir', type=os.path.abspath,
                         help='Path to write output files to.')
     parser.add_argument('--rmse', action='store_true',

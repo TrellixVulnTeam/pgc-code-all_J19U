@@ -217,7 +217,6 @@ def main(image, dem, dem_prev, project_dir, config,
         difference_dems(str(inputs[dem_k]), str(inputs[dem_prev_k]),
                         out_dem=str(diff))
 
-
         # Slope
         logger.info('Creating slope...')
         slope = DEM_DERIV_DIR / '{}_slope{}'.format(dem.stem, dem.suffix)
@@ -428,7 +427,9 @@ if __name__ == '__main__':
                              'must exist as computed by previous steps.')
     parser.add_argument('--logdir', type=os.path.abspath)
 
-    os.chdir(r'E:\disbr007\umn\2020sep27_eureka')
+    prj_dir = r'E:\disbr007\umn\2020sep27_eureka'
+    pd = 'rts_test2021jan18'
+    os.chdir(prj_dir)
     sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
                 '-img', r'img\ortho_WV02_20140703\WV02_20140703013631_'
                         r'1030010032B54F00_14JUL03013631-M1BS-'
@@ -440,7 +441,7 @@ if __name__ == '__main__':
                              r'103001000C5D4600_pca'
                              r'\WV02_20110811_103001000D198300_103001000C5D4600_'
                              r'2m_lsf_seg1_dem_masked_pca-DEM.tif',
-                '-pd', 'rts_test2021jan18',
+                '-pd', pd,
                 '-aoi', r'aois\test_aoi.shp',
                 '--skip_steps', 'pan', 'ndvi', 'hw_seg',
                 hw_clean,
@@ -450,7 +451,7 @@ if __name__ == '__main__':
                 rts_zs,
                 '--config',
                 r'E:\disbr007\umn\2020sep27_eureka\rts_test2021jan18\config.json',
-                '--logdir', 'logs',
+                '--logdir', os.path.join(prj_dir, pd),
                 ]
 
     args = parser.parse_args()
@@ -468,7 +469,8 @@ if __name__ == '__main__':
         if not os.path.exists(logdir):
             os.makedirs(logdir)
         logger = create_logger(__name__, 'fh', 'DEBUG',
-                               create_logfile_path(__name__, logdir))
+                               create_logfile_path(Path(__file__).name,
+                                                   logdir))
 
     main(image=image,
          dem=dem,

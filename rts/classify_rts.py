@@ -199,24 +199,30 @@ def classify_rts(sub_objects_path,
                              op=operator.lt,
                              threshold=0,
                              out_field=True)
+
     r_rts_med = create_rule(rule_type=threshold_rule,
                             in_field=med_mean,
                             op=operator.lt,
                             threshold=0,
                             out_field=True)
+
     r_rts_slope = create_rule(rule_type=threshold_rule,
                               in_field=slope_mean,
                               op=operator.gt,
                               threshold=3,
                               out_field=True)
+
     r_rts_delev = create_rule(rule_type=threshold_rule,
                               in_field=delev_mean,
-                              op=operator.gt,
-                              threshold=-0.5)
+                              op=operator.lt,
+                              threshold=-0.5,
+                              out_field=True)
+
     r_rts_conhw = create_rule(rule_type=threshold_rule,
                               in_field=contains_hw,
                               op=operator.eq,
-                              threshold=True)
+                              threshold=True,
+                              out_field=True)
 
     r_rts_simple_thresholds = [r_rts_ndvi,
                                r_rts_med,

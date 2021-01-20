@@ -109,7 +109,7 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
             raster_out_path = out_path
 
         # Clip to shape
-        logger.debug('Clipping:\n{}\n\t---> '
+        logger.info('Clipping:\n{}\n\t---> '
                      '{}'.format(os.path.basename(raster_p),
                                  raster_out_path))
         if os.path.exists(raster_out_path) and not overwrite:

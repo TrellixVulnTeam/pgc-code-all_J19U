@@ -12,10 +12,10 @@ logger = create_logger(__name__, 'sh', 'INFO')
 create_logger('misc_utils.gdal_tools', 'sh', 'WARNING')
 create_logger('otb_grm', 'sh', 'WARNING')
 
-thesholds = [600]
+thesholds = [750]
 iterations = [0]
-specs = [0.6]
-spats = [100, 200]
+specs = [0.5, 0.7]
+spats = [100, 300]
 
 od = r'E:\disbr007\umn\2020sep27_eureka\otb_grm_testing'
 fmt = 'vector'

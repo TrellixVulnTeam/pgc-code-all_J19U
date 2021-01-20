@@ -8,6 +8,7 @@ Created on Tue Jan 28 21:53:45 2020
 import argparse
 # import logging.config
 import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -16,21 +17,33 @@ import sys
 
 import geopandas as gpd
 
-from misc_utils.logging_utils import create_logger
+from misc_utils.logging_utils import create_logger, create_logfile_path
 from misc_utils.RasterWrapper import Raster
 from dem_rmse import dem_rmse
 from rmse_compare import rmse_compare
 
+# TODO:
+#  - Add --shift_others arg to apply same translation to other rasters
+#  - Consider using/updating functions in pc_align.py rather than recreating
+#    them here
 
-# logger = create_logger(__name__, 'sh', 'INFO')
 
-# handler_level = 'INFO'
-# logging.config.dictConfig(LOGGING_CONFIG(handler_level))
-# logger = logging.getLogger(__name__)
+def run_subprocess(command):
+    proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+    for line in iter(proc.stdout.readline, b''):
+        logger.info('(subprocess) {}'.format(line.decode()))
+    proc_err = ""
+    for line in iter(proc.stderr.readline, b''):
+        proc_err += line.decode()
+    if proc_err:
+        logger.info('(subprocess) {}'.format(proc_err))
+    output, error = proc.communicate()
+    logger.debug('Output: {}'.format(output.decode()))
+    logger.debug('Err: {}'.format(error.decode()))
 
 
 def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
-            ref_pts=None, src_pts=None,
+            ref_pts=None, src_pts=None, allow_rotation=False,
             rmse=False, use_long_names=False, warp=False, dryrun=False):
     """
     Run pc_align, then point2dem on two input DEMs,
@@ -69,14 +82,6 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
     # Regex for cleaning streaming text outputs
     clean_re = re.compile('(?:\s+|\t+|\n+)')
 
-    # FUNCTION DEFINITION
-    def run_subprocess(command):
-        proc = subprocess.Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
-        # proc.wait()
-        output, error = proc.communicate()
-        logger.debug('Output: {}'.format(output.decode()))
-        logger.debug('Err: {}'.format(error.decode()))
-
     # GET INFO ABOUT DEMS
     logger.info('Getting DEM metadata...')
     # DEM 1
@@ -102,32 +107,36 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
     logger.debug("""DEM2 Information:\n{}\n\n""".format(dem2_info))
 
     # Check for matches of resolution, nodata, spatial reference
-    logger.info('Comparing DEM metadata (resolution, nodata value, spatial reference)...')
+    logger.info('Ensuring DEM metadata match (resolution, nodata value, '
+                'spatial reference)...')
     if res1 != res2:
-        logger.warning('Resolutions do not match. Defaulting to DEM1.\nDEM1: {}\nDEM2: {}'.format(res1, res2))
+        logger.warning('Resolutions do not match. Defaulting to DEM1.\nDEM1: '
+                       '{}\nDEM2: {}'.format(res1, res2))
     if nodata1 != nodata2:
-        logger.warning('NoData values do not match. Defaulting to DEM1 NoData value when creating new DEM.\nDEM1:{}\nDEM2: {}'.format(nodata1, nodata2))
+        logger.warning('NoData values do not match. Defaulting to DEM1 NoData '
+                       'value when creating new DEM.\nDEM1:{}\nDEM2: {}'.format(nodata1, nodata2))
     if srs1.IsSame(srs2) == 0:  # GDAL method for spatial reference comparison
-        logger.warning('Spatial references do not match. Defaulting to DEM1.\nDEM1:\n{}\n\nDEM2:\n{}\n'.format(srs1, srs2))
+        logger.warning('Spatial references do not match. Defaulting to DEM1.\n'
+                       'DEM1:\n{}\n\nDEM2:\n{}\n'.format(srs1, srs2))
         if warp is True:
             # TODO: Add support for reprojecting
             logger.warning('Reprojecting not yet supported, exiting.')
             sys.exit(-1)
 
     # RMSE if requested
-    if rmse:
-        logger.info('Computing pre-alignment RMSE for {}...'.format(combo_name))
-        rmse_outfile = os.path.join(out_dir, '{}_preRMSE.txt'.format(combo_name))
-        save_plot = os.path.join(out_dir, '{}_preRMSE.png'.format(combo_name))
-        if dryrun:
-            rmse_outfile = None
-            save_plot = None
-        pre_rmse = dem_rmse(dem1, dem2,
-                            max_diff=max_diff_rmse,
-                            outfile=rmse_outfile,
-                            plot=True,
-                            save_plot=save_plot)
-        logger.info('RMSE prior to alignment: {:.2f}\n'.format(pre_rmse))
+    # if rmse:
+    #     logger.info('Computing pre-alignment RMSE for {}...'.format(combo_name))
+    #     rmse_outfile = os.path.join(out_dir, '{}_preRMSE.txt'.format(combo_name))
+    #     save_plot = os.path.join(out_dir, '{}_preRMSE.png'.format(combo_name))
+    #     if dryrun:
+    #         rmse_outfile = None
+    #         save_plot = None
+    #     pre_rmse = dem_rmse(dem1, dem2,
+    #                         max_diff=max_diff_rmse,
+    #                         outfile=rmse_outfile,
+    #                         plot=True,
+    #                         save_plot=save_plot)
+    #     logger.info('RMSE prior to alignment: {:.2f}\n'.format(pre_rmse))
 
     # PC_ALIGN
     logger.info('Running pc_align...')
@@ -146,6 +155,8 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
         pca_command += " --max-num-source-points {}".format(src_pts)
     if ref_pts:
         pca_command += " --max-num-reference-points {}".format(ref_pts)
+    if not allow_rotation:
+        pca_command += " --compute-translation-only"
 
     pca_command += " {} {}".format(dem1, dem2)
 
@@ -160,17 +171,18 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
             log_file = [os.path.join(out_dir, f) for f in os.listdir(out_dir)
                         if '-log-pc_align' in f][0]
         except IndexError:
-            logger.error('No "-log-pc_align" file found. Did pc_align run successfuly?')
+            logger.error('No "-log-pc_align" file found. Did pc_align run '
+                         'successfuly?')
         with open(log_file, 'r') as lf:
             content = lf.readlines()
-            trans_info = 'Translation information:\n'
+            trans_info = 'Translation information (North-East-Down): '
             for line in content:
                 trans_vec_match = re.search('Translation vector \(North-East-Down, meters\): Vector3(.*)', line)
                 if trans_vec_match:
                     trans_vec = trans_vec_match.groups()[0]
                     trans_info += trans_vec.replace(',', ', ')
                     break
-            logger.debug(trans_info)
+            logger.info(trans_info)
 
     # POINT2DEM
     logger.info('Running point2dem...')
@@ -188,20 +200,22 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
         run_subprocess(p2d_command)
 
     if rmse:
-        logger.info('Computing post-alignment RMSE...')
+        # logger.info('Computing post-alignment RMSE...')
         out_dem = os.path.join(out_dir, '{}-DEM.tif'.format(out_name))
-        rmse_outfile = os.path.join(out_dir, '{}_postRMSE.txt'.format(combo_name))
-        save_plot = os.path.join(out_dir, '{}_postRMSE.png'.format(combo_name))
+        # rmse_outfile = os.path.join(out_dir, '{}_postRMSE.txt'.format(combo_name))
+        # save_plot = os.path.join(out_dir, '{}_postRMSE.png'.format(combo_name))
         if not dryrun:
-            post_rmse = dem_rmse(dem1, out_dem, 
-                                 max_diff=max_diff_rmse,
-                                 outfile=rmse_outfile,
-                                 plot=True,
-                                 save_plot=save_plot)
-            logger.info('RMSE after alignment: {:.2f}\n'.format(post_rmse))
-            logger.info('Comparing RMSE...')
-            rmse_compare_outfile = os.path.join(out_dir, '{}_compareRMSE.txt'.format(combo_name))
-            rmse_compare_save_plot = os.path.join(out_dir, '{}_compareRMSE.png'.format(combo_name))
+            # post_rmse = dem_rmse(dem1, out_dem,
+            #                      max_diff=max_diff_rmse,
+            #                      outfile=rmse_outfile,
+            #                      plot=True,
+            #                      save_plot=save_plot)
+            # logger.info('RMSE after alignment: {:.2f}\n'.format(post_rmse))
+            # logger.info('Comparing RMSE...')
+            rmse_compare_outfile = os.path.join(out_dir, '{}_compareRMSE.txt'
+                                                .format(combo_name))
+            rmse_compare_save_plot = os.path.join(out_dir, '{}_compareRMSE.png'
+                                                  .format(combo_name))
             rmse_compare(dem1, dem2, out_dem,
                          max_diff=max_diff_rmse,
                          outfile=rmse_compare_outfile,
@@ -228,7 +242,8 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
 
 
 def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None, ref_pts=None,
-         src_pts=None, dem_ext='tif', dem_fp=None, rmse=False, warp=False,
+         src_pts=None, allow_rotation=False,
+         dem_ext='tif', dem_fp=None, rmse=False, warp=False,
          dryrun=False, verbose=False):
     """Align DEMs and writes outputs to out_dir."""
     # If a directory is passed, get all files with extension: dem_ext
@@ -255,9 +270,9 @@ def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None, ref_pts=None,
         ref_dem = dems[0]
         logger.info('Using first DEM as reference: {}'.format(ref_dem))
 
-    logger.info("Reference DEM located:\n{}".format(ref_dem))
+    logger.info("Reference DEM located:\n\t{}".format(ref_dem))
     other_dems = [x for x in dems if x is not ref_dem]
-    logger.info("DEMs to align to reference:\n{}".format('\n'.join(other_dems)))
+    logger.info("DEM(s) to align to reference:\n\t{}".format('\n'.join(other_dems)))
 
     # Check for same 'short-names' and if they exist use full filenames for outputs
     if True in [dn[:13] in [x[:13] for x in dems if x != dn] for dn in dems]:
@@ -268,6 +283,7 @@ def main(dems, out_dir, max_diff_pca=10, max_diff_rmse=None, ref_pts=None,
         logger.info('Running pc_align and point2dem on:\nReference DEM: {}\nSource DEM:    {}'.format(ref_dem, od))
         pca_p2d(ref_dem, od, max_diff_pca=max_diff_pca,
                 max_diff_rmse=max_diff_rmse, ref_pts=ref_pts, src_pts=src_pts,
+                allow_rotation=allow_rotation,
                 out_dir=out_dir, rmse=rmse,
                 use_long_names=use_long_names, warp=warp, dryrun=dryrun)
 
@@ -305,8 +321,10 @@ if __name__ == '__main__':
                         help='Number of reference points to consider.')
     parser.add_argument('--src_pts', type=int,
                         help='Number of source points to consider.')
-    parser.add_argument('--logfile', type=os.path.abspath,
-                        help='Path to write log file.')
+    parser.add_argument('--allow_rotation', action='store_true',
+                        help='Allow for rotation when aligning DEMs.')
+    parser.add_argument('--logdir', type=os.path.abspath,
+                        help='Path to directory to write log file.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -323,7 +341,8 @@ if __name__ == '__main__':
     max_diff_rmse = args.max_diff_rmse
     ref_pts = args.ref_pts
     src_pts = args.ref_pts
-    logfile = args.logfile
+    allow_rotation = args.allow_rotation
+    logdir = args.logdir
     dryrun = args.dryrun
     verbose = args.verbose
 
@@ -334,11 +353,14 @@ if __name__ == '__main__':
 
     logger = create_logger(__name__, 'sh',
                            handler_level=handler_level)
-    if logfile:
-        logger = create_logger(__name__, 'fh',
-                               handler_level=handler_level,
-                               filename=logfile)
+    if not logdir:
+        logdir = out_dir
+    logfile = create_logfile_path(Path(__file__).stem, logdir=logdir)
+    logger = create_logger(__name__, 'fh',
+                           handler_level='DEBUG',
+                           filename=logfile)
 
     main(dems, out_dir, max_diff_pca=max_diff_pca, max_diff_rmse=max_diff_rmse,
          dem_ext=dem_ext, dem_fp=dem_fp, ref_pts=ref_pts, src_pts=src_pts,
+         allow_rotation=allow_rotation,
          rmse=rmse, dryrun=dryrun, verbose=verbose)
