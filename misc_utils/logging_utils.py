@@ -10,6 +10,7 @@ from datetime import datetime
 
 import logging
 import os
+import operator
 import platform
 import sys
 from pathlib import Path
@@ -135,13 +136,16 @@ def create_logger(logger_name, handler_type,
         print('Unrecognized handler_type argument: {}'.format(handler_type))
     desired_level = logging_level_int(handler_level)
 
+    handlers = sorted(handlers, key=operator.attrgetter('level'))
     for h in handlers:
         # Check if existing handlers are of the right type (console or file)
         if isinstance(h, type(ht)):
             # Check if existing handler is of right level
             existing_level = h.level
 
-            if existing_level == desired_level:
+            if existing_level >= desired_level:
+                h.level = desired_level
+                logger.level = desired_level
                 handler = h
                 # print('handler exists, not adding')
                 break

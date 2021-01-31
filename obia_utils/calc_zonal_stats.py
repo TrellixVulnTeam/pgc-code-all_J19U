@@ -166,11 +166,11 @@ def calc_zonal_stats(shp, rasters,
 
     Returns
     -------
-    None.
+    out_path.
 
     """
     # Load data
-    logger.info('Reading in segments...')
+    logger.info('Reading in segments from: {}...'.format(shp))
     seg = gpd.read_file(shp)
     logger.info('Segments found: {:,}'.format(len(seg)))
 

@@ -13,7 +13,7 @@ from datetime import datetime as dt
 
 from tqdm import tqdm
 import fiona
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, box
 import geopandas as gpd
 import pandas as pd
 
@@ -32,7 +32,8 @@ def run_subprocess(command):
 
 
 def grid_aoi(aoi_path, n_pts_x=None, n_pts_y=None,
-             x_space=None, y_space=None, aoi_crs=None):
+             x_space=None, y_space=None, aoi_crs=None,
+             poly=False):
     # Read in AOI - assumes only one feature
     logger.debug('Creating grid in AOI...')
     if isinstance(aoi_path, gpd.GeoDataFrame):
@@ -44,10 +45,10 @@ def grid_aoi(aoi_path, n_pts_x=None, n_pts_y=None,
             aoi_all = gpd.read_file(aoi_path)
         else:
             logger.error('Could not locate: {}'.format(aoi_path))
-    
+
     # Get first feature - should be only feature
-    aoi = aoi_all.iloc[:1] 
-    
+    aoi = aoi_all.iloc[:1]
+
     # Get aoi bounding box
     minx, miny, maxx, maxy = aoi.geometry.bounds.values[0]
     x_range = maxx - minx
@@ -59,22 +60,42 @@ def grid_aoi(aoi_path, n_pts_x=None, n_pts_y=None,
         logger.debug('Determining spacing based on number of points requested.')
         x_space = x_range / n_pts_x
         y_space = y_range / n_pts_y
-    logger.debug('Grid spacing\nx: {}\ny: {}'.format(round(x_space, 2), round(y_space, 2)))    
-    
+    logger.debug('Grid spacing\nx: {}\ny: {}'.format(round(x_space, 2), round(y_space, 2)))
+
     # Create x,y Point geometries
     x_pts = np.arange(minx, maxx, step=x_space)
     y_pts = np.arange(miny, maxy, step=y_space)
     mesh = np.array(np.meshgrid(x_pts, y_pts))
     xys = mesh.T.reshape(-1, 2)
-    grid_points = [Point(x, y) for (x,y) in xys]
-    
+    grid_points = [Point(x, y) for (x, y) in xys]
+
     # Make geodataframe of Point geometries
     grid = gpd.GeoDataFrame(geometry=grid_points, crs=aoi.crs)
-    
+
     # Remove any grid points that do not fall in actual feature aoi_all
     grid['in'] = [pt.within(aoi.geometry.iloc[0]) for pt in grid.geometry]
-    
-    return grid[grid['in']==True].drop(columns=['in'])
+
+    grid = grid[grid['in'] == True].drop(columns=['in'])
+
+    if poly:
+        logger.debug('Creating polygon grid...')
+        x_pts = sorted(set(grid.geometry.values.x))
+        y_pts = sorted(set(grid.geometry.values.y))
+
+        all_cells = []
+        for i, x in tqdm(enumerate(x_pts), total=len(x_pts)):
+            if i == len(x_pts) - 1:
+                break
+            next_x = x_pts[i + 1]
+            for j, y in enumerate(y_pts):
+                if j == len(y_pts) - 1:
+                    break
+                next_y = y_pts[j + 1]
+                cell = box(x, y, next_x, next_y)
+                all_cells.append(cell)
+        grid = gpd.GeoDataFrame(geometry=all_cells, crs=grid.crs)
+
+    return grid
 
 
 # def grid_aoi(aoi_shp, step=None, x_space=None, y_space=None, write=False):

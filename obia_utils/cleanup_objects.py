@@ -77,7 +77,7 @@ def remove_null_objects(objects, fields=['all']):
 
 
 def cleanup_objects(input_objects,
-                    out_objects,
+                    out_objects=None,
                     min_size=None,
                     mask_on=None,
                     out_mask_img=None,
@@ -97,10 +97,11 @@ def cleanup_objects(input_objects,
     if drop_na:
         keep_objs = remove_null_objects(keep_objs, fields=drop_na)
 
-    logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
-                                                            out_objects))
-    keep_objs.to_file(out_objects)
-    write_gdf(keep_objs, out_objects, overwrite=overwrite)
+    if out_objects:
+        logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
+                                                                out_objects))
+        keep_objs.to_file(out_objects)
+        write_gdf(keep_objs, out_objects, overwrite=overwrite)
 
     return out_objects
 

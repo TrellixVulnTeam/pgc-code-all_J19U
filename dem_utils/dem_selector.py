@@ -16,8 +16,8 @@ import geopandas as gpd
 from shapely.geometry import Point
 from tqdm import tqdm
 
-from .dem_utils import get_aux_file, nunatak2windows, get_dem_image1_id
-from .valid_data import valid_percent
+from dem_utils import get_aux_file, nunatak2windows, get_dem_image1_id
+from valid_data import valid_percent
 from selection_utils.db import Postgres, generate_sql, intersect_aoi_where
 # from selection_utils.query_danco import query_footprint
 from misc_utils.id_parse_utils import read_ids, write_ids

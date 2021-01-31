@@ -1,5 +1,6 @@
 import argparse
 import json
+import numpy as np
 import os
 from pathlib import Path
 import platform
@@ -8,23 +9,33 @@ from subprocess import PIPE
 import sys
 
 from tqdm import tqdm
+import geopandas as gpd
 
+from archive_analysis.archive_analysis_utils import grid_aoi
 from misc_utils.logging_utils import create_logger, create_logfile_path
+from misc_utils.gpd_utils import write_gdf
+from misc_utils.gdal_tools import rasterize_shp2raster_extent
 from misc_utils.raster_clip import clip_rasters
+from dem_utils.dem_derivatives import gdal_dem_derivative
 from dem_utils.dem_utils import difference_dems
 from dem_utils.wbt_med import wbt_med
 from dem_utils.wbt_curvature import wbt_curvature
 from dem_utils.wbt_sar import wbt_sar
-from dem_utils.dem_derivatives import gdal_dem_derivative
 
 sys.path.append(Path(__file__).parent / "obia_utils")
 from obia_utils.otb_lsms import otb_lsms
 from obia_utils.otb_grm import otb_grm, create_outname
 from obia_utils.cleanup_objects import cleanup_objects
 from obia_utils.calc_zonal_stats import calc_zonal_stats
+from obia_utils.ImageObjects import ImageObjects
 
-from classify_rts import classify_rts
+from classify_rts import classify_rts, grow_rts_candidates
 
+# TODO:
+#  Standardize naming - make functions:
+#   -seg_name() (exists)
+#   -clean_name()
+#   -zonal_stats_name()
 # %%
 logger = create_logger(__name__, 'sh', 'INFO')
 
@@ -43,7 +54,12 @@ out_objects = 'out_objects'
 out_dir = 'out_dir'
 mask_on = 'mask_on'
 zonal_stats = 'zonal_stats'
-stats = 'stats'
+zs_stats = 'stats'
+zs_rasters = 'rasters'
+x_space = 'x_space'
+y_space = 'y_space'
+grow = 'grow'
+buffer = 'buffer'
 
 # Config values
 grm = 'grm'
@@ -65,9 +81,12 @@ diff_k = 'diff'
 classification_k = 'classification'
 hw_class_out_k = 'headwall_class_out'
 hw_class_out_cent_k = 'headwall_class_out_centroid'
-rts_pregrow_out_k = 'rts_pregrow_out'
+rts_predis_out_k = 'rts_predis_out'
 rts_class_out_k = 'rts_class_out'
 out_vec_fmt_k = 'OUT_VEC_FMT'
+
+class_fld = 'class'
+rts_candidate = 'rts_candidate'
 
 # Skip steps
 pan = 'pan'
@@ -82,6 +101,9 @@ rts_seg = 'rts_seg'
 rts_clean = 'rts_clean'
 rts_zs = 'rts_zs'
 rts_class = 'rts_class'
+grow_seg = 'grow_seg'
+grow_clean = 'grow_clean'
+grow_zs = 'grow_zs'
 
 # Constants
 clip_sfx = '_clip'
@@ -125,13 +147,17 @@ def main(image, dem, dem_prev, project_dir, config,
 
     # %% Get configuration settings
     config = get_config(config_file=config)
+
     # Project config settings
     project_config = config['project']
     EPSG = project_config['EPSG']
     aoi = Path(project_config['AOI'])
-    # Headwall and RTS config settings
+
+   # Headwall and RTS config settings
     hw_config = config['headwall']
     rts_config = config['rts']
+    grow_config = config['grow']
+
     # Preprocessing
     pansh_config = config['pansharpen']
     BITDEPTH = pansh_config['t']
@@ -157,11 +183,14 @@ def main(image, dem, dem_prev, project_dir, config,
     SEG_DIR = project_dir / 'seg'
     HW_DIR = SEG_DIR / 'headwall'
     RTS_DIR = SEG_DIR / 'rts'
+    GROW_DIR = SEG_DIR / 'grow'
     CLASS_DIR = project_dir / 'classified'
     for d in [SCRATCH_DIR, IMG_DIR, PANSH_DIR, NDVI_DIR, DEM_DIR,
-              DEM_DERIV_DIR, SEG_DIR, HW_DIR, RTS_DIR, CLASS_DIR]:
+              DEM_DERIV_DIR, SEG_DIR, HW_DIR, RTS_DIR, GROW_DIR, CLASS_DIR]:
         if not d.exists():
             os.makedirs(d)
+
+    out_vec_fmt = project_config[out_vec_fmt_k]
 
     # %% Imagery Preprocessing
     # Pansharpen
@@ -261,7 +290,7 @@ def main(image, dem, dem_prev, project_dir, config,
         else:
             hw_objects = create_outname(**hw_config[seg][params],
                                         name_only=True)
-            logger.info('Using provided headwall segmentation:'
+            logger.debug('Using provided headwall segmentation:'
                         '\n\t{}'.format(hw_objects))
 
     # %% Cleanup
@@ -279,26 +308,27 @@ def main(image, dem, dem_prev, project_dir, config,
                                          out_objects=cleaned_objects_out,
                                          **cleanup_params)
     else:
-        logger.info('Using provided cleaned headwall objects'
+        logger.debug('Using provided cleaned headwall objects'
                     '\n\t{}'.format(cleaned_objects_out))
         hw_objects = cleaned_objects_out
 
     # %% Zonal Stats
+    logger.info('Calculating zonal statistics on headwall objects...')
     hw_objects_path = Path(hw_objects)
     hw_zs_out_path = '{}_zs{}'.format(
         hw_objects_path.parent / hw_objects_path.stem, hw_objects_path.suffix)
-
     if hw_zs not in skip_steps:
+
         # Calculate zonal stats
         zonal_stats_inputs = {k: {'path': v,
-                                  'stats': hw_config[zonal_stats][stats]}
-                              for k, v in inputs.items()}
+                                  'stats': hw_config[zonal_stats][zs_stats]}
+                              for k, v in inputs.items()
+                              if k in hw_config[zonal_stats][zs_rasters]}
         hw_objects = calc_zonal_stats(shp=hw_objects,
                                       rasters=zonal_stats_inputs,
                                       out_path=hw_zs_out_path, )
-        # **hw_config[zonal_stats][params])
     else:
-        logger.info('Using provided headwall objects with zonal stats'
+        logger.debug('Using provided headwall objects with zonal stats'
                     '\n\t{}'.format(hw_zs_out_path))
         hw_objects = hw_zs_out_path
 
@@ -309,13 +339,13 @@ def main(image, dem, dem_prev, project_dir, config,
     rts_config[seg][params][out_dir] = RTS_DIR
     # Segmentation
     if rts_config[seg][alg] == grm:
+        logger.info('Segmenting superobjects (RTS)...')
         if rts_seg not in skip_steps:
-            logger.info('Segmenting superobjects (RTS)...')
             rts_objects = otb_grm(**rts_config[seg][params])
         else:
             rts_objects = create_outname(**rts_config[seg][params],
                                          name_only=True)
-            logger.info('Using provided RTS seg:'
+            logger.debug('Using provided RTS seg:'
                         '\n\t{}'.format(rts_objects))
         rts_objects = Path(rts_objects)
 
@@ -333,33 +363,31 @@ def main(image, dem, dem_prev, project_dir, config,
                                           out_objects=cleaned_objects_out,
                                           **cleanup_params)
     else:
-        logger.info('Using provided cleaned RTS objects'
+        logger.debug('Using provided cleaned RTS objects'
                     '\n\t{}'.format(cleaned_objects_out))
         rts_objects = cleaned_objects_out
 
     # %% Zonal Stats
+    logger.info('Calculating zonal statistics on super objects...')
     rts_objects_path = Path(rts_objects)
     rts_zs_out_path = '{}_zs{}'.format(rts_objects_path.parent /
                                        rts_objects_path.stem,
                                        rts_objects_path.suffix)
     if rts_zs not in skip_steps:
         # Calculate zonal_stats
-        # TODO: Stats are specified in both config.json and
-        #  config/zonal_stats.json -- pick one
         zonal_stats_inputs = {k: {'path': v,
-                                  'stats': rts_config[zonal_stats][stats]}
-                              for k, v in inputs.items()}
+                                  'stats': rts_config[zonal_stats][zs_stats]}
+                              for k, v in inputs.items()
+                              if k in rts_config[zonal_stats][zs_rasters]}
         rts_objects = calc_zonal_stats(shp=rts_objects,
                                        rasters=zonal_stats_inputs,
                                        out_path=rts_zs_out_path, )
-        # **rts_config[zonal_stats][params])
     else:
-        logger.info('Using provided RTS zonal stats objects'
+        logger.debug('Using provided RTS zonal stats objects'
                     '\n\t{}'.format(rts_zs_out_path))
         rts_objects = rts_zs_out_path
 
     # %% CLASSIFICATION
-    out_vec_fmt = project_config[out_vec_fmt_k]
     if hw_config[classification_k][hw_class_out_k]:
         hw_class_out = CLASS_DIR / '{}{}'.format(hw_class_out_k, out_vec_fmt)
     if hw_config[classification_k][hw_class_out_cent_k]:
@@ -372,8 +400,8 @@ def main(image, dem, dem_prev, project_dir, config,
     else:
         hw_candidates_in = None
 
-    if rts_config[classification_k][rts_pregrow_out_k]:
-        rts_pregrow_out = CLASS_DIR / '{}{}'.format(rts_pregrow_out_k, out_vec_fmt)
+    if rts_config[classification_k][rts_predis_out_k]:
+        rts_predis_out = CLASS_DIR / '{}{}'.format(rts_predis_out_k, out_vec_fmt)
     if rts_config[classification_k][rts_class_out_k]:
         rts_class_out = CLASS_DIR / '{}{}'.format(rts_class_out_k, out_vec_fmt)
 
@@ -384,16 +412,103 @@ def main(image, dem, dem_prev, project_dir, config,
                         super_objects_path=rts_objects,
                         headwall_candidates_out=hw_class_out,
                         headwall_candidates_centroid_out=hw_class_out_centroid,
-                        rts_pregrow_out=rts_pregrow_out,
+                        rts_predis_out=rts_predis_out,
                         rts_candidates_out=rts_class_out,
                         aoi_path=None,
-                        headwall_candidates_in=hw_candidates_in)
+                        headwall_candidates_in=hw_candidates_in,
+                        aoi=aoi)
     else:
-        logger.info('Using provided classified RTS objects'
+        logger.debug('Using provided classified RTS objects'
                     '\n\t{}'.format(rts_class_out))
         rts_objects = rts_class_out
 
-    # %%
+    #%% GROW OBJECTS
+    logger.info('Creating grow subobjects..')
+    # Segment AOI into simple grow
+    grow_config[seg][params][img_k] = inputs[img_k]
+    grow_config[seg][params][out_dir] = GROW_DIR
+
+    if grow_seg not in skip_steps:
+        # grow = grid_aoi(aoi, x_space=grow_config[seg][x_space],
+        #                       y_space=grow_config[seg][y_space], poly=True)
+        # if grow_out:
+        #     logger.info('Writing grow segmentation to: '
+        #                 '{}'.format(grow_out))
+        #     write_gdf(grow, grow_out)
+        grow = otb_grm(**grow_config[seg][params])
+    else:
+        grow = create_outname(**grow_config[seg][params], name_only=True)
+        logger.debug('Using provided grow objects'
+                     '\n\t{}'.format(grow))
+
+    # Cleanup
+    grow = Path(grow)
+    cleaned_grow = str(grow.parent / '{}_cln{}'.format(grow.stem, grow.suffix))
+    if grow_clean not in skip_steps:
+        if grow_config[cleanup][cleanup]:
+            logger.info('Cleaning up objects...')
+            cleanup_params = grow_config[cleanup][params]
+            cleaned_grow = cleanup_objects(input_objects=str(grow),
+                                           out_objects=cleaned_grow,
+                                           **cleanup_params)
+        # # Rasterize candidates to use as mask
+        # # Load objects
+        # rts_objects_area = gpd.read_file(rts_objects)
+        # rts_objects_area = rts_objects_area[rts_objects_area[class_fld]==rts_candidate]
+        # rts_objects_area.geometry = rts_objects_area.geometry.buffer(
+        #     grow_config[grow][buffer]
+        # )
+        # # Create bool column to use for masking
+        # rts_bool = 'rts_bool'
+        # rts_objects_area[rts_bool] = np.where(
+        #     rts_objects_area[class_fld] == rts_candidate, 1, 0)
+        #
+        # rts_objects_area_temp = r'/vsimem/rts_objects_area_temp.shp'
+        # rts_objects_area.to_file(rts_objects_area_temp)
+        #
+        # rts_candidate_mask = RTS_DIR / "rasterized_mask.tif"
+        # rasterize_shp2raster_extent(rts_objects_area_temp,
+        #                             grow_config[cleanup][params][mask_on],
+        #                             attribute=rts_bool,
+        #                             write_rasterized=True,
+        #                             out_path=str(rts_candidate_mask),
+        #                             nodata_val=0)
+        # grow = cleanup_objects(input_objects=str(grow_out),
+        #                        out_objects=str(cleaned_grow),
+        #                        mask_on=str(rts_candidate_mask),
+        #                        overwrite=True)
+
+    # Zonal Stats
+    cleaned_grow = Path(cleaned_grow)
+    grow_zs_out_path = cleaned_grow.parent / '{}_zs{}'.format(cleaned_grow.stem,
+                                                            cleaned_grow.suffix)
+    zonal_stats_inputs = {k: {'path': v,
+                              'stats': grow_config[zonal_stats][zs_stats]}
+                          for k, v in inputs.items()
+                          if k in grow_config[zonal_stats][zs_rasters]}
+
+    if grow_zs not in skip_steps:
+        logger.info('Calculating zonal statistics on grow objects...')
+        logger.debug('Computing zonal statistics on: '
+                     '{}'.format(zonal_stats_inputs.keys()))
+        grow = calc_zonal_stats(shp=str(cleaned_grow),
+                                rasters=zonal_stats_inputs,
+                                out_path=str(grow_zs_out_path))
+
+    # Do growing
+    logger.info('Growing RTS objects into subobjects:\n ({})...'.format(grow_zs_out_path))
+    grow_objects = ImageObjects(grow_zs_out_path,
+                                value_fields=zonal_stats_inputs)
+    # TODO: Remove after converting to use gpkg. This is just because of the
+    #  shapefile field size limit
+    grow_objects.objects.rename(columns={'ruggedness': 'ruggedness_mean'},
+                                inplace=True)
+
+    rts_objects = ImageObjects(rts_objects)
+    grown = grow_rts_candidates(rts_objects, grow_objects)
+
+    grown.write_objects(r'C:\temp\grow_pwr_2021jan31_1059.shp')
+
     logger.info('Done')
 
 
@@ -401,7 +516,8 @@ if __name__ == '__main__':
     # Default arguments and choices
     ARGDEF_SKIP_CHOICES = [pan, ndvi, dem_deriv, clip_step,
                            hw_seg, hw_clean, hw_zs, hw_class,
-                           rts_seg, rts_clean, rts_zs, rts_class]
+                           rts_seg, rts_clean, rts_zs, rts_class,
+                           grow_seg, grow_clean, grow_zs]
 
     parser = argparse.ArgumentParser()
 
@@ -443,12 +559,20 @@ if __name__ == '__main__':
                              r'2m_lsf_seg1_dem_masked_pca-DEM.tif',
                 '-pd', pd,
                 '-aoi', r'aois\test_aoi.shp',
-                '--skip_steps', 'pan', 'ndvi', 'hw_seg',
+                '--skip_steps',
+                pan,
+                ndvi,
+                hw_seg,
                 hw_clean,
                 hw_zs,
                 hw_class,
-                rts_seg, rts_clean,
+                rts_seg,
+                rts_clean,
                 rts_zs,
+                rts_class,
+                grow_seg,
+                grow_clean,
+                grow_zs,
                 '--config',
                 r'E:\disbr007\umn\2020sep27_eureka\rts_test2021jan18\config.json',
                 '--logdir', os.path.join(prj_dir, pd),
@@ -479,3 +603,6 @@ if __name__ == '__main__':
          # aoi=aoi,
          config=config,
          skip_steps=skip_steps)
+
+# TODO: Add value fields if doing merging
+# all computed zs fields plus on_border

@@ -217,9 +217,9 @@ def combined_density(mt1, mt2, aoi, in_mem_epsg=None, clip=False, out_path=None)
 def get_filepath_field():
     OS = platform.system()
     if OS == 'Windows':
-        filepath_field = 'win_path'
+        filepath_field = 'LOCATION'
     elif OS == 'Linux':
-        filepath_field = 'filepath'
+        filepath_field = 'LOCATION'
     else:
         logger.error('Unknown operating system: {}'.format(OS))
     

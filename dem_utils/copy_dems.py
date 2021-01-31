@@ -26,7 +26,7 @@ def mnt2v(filepath):
     windows_root = r'V:\pgc'
     if filepath.startswith(terranova_root):
         filepath = filepath.replace(terranova_root, windows_root)
-        filepath = filepath.replace(ntpath.sep, os.sep)
+        filepath = filepath.replace('/', os.sep)
 
     return filepath
 
@@ -40,8 +40,8 @@ def get_footprint_dems(footprint_path, filepath=get_filepath_field(),
         fp = pd.DataFrame({dem_path_fld: footprint_path})
     else:
         if isinstance(footprint_path, str):
-            # Paths in text file
             if os.path.splitext(footprint_path) == '.txt':
+                # Paths in text file
                 with open(footprint_path, 'r') as src:
                     content = src.readlines()
                 fp = pd.DataFrame({dem_path_fld: content})
@@ -52,7 +52,7 @@ def get_footprint_dems(footprint_path, filepath=get_filepath_field(),
         # Vector file of footprints with path field
         elif isinstance(footprint_path, gpd.GeoDataFrame):
             fp = footprint_path
-    if not location:
+    if location is None:
         fp[dem_path_fld] = fp.apply(lambda x: get_dem_path(x[filepath], x[dem_name]), axis=1)
     else:
         fp[dem_path_fld] = fp[location]
@@ -128,7 +128,7 @@ def copy_dems(footprint_path, output_directory, location=None,
     copy_list = create_copy_list(dem_paths, output_directory, meta_file_sfx, flat=flat)
 
     dem_src_list = [pair[0] for pair in copy_list if pair[0].endswith('dem.tif')]
-    print(len(dem_src_list))
+    # print(len(dem_src_list))
     dem_dst_list = [os.path.join(pair[1], os.path.basename(pair[0])) for pair in copy_list if pair[0].endswith('dem.tif')]
 
     logger.info('Located DEMs to copy: {:,}'.format(len(dem_src_list)))
@@ -191,6 +191,14 @@ if __name__ == '__main__':
                         help='Use to check for DEMs existence but do not copy.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Set logger to DEBUG.')
+
+    import sys
+    sys.argv = [r'C:\code\pgc-code-all\dem_utils\copy_dems.py',
+                '-i',
+                r'E:\disbr007\umn\accuracy_assessment\footprints\additional_dem_fps.shp',
+                '-o',
+                r'E:\disbr007\umn\accuracy_assessment\mj_ward1\data\dems\raw_addtl',
+                '-lf', 'LOCATION']
 
     args = parser.parse_args()
 

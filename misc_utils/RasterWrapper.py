@@ -12,6 +12,7 @@ import numpy.ma as ma
 from osgeo import gdal, osr  # ogr
 # from shapely.geometry import Polygon
 from shapely.geometry import box
+import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger
 from misc_utils.gdal_tools import clip_minbb, gdal_polygonize
@@ -114,6 +115,12 @@ class Raster:
         bbox = box(lrx, lry, ulx, uly)
 
         return bbox
+
+    def bbox2gdf(self):
+        gdf = gpd.GeoDataFrame(geometry=[self.raster_bbox()],
+                               crs=self.prj.wkt)
+
+        return gdf
 
     def GetBandAsArray(self, band_num, mask=True):
         """
@@ -267,7 +274,12 @@ class Raster:
             dtype = self.dtype
         # Handle NoData value
         if not nodata_val:
-            nodata_val = self.nodata_val
+            if self.nodata_val:
+                nodata_val = self.nodata_val
+            else:
+                logger.warning('Unable to determine NoData value of {}, '
+                               'using -9999'.format(self.src_path))
+                nodata_val = -9999
 
         # Create output file
         driver = gdal.GetDriverByName(fmt)

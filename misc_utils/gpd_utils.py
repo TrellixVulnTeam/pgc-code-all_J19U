@@ -16,6 +16,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, LineString, Polygon
 from shapely.ops import split
+from scipy.sparse.csgraph import connected_components
 from tqdm import tqdm
 
 import multiprocessing
@@ -395,3 +396,15 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
     else:
         logger.error('Unrecognized format: {}'.format(out_format))
 
+
+def dissolve_touching(gdf: gpd.GeoDataFrame):
+    dg = 'dissolve_group'
+
+    overlap_matrix = gdf.geometry.apply(
+        lambda x: gdf.geometry.touches(x)).values.astype(int)
+    n, ids = connected_components(overlap_matrix)
+    gdf[dg] = ids
+
+    dissolved = gdf.dissolve(by=dg)
+
+    return dissolved

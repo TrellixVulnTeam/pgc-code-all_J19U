@@ -14,6 +14,8 @@ if __name__ == '__main__':
                         help='Path to DEM, DEM(s), or directory holding DEMs.')
     parser.add_argument('-o', '--out_txt', type=os.path.abspath,
                         help='Path to write list of DEM Image1 IDs.')
+    parser.add_argument('-a', '--append_ids', action='store_true',
+                        help='Use to append IDs to out_txt, if it exists.')
     parser.add_argument('-ds', '--dem_sfx', default='dem.tif',
                         help='Suffix to locate DEMs by, if directory '
                              'provided.')
@@ -22,7 +24,8 @@ if __name__ == '__main__':
 
     dems = args.dems
     out_txt = args.out_txt
-    dem_sfx = args.dem_sfx
+    append_ids = args.append_ids
+    dem_sfx = args.dem_sfxgrid
 
     # Get DEMs
     logger.info('Locating DEMs...')
@@ -52,6 +55,16 @@ if __name__ == '__main__':
 
     logger.info('Image1 IDs:\n{}'.format('\n'.join(image1_ids)))
     if out_txt:
+        out_txt = Path(out_txt)
+        if out_txt.exists() and append_ids:
+            write_mode = 'a'
+        elif out_txt.exists() and not append_ids:
+            logger.warning('Overwriting {}'.format(out_txt))
+            write_mode = 'w'
+        else:
+            write_mode = 'w'
         logger.info('Writing Image1 IDs to file: {}'.format(out_txt))
-        with open(out_txt, 'w') as src:
-            src.writelines(image1_ids)
+        with open(out_txt, write_mode) as src:
+            for i in image1_ids:
+                src.write('{}\n'.format(i))
+            # src.writelines(image1_ids)

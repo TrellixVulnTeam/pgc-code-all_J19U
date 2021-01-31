@@ -32,7 +32,7 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
     ** only works for polygons --> output geom_type needs to be fixed **
     """
     driver = auto_detect_ogr_driver(input_shp)
-    
+
     # TODO: Improve the logic around in Memory Layers (not functional)
     if driver.GetName() == 'Memory' and isinstance(input_shp, ogr.DataSource):
         in_mem = True
@@ -55,7 +55,7 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
         input_shp_dir = os.path.dirname(input_shp)
         inDataSet = driver.Open(input_shp)
         inLayer = inDataSet.GetLayer(0)
-    
+
     # Get the source spatial reference
     inSpatialRef = inLayer.GetSpatialRef()
     logger.debug('Input spatial reference: {}'.format(inSpatialRef.ExportToWkt()))
@@ -119,7 +119,7 @@ def ogr_reproject(input_shp, to_sr, output_shp=None, in_mem=False):
         outname = os.path.basename(output_shp).split('.')[0]
         out_prj = os.path.join(outdir, '{}.prj'.format(outname))
         to_sr.MorphToESRI()
-    
+
         file = open(out_prj, 'w')
         file.write(to_sr.ExportToWkt())
         file.close()
@@ -176,10 +176,10 @@ def check_sr(shp_p, raster_p):
      # Check for common spatial reference between shapefile and first raster
     shp_sr = get_shp_sr(shp_p)
     raster_sr = get_raster_sr(raster_p)
-    
+
     if not shp_sr.IsSame(raster_sr):
         sr_match = False
-        logger.debug('''Spatial references do not match...''') 
+        logger.debug('''Spatial references do not match...''')
         logger.debug('Shape SR: \n{} \nRaster SR:\n{}'.format(shp_sr, raster_sr))
     else:
         sr_match = True
@@ -187,7 +187,8 @@ def check_sr(shp_p, raster_p):
     return sr_match
 
 
-def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'], username=get_creds()[0], password=get_creds()[1]):
+def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'],
+                     username=get_creds()[0], password=get_creds()[1]):
     """
     Load a table from danco.pgc.umn.edu. The reference to the connection datasource
     must be return or the Layer becomes NULL.
@@ -221,7 +222,7 @@ def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'], username=g
 def auto_detect_ogr_driver(ogr_ds, name_only=False):
     """
     Autodetect the appropriate driver for an OGR datasource.
-    
+
 
     Parameters
     ----------
@@ -237,7 +238,7 @@ def auto_detect_ogr_driver(ogr_ds, name_only=False):
                   '.shp' : 'ESRI Shapefile',
                   # TODO: Add more
                   }
-    
+
     # Check if in-memory datasource
     if isinstance(ogr_ds, ogr.DataSource):
         driver_name = 'Memory'
@@ -276,18 +277,18 @@ def auto_detect_ogr_driver(ogr_ds, name_only=False):
 def remove_shp(shp):
     """
     Remove the passed shp path and all meta-data files.
-    ogr.Driver.DeleteDataSource() was not removing 
+    ogr.Driver.DeleteDataSource() was not removing
     meta-data files.
-    
+
     Parameters
     ----------
     shp : os.path.abspath
         Path to shapefile to remove
-    
+
     Returns
     ----------
     None
-    
+
     """
     if shp:
         if os.path.exists(shp):
@@ -310,10 +311,10 @@ def raster_bounds(path):
     uly = gt[3]
     lrx = ulx + (gt[1] * src.RasterXSize)
     lry = uly + (gt[5] * src.RasterYSize)
-    
+
     return ulx, lry, lrx, uly
 
-    
+
 def minimum_bounding_box(rasters):
     '''
     Takes a list of DEMs (or rasters) and returns the minimum bounding box of all in
@@ -331,8 +332,8 @@ def minimum_bounding_box(rasters):
         ulxs.append(ulx)
         lrys.append(lry)
         lrxs.append(lrx)
-        ulys.append(uly)        
-    
+        ulys.append(uly)
+
     ## Find the smallest extent of all bounding box corners
     ulx = max(ulxs)
     uly = min(ulys)
@@ -439,11 +440,11 @@ def gdal_polygonize(img, out_vec, band=1, fieldname='label', overwrite=True):
     # Polygonize
     logger.debug('Vectorizing...')
     status = gdal.Polygonize(src_band, None, dst_lyr, 0, [], callback=None)
-    
+
     if status == -1:
         logger.error('Error during vectorization.')
         logger.error('GDAL exit code: {}'.format(status))
-        
+
     return status
 
 
@@ -552,3 +553,99 @@ def stack_rasters(rasters, out, rescale=False, rescale_min=0, rescale_max=1):
     out_ds = gdal.Translate(out, temp)
 
     return out_ds
+
+
+def rasterize_shp2raster_extent(ogr_ds, gdal_ds,
+                                attribute=None,
+                                burnValues=None,
+                                where=None,
+                                write_rasterized=False,
+                                out_path=None,
+                                nodata_val=None):
+    """
+    Rasterize a ogr datasource to the extent, projection, resolution of a given
+    gdal datasource object. Optionally write out the rasterized product.
+    ogr_ds           :    osgeo.ogr.DataSource OR os.path.abspath
+    gdal_ds          :    osgeo.gdal.Dataset
+    write_rasterised :    True to write rasterized product, must provide out_path
+    out_path         :    Path to write rasterized product
+
+    Writes
+    Rasterized dataset to file.
+
+    Returns
+    osgeo.gdal.Dataset
+    or
+    None
+    """
+    logger.debug('Rasterizing OGR DataSource: {}'.format(ogr_ds))
+    # If datasources are not open, open them
+    if isinstance(ogr_ds, ogr.DataSource):
+        pass
+    else:
+        ogr_ds = gdal.OpenEx(ogr_ds)
+
+    if isinstance(gdal_ds, gdal.Dataset):
+        pass
+    else:
+        gdal_ds = gdal.Open(gdal_ds)
+    # Get DEM attributes
+    if nodata_val is None:
+        nodata_val = gdal_ds.GetRasterBand(1).GetNoDataValue()
+
+    dem_sr = gdal_ds.GetProjection()
+    dem_gt = gdal_ds.GetGeoTransform()
+    x_min = dem_gt[0]
+    y_max = dem_gt[3]
+    x_res = dem_gt[1]
+    y_res = dem_gt[5]
+    x_sz = gdal_ds.RasterXSize
+    y_sz = gdal_ds.RasterYSize
+    x_max = x_min + x_res * x_sz
+    y_min = y_max + y_res * y_sz
+    gdal_ds = None
+
+    ## Open shapefile
+    # ogr_lyr = ogr_ds.GetLayer()
+
+    # Create new raster in memory
+    if write_rasterized is False:
+        out_path = r'/vsimem/rasterized.tif'
+        if os.path.exists(out_path):
+            os.remove(out_path)
+
+    ro = gdal.RasterizeOptions(format='GTiff', xRes=x_res, yRes=y_res,
+                               width=x_sz, height=y_sz, attribute=attribute,
+                               burnValues=burnValues,
+                               where=where)
+
+    # driver = gdal.GetDriverByName('GTiff')
+    # out_ds = driver.Create(out_path, x_sz, y_sz, 1, gdal.GDT_Float32)
+    # out_ds.SetGeoTransform((x_min, x_res, 0, y_min, 0, -y_res))
+    # out_ds.SetProjection(dem_sr)
+    # band = out_ds.GetRasterBand(1)
+    # band.SetNoDataValue(
+    #     dem_no_data_val)  # fix to get no_data_val before(?) clipping rasters
+    # band.FlushCache()
+
+    out_ds = gdal.Rasterize(out_path, ogr_ds, options=ro)
+    out_ds.GetRasterBand(1).SetNoDataValue(nodata_val)
+    # if write_rasterized is False:
+    #     return out_ds
+    # else:
+    #     out_ds = None
+    #     return out_path
+    out_ds = None
+
+    return out_path
+
+
+# v = r'E:\disbr007\umn\2020sep27_eureka\rts_test2021jan18\classified\rts_class_out.shp'
+# rs = r'E:\disbr007\umn\2020sep27_eureka\dems\sel' \
+#      r'\WV02_20140703_1030010033A84300_1030010032B54F00_test_aoi' \
+#      r'\WV02_20140703_1030010033A84300_1030010032B54F00_2m_lsf_seg1_dem_masked_test_aoi.tif'
+# r = r'C:\temp\rasterized.tif'
+# att = 'contains_h'
+#
+# rasterize_shp2raster_extent(v, rs, attribute=att, write_rasterized=True,
+#                             out_path=r)
