@@ -128,9 +128,9 @@ def create_logger(logger_name, handler_type,
     elif handler_type == 'fh':
         if not filename:
             print("""Error: Must provide a path to write log file to when using handler_type='fh'""")
-        if os.path.exists(filename):
+        # if os.path.exists(filename):
             # logger.debug('Overwriting previous logfile.')
-            os.remove(filename)
+            # os.remove(filename)
         ht = logging.FileHandler(filename)
     else:
         print('Unrecognized handler_type argument: {}'.format(handler_type))

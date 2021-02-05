@@ -1,0 +1,15 @@
+{
+  "db": 
+    {"tables": {
+      "scenes": {"unique_id": ["id", "item_type"]},
+      "scenes_onhand": {"unique_id": ["identifier"]}    ,
+      "off_nadir":  {"unique_id": ["scene_name"]}
+    },
+    "db_config": {
+      "host": "sandwich-pool.pgc.umn.edu",
+      "database": "planet",
+      "password": "1nil2theARSENALfc",
+      "user": "disbr007"
+      }
+    }
+}

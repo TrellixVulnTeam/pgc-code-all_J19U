@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import json
 import numpy as np
 import os
@@ -38,8 +39,6 @@ from classify_rts import classify_rts, grow_rts_candidates
 #   -zonal_stats_name()
 # %%
 logger = create_logger(__name__, 'sh', 'INFO')
-
-# CONFIG_FILE = Path(__file__).parent / 'config.json'
 
 # External py scripts
 pansh_py = r'C:\code\imagery_utils\pgc_pansharpen.py'
@@ -507,7 +506,8 @@ def main(image, dem, dem_prev, project_dir, config,
     rts_objects = ImageObjects(rts_objects)
     grown = grow_rts_candidates(rts_objects, grow_objects)
 
-    grown.write_objects(r'C:\temp\grow_pwr_2021jan31_1059.shp')
+    n = datetime.now().strftime('%Y%b%d_%H%M%S').lower()
+    grown.write_objects(r'C:\temp\grow_pwr_{}.shp'.format(n))
 
     logger.info('Done')
 
@@ -575,7 +575,7 @@ if __name__ == '__main__':
                 grow_zs,
                 '--config',
                 r'E:\disbr007\umn\2020sep27_eureka\rts_test2021jan18\config.json',
-                '--logdir', os.path.join(prj_dir, pd),
+                '--logdir', os.path.join(prj_dir, pd, 'logs'),
                 ]
 
     args = parser.parse_args()
@@ -595,6 +595,10 @@ if __name__ == '__main__':
         logger = create_logger(__name__, 'fh', 'DEBUG',
                                create_logfile_path(Path(__file__).name,
                                                    logdir))
+        logger = create_logger('classify_rts', 'fh', 'DEBUG',
+                               create_logfile_path(Path(__file__).name,
+                                                   logdir)
+                               )
 
     main(image=image,
          dem=dem,
@@ -603,6 +607,3 @@ if __name__ == '__main__':
          # aoi=aoi,
          config=config,
          skip_steps=skip_steps)
-
-# TODO: Add value fields if doing merging
-# all computed zs fields plus on_border

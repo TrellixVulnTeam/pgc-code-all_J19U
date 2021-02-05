@@ -283,31 +283,75 @@ def classify_rts(sub_objects_path,
 
 def grow_rts_candidates(candidates: ImageObjects,
                         subobjects: ImageObjects):
-    on_border = 'on_border'
-
+    # in_rts = 'on_border'
     # Locate border touching objects
-    subobjects.objects[on_border] = subobjects.objects.index.isin(
-        gpd.sjoin(subobjects.objects,
-                  candidates.objects[candidates.objects[candidates.class_fld] == rts_candidate]
-                  .set_geometry(candidates.objects.geometry.boundary),
-                  how='inner').index)
+    # subobjects.objects[on_border] = subobjects.objects.index.isin(
+    #     gpd.sjoin(subobjects.objects.set_geometry(subobjects.objects.geometry.centroid),
+    #               candidates.objects[candidates.objects[candidates.class_fld] == rts_candidate]
+    #               .set_geometry(candidates.objects.geometry.boundary),
+    #               how='inner').index)
+
+    # Locate objects with centroid within rts_candidates
+    logger.info('Locating merge seeds within RTS candidates...')
+    in_rts = 'in_rts'
+    subobjects.objects[in_rts] = subobjects.objects.index.isin(
+        gpd.overlay(subobjects.objects.reset_index()
+                    .set_geometry(subobjects.objects.centroid),
+                    candidates.objects[candidates.objects[candidates.class_fld]
+                                       == rts_candidate]).set_index('index_1')
+        .index)
+
+    # Add on_border field to value fields
+    # subobjects.value_fields[on_border] = 'bool_or'
+    subobjects.value_fields[in_rts] = 'bool_or'
 
     # Determine merge paths
     # Merge seeds
-    onb_rule = create_rule(rule_type=threshold_rule,
-                           in_field=on_border,
-                           op=operator.eq,
-                           threshold=True,
+    in_rts_rule = create_rule(rule_type=threshold_rule,
+                              in_field=in_rts,
+                              op=operator.eq,
+                              threshold=True,
+                              out_field=True)
+    delev_rule = create_rule(rule_type=threshold_rule,
+                             in_field=delev_mean,
+                             op=operator.lt,
+                             threshold=-0.5,
+                             out_field=True)
+    ndvi_rule = create_rule(rule_type=threshold_rule,
+                            in_field=ndvi_mean,
+                            op=operator.lt,
+                            threshold=-0.01,
+                            out_field=True)
+    img_rule = create_rule(rule_type=threshold_rule,
+                           in_field=img_mean,
+                           op=operator.lt,
+                           threshold=1200,
                            out_field=True)
-    subobjects.merge_seeds([onb_rule])
+    med_rule = create_rule(rule_type=threshold_rule,
+                           in_field=med_mean,
+                           op=operator.lt,
+                           threshold=1,
+                           out_field=True)
+    slope_rule = create_rule(rule_type=threshold_rule,
+                             in_field=slope_mean,
+                             op=operator.gt,
+                             threshold=5,
+                             out_field=True)
+
+    subobjects.merge_seeds([in_rts_rule,
+                            delev_rule,
+                            ndvi_rule,
+                            img_rule,
+                            med_rule,
+                            slope_rule])
 
     # Merge candidate rules
-    mc_fot = [(on_border, operator.eq, True),
-              (delev_mean, operator.lt, -0.5), #-0.5
-              (ndvi_mean, operator.lt, -0.01), #-0.01
-              (img_mean, operator.lt, 1200),
-              (med_mean, operator.lt, 1),
-              (slope_mean, operator.gt, 5)]
+    mc_fot = [(in_rts, operator.eq, True),
+              (delev_mean, operator.lt, -0.5),  # -0.5
+              (ndvi_mean, operator.lt, -0.01),  # -0.01
+              (img_mean, operator.lt, 1200),  # 1200
+              (med_mean, operator.lt, 1),  # 1
+              (slope_mean, operator.gt, 5)]  # 5
 
     # Pairwise rules
     # Greater slope than self
@@ -315,20 +359,21 @@ def grow_rts_candidates(candidates: ImageObjects,
                                'op': operator.gt,
                                 'threshold': 'self'}}
 
-    img_pwr = {'threshold': {'field': ndvi_mean,
+    img_pwr = {'threshold': {'field': img_mean,
                              'op': operator.lt,
                              'threshold': 'self'}}
-    ndvi_pwr = {'threshold': {'field': img_mean,
+    ndvi_pwr = {'threshold': {'field': ndvi_mean,
                               'op': operator.lt,
                               'threshold': 'self'}}
     pc = [img_pwr, ndvi_pwr]
+    # pc = None
 
-    gf = slope_mean
-    max_iter = 2
+    gf = [slope_mean, delev_mean, img_mean]
+    max_iter = 100
 
     subobjects.pseudo_merging(mc_fields_ops_thresholds=mc_fot,
                               pairwise_criteria=pc,
-                              grow_fields=[gf],
+                              grow_fields=gf,
                               max_iter=max_iter,
                               merge_seeds=True)
 
