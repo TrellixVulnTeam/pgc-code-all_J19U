@@ -15,7 +15,7 @@ logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def rmse_compare(dem1_path, dem2_path, dem2pca_path, max_diff=None, outfile=None, plot=False,
-                 save_plot=None, show_plot=False, bins=10, log_scale=True):
+                 save_plot=None, show_plot=False, bins=20, log_scale=True):
     # Load DEMs as arrays
     logger.info('Loading DEMs...')
     dem1 = Raster(dem1_path)

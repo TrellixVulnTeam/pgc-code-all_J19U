@@ -112,7 +112,7 @@ def rule_field_name(rule):
 
 
 def create_rule(rule_type, in_field, op, threshold, out_field=None, **kwargs):
-    supported_rule_types = ['threshold', 'adjacent']
+    supported_rule_types = ['threshold', 'adjacent', 'adjacent_or_is']
     if rule_type not in supported_rule_types:
         logger.error('Unsupported rule_type "{}". Must be in: '
                      '{}'.format(rule_type, supported_rule_types))
@@ -182,6 +182,7 @@ class ImageObjects:
         # Field names
         self.nebs_fld = 'neighbors'
         self._area_fld = 'area'
+        self.pseudo_area_fld = 'pseudo_area'
         self.compact_fld = 'compactness'
         self.class_fld = 'class'
 
@@ -225,17 +226,17 @@ class ImageObjects:
                     print('check_neb: ', i, row[self.nebs_fld])
 
     def _parse_value_fields(self, value_fields):
-        if isinstance(value_fields, dict):
-            # Assume zonal stats dict passed
-            # {'name': {'path': path, 'stats': ['mean']}}
-            value_fields = {'{}_{}'.format(k, x): x
-                           for k, v in value_fields.items()
-                           for x in v['stats']}
-        elif isinstance(value_fields, list):
-            # Assume list of (field_name, summary_stat)
-            value_fields = {fn: ss for fn, ss in value_fields}
-        # af = self.area_fld
-        # value_fields[af] = 'sum'
+        if value_fields is not None:
+            if isinstance(value_fields, dict):
+                # Assume zonal stats dict passed
+                # {'name': {'path': path, 'stats': ['mean']}}
+                value_fields = {'{}_{}'.format(k, x): x
+                               for k, v in value_fields.items()
+                               for x in v['stats']}
+            elif isinstance(value_fields, list):
+                # Assume list of (field_name, summary_stat)
+                value_fields = {fn: ss for fn, ss in value_fields}
+            value_fields[self.m_seed_fld] = 'bool_or'
         return value_fields
 
     @property
@@ -311,8 +312,8 @@ class ImageObjects:
 
             # If the feature is considering itself a neighbor remove it from
             # the list
-            # if index in neighbors:
-            #     neighbors = neighbors.remove(index)
+            if index in neighbors:
+                neighbors = np.delete(neighbors, np.where(neighbors == index))
 
             # Save the neighbors that have been found and their IDs
             ns.append(neighbors)
@@ -490,28 +491,29 @@ class ImageObjects:
         return is_merge_seed.index
 
     def update_mergeable_ids(self, max_iter):
-        """Returns list of IDs that are True in the specified fields"""
+        """Returns list of IDs that are True in the specified fields.
+        These IDs are the only ones that will be grown from."""
         if max_iter:
             self.objects[self.continue_iter] = (self.objects[self.m_ct_fld] <
                                                 max_iter)
 
+        required_fields = [self.mc_fld, self.m_fld, self.continue_iter,
+                           self.m_seed_fld]
+
         self.mergeable_ids = list(self.objects[
-                                       self.objects[[self.m_seed_fld,
-                                                     self.mc_fld,
-                                                     self.m_fld,
-                                                     self.continue_iter]]
+                                       self.objects[required_fields]
                                   .all(axis='columns') == True]
                                   .index)
         return self.mergeable_ids
 
-    def find_merge_candidates(self, fields_ops_thresholds):
+    def find_merge_candidates(self, merge_candidate_rules):
         """
         Marks columns that meet each merge criteria (field op threshold)
         in fields_ops_thresholds, as True in mc_fld field.
 
         Parameters
         ---------
-        fields_ops_thresholds : list
+        fields_ops_thresholds : list # TODO: Update for merge_candidate_rules
             List of tuples of (field_name, operator fxn, threshold)
 
         Returns
@@ -522,24 +524,35 @@ class ImageObjects:
         if self.mc_fld not in self.fields:
             self.objects[self.mc_fld] = None
 
-        if fields_ops_thresholds is not None:
-            df = pd.DataFrame(
-                [op(self.objects[field], threshold) for field, op, threshold in
-                 fields_ops_thresholds]).transpose()
-            # If objects have already been marked unmergeable, mark so again
-            df[self.m_fld] = self.objects[self.m_fld].apply(lambda x: x is not False)
-            # Identify merge candidates as those that meet all criteria and haven't
-            # already been merged
-            self.objects[self.mc_fld] = df.all(axis='columns')
+        # if fields_ops_thresholds is not None:
+        #     df = pd.DataFrame(
+        #         [op(self.objects[field], threshold) for field, op, threshold in
+        #          fields_ops_thresholds]).transpose()
+        #     # If objects have already been marked unmergeable, mark so again
+        #     df[self.m_fld] = self.objects[self.m_fld].apply(lambda x: x is not False)
+        #     # Identify merge candidates as those that meet all criteria and haven't
+        #     # already been merged
+        #     self.objects[self.mc_fld] = df.all(axis='columns')
+        # else:
+        #     self.objects[self.mc_fld] = True
+        if merge_candidate_rules is not None:
+            for rule in merge_candidate_rules:
+                self.apply_single_rule(**rule)
         else:
             self.objects[self.mc_fld] = True
+        self.classify_objects(True, class_fld=self.mc_fld,
+                              threshold_rules=[r for r in merge_candidate_rules
+                                               if r['rule_type'] == 'threshold'],
+                              adj_rules=[r for r in merge_candidate_rules
+                                         if r['rule_type'] == 'adjacent'],
+                              overwrite_class=True)
 
-    def pseudo_merging(self, mc_fields_ops_thresholds, pairwise_criteria,
+    def pseudo_merging(self, merge_candidate_rules, pairwise_criteria,
                        grow_fields: list = None,
                        merge_seeds=False,
                        max_iter=None):
         """
-        mc_fields_ops_thresholds : list
+        mc_fields_ops_thresholds : list TODO: Update for merge_candidate_rules
             List of tuples of (field_name, operator fxn, threshold) to identify
             merge candidate objects. Only these object will be merged into. If
             None, all objects are candidates for merging
@@ -569,26 +582,26 @@ class ImageObjects:
         # mergeable
         self.objects[self.m_fld] = True
 
-        # Get objects that meet merge criteria
-        self.find_merge_candidates(mc_fields_ops_thresholds)
-
-        logger.debug('Merge candidates found: {:,}'.format(
-            len(self.objects[self.objects[self.mc_fld] == True])))
-
-        # Sort by area
-        self.objects = self.objects.sort_values(by=self.area_fld)
-
         # Check if merge_seeds provided, if not mark all objects as seeds
         if not merge_seeds:
             self.objects[self.m_seed_fld] = True
         logger.debug('Merge seeds found: '
                      '{}'.format(len(self.objects[self.objects[self.m_seed_fld]])))
 
+        # Get objects that meet merge criteria
+        self.find_merge_candidates(merge_candidate_rules)
+        logger.debug('Merge candidates found: {:,}'.format(
+            len(self.objects[self.objects[self.mc_fld] == True])))
+
+        # Sort by area
+        self.objects[self.pseudo_area_fld] = self.objects.area
+        self.objects = self.objects.sort_values(by=self.pseudo_area_fld)
+
         # Initialize empty lists to store "merge path" -> ordered list of
         # neighbors IDs to merge into
         self.objects[self.mp_fld] = [[] for i in range(self.num_objs)]
 
-        # Determine all mergable IDs
+        # Determine all mergable IDs, using the merge_seeds as starting point
         if max_iter is None:
             self.objects[self.continue_iter] = False
         self.update_mergeable_ids(max_iter=max_iter)
@@ -601,17 +614,17 @@ class ImageObjects:
         if grow_fields is None:
             grow_fields = self.value_fields
 
-        # While there are rows that are merge_seeds and
-        # that haven't been checked and there are merge_candidates,
-        # look for a possible merge to a neighbor
+        # While there are rows that are mergeable and
+        # that haven't been checked look for a possible merge to a neighbor
+        # that is a merge_candidate
         while self.mergeable_ids:
             logger.info('Mergeable IDs: {:,}'.format(len(self.mergeable_ids)))
-            # Get the first row that is all of:
-            # merge_seed, merge_candidate, marked mergeable, not at max_iter
+            # Get the first row
             r = self.objects.loc[self.mergeable_ids[0]]
 
             # Get ID of row
             i = r.name
+            logger.debug('Working on object: {}'.format(i))
 
             # logger.debug('Current ID: {}'.format(i))
             # Check that neighbor value fields have been computed for all
@@ -623,7 +636,7 @@ class ImageObjects:
                 #  "on the fly" rather than upfront out of the merging loop
                 # if not all(neighbors in merge_field.keys()) (apply)
                 if merge_nv_field not in r.index:
-                    self.compute_neighbor_values(gf)
+                    self.compute_neighbor_values(gf)  # TODO: for merge_candidates only?
 
             # Find best match, which is closest value in terms of standard
             # deviations summed for all merge fields, given pairwise criteria
@@ -638,9 +651,9 @@ class ImageObjects:
             # neighbor for each merge_field, in order to choose best neighbor
             # to merge with
             for neb_id in r[self.nebs_fld]:
-                # Skip if marked unmergeable
+                # Skip if marked unmergeable or not a merge_candidate
                 try:
-                    if not self.objects.at[neb_id, self.m_fld]:
+                    if (not self.objects.at[neb_id, self.m_fld] or not self.objects.at[neb_id, self.mc_fld]):
                         continue
                 except Exception as e:
                     logger.error(e)
@@ -657,7 +670,7 @@ class ImageObjects:
                                  for pc in pairwise_criteria]):
                     neighbor_abs_stds.pop(neb_id)
                     continue
-                # Get number of standard deviations
+                # Get number of standard deviations in each grow field
                 for gf in grow_fields:
                     neighbor_abs_stds[neb_id].append(
                         abs_stds(r[gf], possible_match[gf],
@@ -674,25 +687,26 @@ class ImageObjects:
                 logger.debug('Match found: {}'.format(best_match_id))
 
             if best_match is not None:
+                logger.debug('Aggregating stats of current object and best match...')
                 # Update value fields of best match row with approriate
                 # aggregate e.g.: weighted mean
                 for vf, agg_type in self.value_fields.items():
                     if agg_type == 'mean':
                         self.objects.at[best_match_id, vf] = (
                             weighted_mean(values=[r[vf], best_match[vf]],
-                                          weights=[r[self.area_fld],
-                                                   best_match[self.area_fld]]))
+                                          weights=[r[self.pseudo_area_fld],
+                                                   best_match[self.pseudo_area_fld]]))
                     elif agg_type == 'majority':
                         # Get the value assoc with object that has most area
                         self.objects.at[best_match_id, vf] = (
-                            max([(r[vf], r[self.area_fld]),
-                                 (best_match[vf], best_match[self.area_fld])],
+                            max([(r[vf], r[self.pseudo_area_fld]),
+                                 (best_match[vf], best_match[self.pseudo_area_fld])],
                                 key=operator.itemgetter(1))[0])
                     elif agg_type == 'minority':
                         # Get the value assoc. with object that has least area
                         self.objects.at[best_match_id, vf] = (
-                            min([(r[vf], r[self.area_fld]),
-                                 (best_match[vf], best_match[self.area_fld])],
+                            min([(r[vf], r[self.pseudo_area_fld]),
+                                 (best_match[vf], best_match[self.pseudo_area_fld])],
                                 key=operator.itemgetter(1))[0])
                     elif agg_type == 'minimum':
                         self.objects.at[best_match_id, vf] = min(
@@ -714,8 +728,8 @@ class ImageObjects:
                                      'value field: {}'.format(agg_type, vf))
 
                 # Update area field (add areas) TODO: make pseudo_area field
-                self.objects.at[best_match_id, self.area_fld] = (
-                        r[self.area_fld] + best_match[self.area_fld])
+                self.objects.at[best_match_id, self.pseudo_area_fld] = (
+                        r[self.pseudo_area_fld] + best_match[self.pseudo_area_fld])
 
                 # Calculate neighbors for best match if not already
                 if isinstance(best_match[self.nebs_fld], float) or \
@@ -758,22 +772,20 @@ class ImageObjects:
             self.objects.at[i, self.mc_fld] = False
 
             # TODO: potentially check if any merge_paths exist, only merge() if yes
-            logger.debug('Merge paths:\n'
-                         '{}'.format(self.objects[self.objects[self.mp_fld]
-                                     .apply(lambda x: len(x) > 0)][self.mp_fld]))
-            self.merge()
+            # logger.debug('Merge paths:\n'
+            #              '{}'.format(self.objects[self.objects[self.mp_fld]
+            #                          .apply(lambda x: len(x) > 0)][self.mp_fld]))
+            # self.merge()
 
-            # Recalculate merge candidates, using new (merged) values
-            self.find_merge_candidates(mc_fields_ops_thresholds) # TODO: speed up?
+            # Recalculate merge candidates, using new (merged) values # TODO: Just test the newly created feature
+            self.find_merge_candidates(merge_candidate_rules)
 
-            # Resort by area so smallest possible merge object is checked next
-            self.objects = self.objects.sort_values(by=self.area_fld)
+            # Resort by area so smallest possible merge object is checked next # TODO: Check if necessary to resort
+            logger.debug('Sorting by area, smallest first...')
+            self.objects = self.objects.sort_values(by=self.pseudo_area_fld)
 
+            logger.debug('Updating mergeable IDs...')
             self.update_mergeable_ids(max_iter=max_iter)
-            # print('Best match ID: {}'.format(best_match_id))
-
-            # logger.debug('\n{}'.format(self.objects[
-            #     self.objects[self.mp_fld].apply(lambda x: len(x) > 0)][self.mp_fld]))
 
     def merge(self):
         # merge features that have a merge path
@@ -813,6 +825,10 @@ class ImageObjects:
             # Add merged object back in
             # self.objects = pd.concat([self.objects, merged])
             self.objects = self.objects.append(merged)
+
+            # Replace merge field vlaues
+            for m in r[self.mp_fld]:
+                self.replace_neighbor(m, i, update_merges=True)
 
     # def determine_adj_thresh(self, neb_values_fld, value_thresh, value_op, out_field, subset=None):
     #     """Determines if each row is has neighbor that meets the value
@@ -944,20 +960,31 @@ class ImageObjects:
                 computed for.
         """
         # Ensure rule type is supported
-        accepted_rule_types = ['threshold', 'adjacent']
+        type_threshold = 'threshold'
+        type_adjacent = 'adjacent',
+        type_adj_or = 'adjacent_or_is'
+        accepted_rule_types = [type_threshold, type_adjacent, type_adj_or]
         if rule_type not in accepted_rule_types:
             logger.error('Rule type: "{}" not recognized. Must be one of: '
                          '{}'.format(rule_type, accepted_rule_types))
             raise Exception
 
-        if rule_type == 'threshold':
+        if rule_type == type_threshold:
             results = op(self.objects[in_field], threshold)
 
-        elif rule_type == 'adjacent':
+        elif rule_type == type_adjacent:
             results = self.adjacent_to(in_field=in_field,
                                        op=op,
                                        threshold=threshold,
                                        **kwargs)
+        elif rule_type == type_adj_or:
+            adj_results = self.adjacent_to(in_field=in_field,
+                                           op=op,
+                                           threshold=threshold,
+                                           **kwargs)
+            is_results = op(self.objects[in_field], threshold)
+            results = adj_results | is_results
+
         if out_field:
             self.objects[out_field] = results
             # TODO: Add out_field to self.contraint_fields
@@ -995,6 +1022,7 @@ class ImageObjects:
         return results
 
     def classify_objects(self, class_name,
+                         class_fld=None,
                          threshold_rules=None,
                          adj_rules=None,
                          overwrite_class=False):
@@ -1005,8 +1033,11 @@ class ImageObjects:
         # TODO: optimize so that only unclassified objects have the other
         #  rules applied, as adjacency rules can take a while
         # Create class field if it doesn't exist
-        if self.class_fld not in self.fields:
-            self.objects[self.class_fld] = None
+        if class_fld is None:
+            class_fld = self.class_fld
+
+        if class_fld not in self.fields:
+            self.objects[class_fld] = None
 
         # Get boolean series for each rule
         all_results = []
@@ -1027,15 +1058,12 @@ class ImageObjects:
         # Add class name to rows that meet criteria
         if overwrite_class:
             # Update all rows that meet rules
-            logger.info("Classifying {:,} objects".format(
-                len(self.objects.loc[update_rows, self.class_fld])))
-            self.objects.loc[update_rows, self.class_fld] = class_name
+            logger.debug("Classifying {:,} objects as {}={}".format(
+                len(self.objects.loc[update_rows, class_fld]), class_fld, class_name))
+            self.objects.loc[update_rows, class_fld] = class_name
         else:
             # Update only rows that meet rules AND are not classified
-            logger.info("Classifying {:,} objects".format(
-                len(self.objects.loc[
-                update_rows & self.objects[self.class_fld].isnull(),
-                self.class_fld])))
-            self.objects.loc[
-                update_rows & self.objects[self.class_fld].isnull(),
-                self.class_fld] = class_name
+            logger.info("Classifying {:,} objects as {}={}".format(
+                len(self.objects.loc[update_rows, class_fld]), class_fld, class_name))
+            self.objects.loc[update_rows & self.objects[class_fld].isnull(),
+                             class_fld] = class_name

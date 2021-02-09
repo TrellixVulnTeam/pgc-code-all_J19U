@@ -1,5 +1,5 @@
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import numpy as np
 import os
@@ -11,6 +11,7 @@ import sys
 
 from tqdm import tqdm
 import geopandas as gpd
+import pandas as pd
 
 from archive_analysis.archive_analysis_utils import grid_aoi
 from misc_utils.logging_utils import create_logger, create_logfile_path
@@ -30,7 +31,7 @@ from obia_utils.cleanup_objects import cleanup_objects
 from obia_utils.calc_zonal_stats import calc_zonal_stats
 from obia_utils.ImageObjects import ImageObjects
 
-from classify_rts import classify_rts, grow_rts_candidates
+from classify_rts import classify_rts, grow_rts_candidates, grow_rts_simple
 
 # TODO:
 #  Standardize naming - make functions:
@@ -178,13 +179,14 @@ def main(image, dem, dem_prev, project_dir, config,
     PANSH_DIR = project_dir / 'pansh'
     NDVI_DIR = project_dir / 'ndvi'
     DEM_DIR = project_dir / 'dem'
+    DEM_PREV_DIR = project_dir / dem_prev_k
     DEM_DERIV_DIR = DEM_DIR / 'deriv'
     SEG_DIR = project_dir / 'seg'
     HW_DIR = SEG_DIR / 'headwall'
     RTS_DIR = SEG_DIR / 'rts'
     GROW_DIR = SEG_DIR / 'grow'
     CLASS_DIR = project_dir / 'classified'
-    for d in [SCRATCH_DIR, IMG_DIR, PANSH_DIR, NDVI_DIR, DEM_DIR,
+    for d in [SCRATCH_DIR, IMG_DIR, PANSH_DIR, NDVI_DIR, DEM_DIR, DEM_PREV_DIR,
               DEM_DERIV_DIR, SEG_DIR, HW_DIR, RTS_DIR, GROW_DIR, CLASS_DIR]:
         if not d.exists():
             os.makedirs(d)
@@ -228,7 +230,9 @@ def main(image, dem, dem_prev, project_dir, config,
     if aoi:
         logger.info('Clipping inputs to AOI...')
         for k, r in tqdm(inputs.items()):
-            out_path = r.parent / '{}{}{}'.format(r.stem, clip_sfx,
+            # out_path = r.parent / '{}{}{}'.format(r.stem, clip_sfx,
+            #                                       r.suffix)
+            out_path = project_dir / k / '{}{}{}'.format(r.stem, clip_sfx,
                                                   r.suffix)
             if clip_step not in skip_steps:
                 logger.debug(
@@ -289,8 +293,8 @@ def main(image, dem, dem_prev, project_dir, config,
         else:
             hw_objects = create_outname(**hw_config[seg][params],
                                         name_only=True)
-            logger.debug('Using provided headwall segmentation:'
-                        '\n\t{}'.format(hw_objects))
+            logger.debug('Using provided headwall segmentation: '
+                         '{}'.format(Path(hw_objects).relative_to(project_dir)))
 
     # %% Cleanup
     # Create path to write cleaned objects to
@@ -302,13 +306,14 @@ def main(image, dem, dem_prev, project_dir, config,
         if hw_config[cleanup][cleanup]:
             logger.info('Cleaning up subobjects...')
             cleanup_params = hw_config[cleanup][params]
+            cleanup_params[mask_on] = str(inputs[dem_k])
             # hw_objects = Path(hw_objects)
             hw_objects = cleanup_objects(input_objects=str(hw_objects),
                                          out_objects=cleaned_objects_out,
                                          **cleanup_params)
     else:
         logger.debug('Using provided cleaned headwall objects'
-                    '\n\t{}'.format(cleaned_objects_out))
+                    '{}: '.format(Path(cleaned_objects_out).relative_to(project_dir)))
         hw_objects = cleaned_objects_out
 
     # %% Zonal Stats
@@ -327,8 +332,8 @@ def main(image, dem, dem_prev, project_dir, config,
                                       rasters=zonal_stats_inputs,
                                       out_path=hw_zs_out_path, )
     else:
-        logger.debug('Using provided headwall objects with zonal stats'
-                    '\n\t{}'.format(hw_zs_out_path))
+        logger.debug('Using provided headwall objects with zonal stats: '
+                    '{}'.format(Path(hw_zs_out_path).relative_to(project_dir)))
         hw_objects = hw_zs_out_path
 
     # %%
@@ -344,8 +349,8 @@ def main(image, dem, dem_prev, project_dir, config,
         else:
             rts_objects = create_outname(**rts_config[seg][params],
                                          name_only=True)
-            logger.debug('Using provided RTS seg:'
-                        '\n\t{}'.format(rts_objects))
+            logger.debug('Using provided RTS seg: '
+                        '{}'.format(Path(rts_objects).relative_to(project_dir)))
         rts_objects = Path(rts_objects)
 
     # %% Cleanup
@@ -356,14 +361,14 @@ def main(image, dem, dem_prev, project_dir, config,
         if rts_config[cleanup][cleanup]:
             logger.info('Cleaning up objects...')
             cleanup_params = rts_config[cleanup][params]
+            cleanup_params[mask_on] = str(inputs[dem_k])
             rts_objects = Path(rts_objects)
-
             rts_objects = cleanup_objects(input_objects=rts_objects,
                                           out_objects=cleaned_objects_out,
                                           **cleanup_params)
     else:
-        logger.debug('Using provided cleaned RTS objects'
-                    '\n\t{}'.format(cleaned_objects_out))
+        logger.debug('Using provided cleaned RTS objects: '
+                    '{}'.format(Path(cleaned_objects_out).relative_to(project_dir)))
         rts_objects = cleaned_objects_out
 
     # %% Zonal Stats
@@ -382,8 +387,8 @@ def main(image, dem, dem_prev, project_dir, config,
                                        rasters=zonal_stats_inputs,
                                        out_path=rts_zs_out_path, )
     else:
-        logger.debug('Using provided RTS zonal stats objects'
-                    '\n\t{}'.format(rts_zs_out_path))
+        logger.debug('Using provided RTS zonal stats objects: '
+                    '{}'.format(Path(rts_zs_out_path).relative_to(project_dir)))
         rts_objects = rts_zs_out_path
 
     # %% CLASSIFICATION
@@ -417,8 +422,8 @@ def main(image, dem, dem_prev, project_dir, config,
                         headwall_candidates_in=hw_candidates_in,
                         aoi=aoi)
     else:
-        logger.debug('Using provided classified RTS objects'
-                    '\n\t{}'.format(rts_class_out))
+        logger.debug('Using provided classified RTS objects: '
+                    '{}'.format(Path(rts_class_out).relative_to(project_dir)))
         rts_objects = rts_class_out
 
     #%% GROW OBJECTS
@@ -437,8 +442,8 @@ def main(image, dem, dem_prev, project_dir, config,
         grow = otb_grm(**grow_config[seg][params])
     else:
         grow = create_outname(**grow_config[seg][params], name_only=True)
-        logger.debug('Using provided grow objects'
-                     '\n\t{}'.format(grow))
+        logger.debug('Using provided grow objects: '
+                     '{}'.format(Path(grow).relative_to(project_dir)))
 
     # Cleanup
     grow = Path(grow)
@@ -447,67 +452,65 @@ def main(image, dem, dem_prev, project_dir, config,
         if grow_config[cleanup][cleanup]:
             logger.info('Cleaning up objects...')
             cleanup_params = grow_config[cleanup][params]
+            cleanup_params[mask_on] = str(inputs[dem_k])
             cleaned_grow = cleanup_objects(input_objects=str(grow),
                                            out_objects=cleaned_grow,
                                            **cleanup_params)
-        # # Rasterize candidates to use as mask
-        # # Load objects
-        # rts_objects_area = gpd.read_file(rts_objects)
-        # rts_objects_area = rts_objects_area[rts_objects_area[class_fld]==rts_candidate]
-        # rts_objects_area.geometry = rts_objects_area.geometry.buffer(
-        #     grow_config[grow][buffer]
-        # )
-        # # Create bool column to use for masking
-        # rts_bool = 'rts_bool'
-        # rts_objects_area[rts_bool] = np.where(
-        #     rts_objects_area[class_fld] == rts_candidate, 1, 0)
-        #
-        # rts_objects_area_temp = r'/vsimem/rts_objects_area_temp.shp'
-        # rts_objects_area.to_file(rts_objects_area_temp)
-        #
-        # rts_candidate_mask = RTS_DIR / "rasterized_mask.tif"
-        # rasterize_shp2raster_extent(rts_objects_area_temp,
-        #                             grow_config[cleanup][params][mask_on],
-        #                             attribute=rts_bool,
-        #                             write_rasterized=True,
-        #                             out_path=str(rts_candidate_mask),
-        #                             nodata_val=0)
-        # grow = cleanup_objects(input_objects=str(grow_out),
-        #                        out_objects=str(cleaned_grow),
-        #                        mask_on=str(rts_candidate_mask),
-        #                        overwrite=True)
 
-    # Zonal Stats
     cleaned_grow = Path(cleaned_grow)
     grow_zs_out_path = cleaned_grow.parent / '{}_zs{}'.format(cleaned_grow.stem,
-                                                            cleaned_grow.suffix)
-    zonal_stats_inputs = {k: {'path': v,
-                              'stats': grow_config[zonal_stats][zs_stats]}
-                          for k, v in inputs.items()
-                          if k in grow_config[zonal_stats][zs_rasters]}
-
+                                                              cleaned_grow.suffix)
     if grow_zs not in skip_steps:
+        logger.info('Merging RTS candidates into grow objects...')
+        # Load small objects
+        so = gpd.read_file(cleaned_grow)
+
+        # Burn rts in, including class name
+        r = gpd.read_file(rts_objects)
+        r = r[r[class_fld] == rts_candidate][[class_fld, r.geometry.name]]
+
+        # Erase subobjects under RTS candidates
+        diff = gpd.overlay(so, r, how='difference')
+        # Merge RTS candidates back in
+        merged = pd.concat([diff, r])
+        merged_out = SEG_DIR / GROW_DIR / 'merged.shp'
+        write_gdf(merged, merged_out)
+        # merged.to_file(merged_out)
+
+        # Zonal Stats
+        zonal_stats_inputs = {k: {'path': v,
+                                  'stats': grow_config[zonal_stats][zs_stats]}
+                              for k, v in inputs.items()
+                              if k in grow_config[zonal_stats][zs_rasters]}
+
         logger.info('Calculating zonal statistics on grow objects...')
         logger.debug('Computing zonal statistics on: '
                      '{}'.format(zonal_stats_inputs.keys()))
-        grow = calc_zonal_stats(shp=str(cleaned_grow),
+        grow = calc_zonal_stats(shp=merged_out,
                                 rasters=zonal_stats_inputs,
                                 out_path=str(grow_zs_out_path))
 
     # Do growing
-    logger.info('Growing RTS objects into subobjects:\n ({})...'.format(grow_zs_out_path))
-    grow_objects = ImageObjects(grow_zs_out_path,
-                                value_fields=zonal_stats_inputs)
-    # TODO: Remove after converting to use gpkg. This is just because of the
-    #  shapefile field size limit
-    grow_objects.objects.rename(columns={'ruggedness': 'ruggedness_mean'},
-                                inplace=True)
+    logger.info('Growing RTS objects into subobjects...')
 
-    rts_objects = ImageObjects(rts_objects)
-    grown = grow_rts_candidates(rts_objects, grow_objects)
+    # Grow from rts
+    # grow_objects = ImageObjects(grow_zs_out_path,
+    #                             value_fields=zonal_stats_inputs)
+    # # TODO: Remove after converting to use gpkg. This is just because of the
+    # #  shapefile field size limit
+    # grow_objects.objects.rename(columns={'ruggedness': 'ruggedness_mean'},
+    #                             inplace=True)
+    #
+    # rts_objects = ImageObjects(rts_objects)
+    # grown = grow_rts_candidates(rts_objects, grow_objects)
 
-    n = datetime.now().strftime('%Y%b%d_%H%M%S').lower()
-    grown.write_objects(r'C:\temp\grow_pwr_{}.shp'.format(n))
+    grown = grow_rts_simple(grow_zs_out_path)
+
+    # n = datetime.now().strftime('%Y%b%d_%H%M%S').lower()
+
+    rts_classified = CLASS_DIR / 'RTS.shp'
+    logger.info('Writing classfied RTS features: {}'.format(rts_classified))
+    write_gdf(grown, rts_classified)
 
     logger.info('Done')
 
@@ -543,40 +546,109 @@ if __name__ == '__main__':
                              'must exist as computed by previous steps.')
     parser.add_argument('--logdir', type=os.path.abspath)
 
-    prj_dir = r'E:\disbr007\umn\2020sep27_eureka'
-    pd = 'rts_test2021jan18'
+    # prj_dir = r'E:\disbr007\umn\2020sep27_eureka'
+    # # psd = 'rts_test2021jan18'
+    # psd = 'rts_test2021feb06'
+    # os.chdir(prj_dir)
+    # sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
+    #             '-img', r'img\ortho_WV02_20140703\WV02_20140703013631_'
+    #                     r'1030010032B54F00_14JUL03013631-M1BS-'
+    #                     r'500287602150_01_P009.tif',
+    #             '-dem', r'dems\sel\WV02_20140703_1030010033A84300_'
+    #                     r'1030010032B54F00\WV02_20140703_1030010033A84300_'
+    #                     r'1030010032B54F00_2m_lsf_seg1_dem_masked.tif',
+    #             '-prev_dem', r'dems\sel\WV02_20110811_103001000D198300_'
+    #                          r'103001000C5D4600_pca'
+    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_'
+    #                          r'2m_lsf_seg1_dem_masked_pca-DEM.tif',
+    #             '-pd', psd,
+    #             '-aoi', r'aois\test_aoi.shp',
+    #             '--skip_steps',
+    #             pan,
+    #             ndvi,
+    #             hw_seg,
+    #             hw_clean,
+    #             hw_zs,
+    #             # hw_class,
+    #             rts_seg,
+    #             rts_clean,
+    #             rts_zs,
+    #             # rts_class,
+    #             grow_seg,
+    #             grow_clean,
+    #             grow_zs,
+    #             '--config',
+    #             r'E:\disbr007\umn\2020sep27_eureka\rts_test2021jan18\config.json',
+    #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
+    #             ]
+
+    # prj_dir = r'E:\disbr007\umn\accuracy_assessment'
+    # psd = 'test_aoi2_mr'
+    # os.chdir(prj_dir)
+    # sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
+    #             '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
+    #                     r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
+    #                     r'500281124060_01_P001.tif',
+    #             '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
+    #                     r'\WV02_20140809_10300100348BE800_103001003542D300'
+    #                     r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
+    #             '-prev_dem', r'E:\disbr007\umn\2020sep27_eureka\dems\sel'
+    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_pca_WV02_20140809'
+    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_pca-DEM.tif',
+    #             '-pd', psd,
+    #             '-aoi', r'aois\test_aoi2.shp',
+    #             '--skip_steps',
+    #             pan,
+    #             ndvi,
+    #             hw_seg,
+    #             hw_clean,
+    #             hw_zs,
+    #             hw_class,
+    #             rts_seg,
+    #             rts_clean,
+    #             rts_zs,
+    #             rts_class,
+    #             grow_seg,
+    #             grow_clean,
+    #             # grow_zs,
+    #             # '--config',
+    #             # r'E:\disbr007\umn\accuracy_assessment\test_aoi2_mr\config.json',
+    #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
+    #             ]
+
+    # mj_ward1_n
+    prj_dir = r'E:\disbr007\umn\accuracy_assessment'
+    psd = 'mj_ward_n_2014_2012'
     os.chdir(prj_dir)
     sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
-                '-img', r'img\ortho_WV02_20140703\WV02_20140703013631_'
-                        r'1030010032B54F00_14JUL03013631-M1BS-'
-                        r'500287602150_01_P009.tif',
-                '-dem', r'dems\sel\WV02_20140703_1030010033A84300_'
-                        r'1030010032B54F00\WV02_20140703_1030010033A84300_'
-                        r'1030010032B54F00_2m_lsf_seg1_dem_masked.tif',
-                '-prev_dem', r'dems\sel\WV02_20110811_103001000D198300_'
-                             r'103001000C5D4600_pca'
-                             r'\WV02_20110811_103001000D198300_103001000C5D4600_'
-                             r'2m_lsf_seg1_dem_masked_pca-DEM.tif',
-                '-pd', pd,
-                '-aoi', r'aois\test_aoi.shp',
+                '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
+                        r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
+                        r'500281124060_01_P001.tif',
+                '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
+                        r'\WV02_20140809_10300100348BE800_103001003542D300'
+                        r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
+                '-prev_dem', r'E:\disbr007\umn\accuracy_assessment\mj_ward1\data\dems'
+                             r'\mj_ward1_n_2014_2012\WV02_20120814_103001001AA06400_'
+                             r'103001001A755100_2m_lsf_seg3_dem_masked_pca-DEM.tif',
+                '-pd', psd,
+                '-aoi', r'aois\mj_ward_n.shp',
                 '--skip_steps',
                 pan,
                 ndvi,
                 hw_seg,
-                hw_clean,
-                hw_zs,
-                hw_class,
-                rts_seg,
-                rts_clean,
-                rts_zs,
-                rts_class,
-                grow_seg,
-                grow_clean,
-                grow_zs,
-                '--config',
-                r'E:\disbr007\umn\2020sep27_eureka\rts_test2021jan18\config.json',
-                '--logdir', os.path.join(prj_dir, pd, 'logs'),
+                # hw_clean,
+                # hw_zs,
+                # hw_class,
+                # rts_seg,
+                # rts_clean,
+                # rts_zs,
+                # rts_class,
+                # grow_seg,
+                # grow_clean,
+                # grow_zs,
+                '--logdir', os.path.join(prj_dir, psd, 'logs'),
                 ]
+
 
     args = parser.parse_args()
 
@@ -600,6 +672,13 @@ if __name__ == '__main__':
                                                    logdir)
                                )
 
+    if not config:
+        config = Path(project_dir) / 'config.json'
+
+    logger.info('Beginning Retrogressive Thaw Slump OBIA Classification.')
+    logger.info('Project directory: {}'.format(project_dir))
+
+    start = datetime.now()
     main(image=image,
          dem=dem,
          dem_prev=dem_prev,
@@ -607,3 +686,8 @@ if __name__ == '__main__':
          # aoi=aoi,
          config=config,
          skip_steps=skip_steps)
+    end = datetime.now()
+
+    runtime = end - start
+    runtime = divmod(runtime.total_seconds(), 60)
+    logger.info('Runtime: {}'.format(str(runtime)))

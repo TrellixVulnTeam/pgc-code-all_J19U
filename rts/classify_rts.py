@@ -33,6 +33,7 @@ sa_rat_mean = 'sar_mean'
 elev_mean = 'dem_mean'
 img_mean = 'img_mean'
 delev_mean = 'diff_mean'
+class_fld = 'class'
 
 value_fields = [
     (med_mean, 'mean'),
@@ -61,6 +62,7 @@ rts_cand_bool = 'rts_cand'
 # truth = 'truth'
 threshold_rule = 'threshold'
 adjacent_rule = 'adjacent'
+adj_or_is_rule = 'adjacent_or_is'
 
 # Columns to be converted to strings before writing
 to_str_cols = []
@@ -91,12 +93,18 @@ def classify_rts(sub_objects_path,
                             op=operator.gt,
                             threshold=1.01,
                             out_field=True)
-    # Slope
-    r_slope = create_rule(rule_type=threshold_rule,
-                          in_field=slope_mean,
-                          op=operator.gt,
-                          threshold=8,
-                          out_field=True)
+    # Slope (min)
+    r_slope_min = create_rule(rule_type=threshold_rule,
+                              in_field=slope_mean,
+                              op=operator.gt,
+                              threshold=8,
+                              out_field=True)
+    # Slope (max)
+    r_slope_max = create_rule(rule_type=threshold_rule,
+                              in_field=slope_mean,
+                              op=operator.lt,
+                              threshold=25,
+                              out_field=True)
     # NDVI
     r_ndvi = create_rule(rule_type=threshold_rule,
                          in_field=ndvi_mean,
@@ -125,7 +133,8 @@ def classify_rts(sub_objects_path,
     # All simple threshold rules
     r_simple_thresholds = [r_ruggedness,
                            r_saratio,
-                           r_slope,
+                           r_slope_min,
+                           r_slope_max,
                            r_ndvi,
                            r_med,
                            r_curve,
@@ -133,25 +142,26 @@ def classify_rts(sub_objects_path,
 
     # Adjacency rules
     # Adjacent Curvature
-    r_adj_high_curv = create_rule(rule_type=adjacent_rule,
+    r_adj_high_curv = create_rule(rule_type=adj_or_is_rule,
                                   in_field=cur_mean,
                                   op=operator.gt,
                                   threshold=30,
                                   out_field=True)
-    r_adj_low_curv = create_rule(rule_type=adjacent_rule,
+    r_adj_low_curv = create_rule(rule_type=adj_or_is_rule,
                                  in_field=cur_mean,
                                  op=operator.lt,
                                  threshold=-30,
                                  out_field=True)
     # Adjacent MED
     # TODO: Change to adjacent to or IS low MED?
-    r_adj_low_med = create_rule(rule_type=adjacent_rule,
+    r_adj_low_med = create_rule(rule_type=adj_or_is_rule,
                                 in_field=med_mean,
                                 op=operator.lt,
                                 threshold=-0.2,
                                 out_field=True)
     # All adjacent rules
     r_adj_rules = [r_adj_low_curv, r_adj_high_curv, r_adj_low_med]
+
 
 
     #%% RTS Rules
@@ -213,17 +223,18 @@ def classify_rts(sub_objects_path,
         logger.info('Headwall candidates found: {:,}'.format(
             len(hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate])))
 
+
         #%% Write headwall candidates
         logger.info('Writing headwall candidates...')
         hwc.write_objects(headwall_candidates_out,
                           to_str_cols=to_str_cols,
                           overwrite=True)
-        if headwall_candidates_centroid_out:
-            hwc_centroid = ImageObjects(
-                copy.deepcopy(
-                    hwc.objects.set_geometry(hwc.objects.geometry.centroid)))
-            hwc_centroid.write_objects(headwall_candidates_centroid_out,
-                                       overwrite=True)
+        # if headwall_candidates_centroid_out:
+        #     hwc_centroid = ImageObjects(
+        #         copy.deepcopy(
+        #             hwc.objects.set_geometry(hwc.objects.geometry.centroid)))
+        #     hwc_centroid.write_objects(headwall_candidates_centroid_out,
+        #                                overwrite=True)
     else:
         hwc = ImageObjects(objects_path=headwall_candidates_in,
                            value_fields=value_fields)
@@ -266,10 +277,8 @@ def classify_rts(sub_objects_path,
 
     #%% Dissolve touching candidates
     rts_dissolved = dissolve_touching(so.objects[so.objects[so.class_fld]
-                                                 == rts_candidate],
-                                      aggfunc='mean')
-    so.objects = pd.concat([so.objects[so.objects[so.class_fld]
-                                       != rts_candidate],
+                                                 == rts_candidate])
+    so.objects = pd.concat([so.objects[so.objects[so.class_fld] != rts_candidate],
                             rts_dissolved])
 
     #%% Write RTS candidates
@@ -337,41 +346,50 @@ def grow_rts_candidates(candidates: ImageObjects,
                              op=operator.gt,
                              threshold=5,
                              out_field=True)
+    #
+    # subobjects.merge_seeds([in_rts_rule,
+    #                         delev_rule,
+    #                         ndvi_rule,
+    #                         img_rule,
+    #                         med_rule,
+    #                         slope_rule])
 
-    subobjects.merge_seeds([in_rts_rule,
-                            delev_rule,
-                            ndvi_rule,
-                            img_rule,
-                            med_rule,
-                            slope_rule])
+    rts_cand_rule = create_rule(rule_type=threshold_rule,
+                                in_field='class',
+                                op=operator.eq,
+                                threshold=rts_candidate,
+                                out_field=True)
+    subobjects.merge_seeds([rts_cand_rule])
 
     # Merge candidate rules
-    mc_fot = [(in_rts, operator.eq, True),
-              (delev_mean, operator.lt, -0.5),  # -0.5
-              (ndvi_mean, operator.lt, -0.01),  # -0.01
-              (img_mean, operator.lt, 1200),  # 1200
-              (med_mean, operator.lt, 1),  # 1
-              (slope_mean, operator.gt, 5)]  # 5
+    # mc_fot = [(in_rts, operator.eq, True),
+    #           (delev_mean, operator.lt, -0.5),  # -0.5
+    #           (ndvi_mean, operator.lt, -0.01),  # -0.01
+    #           (img_mean, operator.lt, 1200),  # 1200
+    #           (med_mean, operator.lt, 1),  # 1
+    #           (slope_mean, operator.gt, 5)]  # 5
+
+    mc_rules = [delev_rule, ndvi_rule, med_rule, slope_rule]
 
     # Pairwise rules
     # Greater slope than self
     slope_pwr = {'threshold': {'field': slope_mean,
                                'op': operator.gt,
-                                'threshold': 'self'}}
+                               'threshold': 'self'}}
 
-    img_pwr = {'threshold': {'field': img_mean,
-                             'op': operator.lt,
-                             'threshold': 'self'}}
+    # img_pwr = {'threshold': {'field': img_mean,
+    #                          'op': operator.lt,
+    #                          'threshold': 'self'}}
     ndvi_pwr = {'threshold': {'field': ndvi_mean,
                               'op': operator.lt,
                               'threshold': 'self'}}
-    pc = [img_pwr, ndvi_pwr]
+    pc = [ndvi_pwr]
     # pc = None
 
     gf = [slope_mean, delev_mean, img_mean]
     max_iter = 100
 
-    subobjects.pseudo_merging(mc_fields_ops_thresholds=mc_fot,
+    subobjects.pseudo_merging(merge_candidate_rules=mc_rules,
                               pairwise_criteria=pc,
                               grow_fields=gf,
                               max_iter=max_iter,
@@ -382,3 +400,46 @@ def grow_rts_candidates(candidates: ImageObjects,
 
     return subobjects
 
+
+def grow_rts_simple(grow_objects: gpd.GeoDataFrame):
+    grow_objects = ImageObjects(grow_objects)
+
+    # Subset grow objects to those that meet rules
+    delev_rule = create_rule(rule_type=threshold_rule,
+                             in_field=delev_mean,
+                             op=operator.lt,
+                             threshold=-1.5,
+                             out_field=True)
+    ndvi_rule = create_rule(rule_type=threshold_rule,
+                            in_field=ndvi_mean,
+                            op=operator.lt,
+                            threshold=-0.03,
+                            out_field=True)
+
+    merge_candidate = 'merge_candidate'
+    grow_objects.classify_objects(merge_candidate,
+                                  threshold_rules=[delev_rule, ndvi_rule])
+
+    # Subset grow objects to RTS candidates
+    rtscs = grow_objects.objects[grow_objects.objects[grow_objects.class_fld] == rts_candidate]
+    mcs = grow_objects.objects[grow_objects.objects[grow_objects.class_fld] == merge_candidate]
+    grow_objects.write_objects(r'C:\temp\grow_objects2020feb08_2.shp')
+
+    mcs = dissolve_touching(mcs)
+
+    # Select subsetted grow objects that intersect RTS candidates
+    mcs['touches_cand'] = mcs.apply(lambda x: any([x.geometry.touches(r) for r in rtscs.geometry]), axis=1)
+
+    grow_objects.objects[(grow_objects.objects[class_fld] == rts_candidate) |
+                         (grow_objects.objects.index.isin(mcs[mcs['touches_cand']==True].index))]
+
+    grow_objects.objects[(grow_objects.objects[class_fld] == rts_candidate) |
+                         (grow_objects.objects.index.isin(mcs[mcs['touches_cand'] == True].index))
+                         ][class_fld] = 'RTS'
+    rts = pd.concat([rtscs, mcs[mcs['touches_cand'] == True]])
+    rts.index = [i for i in range(len(rts))]
+    rts = dissolve_touching(rts)
+
+    logger.info('Located {:,} RTS features'.format(len(rts)))
+
+    return rts

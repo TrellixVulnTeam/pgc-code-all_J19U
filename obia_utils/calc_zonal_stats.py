@@ -170,8 +170,11 @@ def calc_zonal_stats(shp, rasters,
 
     """
     # Load data
-    logger.info('Reading in segments from: {}...'.format(shp))
-    seg = gpd.read_file(shp)
+    if isinstance(shp, gpd.GeoDataFrame):
+        seg = shp
+    else:
+        logger.info('Reading in segments from: {}...'.format(shp))
+        seg = gpd.read_file(shp)
     logger.info('Segments found: {:,}'.format(len(seg)))
 
     # Determine rasters input type

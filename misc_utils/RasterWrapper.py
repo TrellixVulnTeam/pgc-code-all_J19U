@@ -5,9 +5,11 @@ Created on Fri Jul 19 10:20:36 2019
 @author: disbr007
 
 """
-# import logging.config
+import copy
 import numpy as np
 import numpy.ma as ma
+from typing import Union
+import pathlib
 
 from osgeo import gdal, osr  # ogr
 # from shapely.geometry import Polygon
@@ -58,6 +60,8 @@ class Raster:
         self.pixel_width = self.geotransform[1]
         self.pixel_height = self.geotransform[5]
 
+        # TODO: make this class @property, when called, if None, try to get from first band,
+        #  otherwise default. This will allow setting nodata_val explicity.
         self.nodata_val = self.data_src.GetRasterBand(1).GetNoDataValue()
         self.dtype = self.data_src.GetRasterBand(1).DataType
 
@@ -139,8 +143,9 @@ class Raster:
         band = self.data_src.GetRasterBand(band_num)
         band_arr = band.ReadAsArray()
         if mask:
-            band_no_data = self.data_src
-            mask = band_arr == band.GetNoDataValue()
+            if self.nodata_val is None:
+                self.nodata_val = band.GetNoDataValue()
+            mask = band_arr == self.nodata_val
             band_arr = ma.masked_array(band_arr, mask=mask)
 
         return band_arr
@@ -273,8 +278,8 @@ class Raster:
             # Use original dtype
             dtype = self.dtype
         # Handle NoData value
-        if not nodata_val:
-            if self.nodata_val:
+        if nodata_val is None:
+            if self.nodata_val is not None:
                 nodata_val = self.nodata_val
             else:
                 logger.warning('Unable to determine NoData value of {}, '
@@ -283,8 +288,11 @@ class Raster:
 
         # Create output file
         driver = gdal.GetDriverByName(fmt)
-        dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, bands=depth,
-                               eType=dtype)
+        try:
+            dst_ds = driver.Create(out_path, self.x_sz, self.y_sz, bands=depth,
+                                   eType=dtype)
+        except:
+            logger.error('Error creating: {}'.format(out_path))
         dst_ds.SetGeoTransform(self.geotransform)
         dst_ds.SetProjection(self.prj.ExportToWkt())
 
@@ -299,7 +307,7 @@ class Raster:
                 # logger.info(array.dtype)
                 band = i + 1
                 if isinstance(array, np.ma.MaskedArray):
-                    dst_ds.GetRasterBand(band).WriteArray(array.filled())
+                    dst_ds.GetRasterBand(band).WriteArray(array.filled(self.nodata_val))
                 else:
                     dst_ds.GetRasterBand(band).WriteArray(array)
                 dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
@@ -322,6 +330,20 @@ class Raster:
     def mNDWI(self, out_path, green_num, swir_num):
             mndwi_arr = self.mndwi_array(green_num, swir_num)
             self.WriteArray(mndwi_arr, out_path, stacked=False)
+
+    def create_brightness(self, bands: list, out_path: Union[str, pathlib.PurePath]):
+        for i, b in enumerate(bands):
+            a = self.GetBandAsArray(b)
+            if i == 0:
+                tot = copy.deepcopy(a)
+            else:
+                tot = np.ma.add(tot, a)
+                a = None
+
+        if out_path:
+            self.WriteArray(tot, out_path)
+
+        return tot
 
     def extract_bands(self, bands, out_path):
         arrs = []
