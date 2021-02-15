@@ -18,15 +18,20 @@ from misc_utils.logging_utils import create_logger, create_logfile_path
 from misc_utils.gpd_utils import write_gdf
 from misc_utils.gdal_tools import rasterize_shp2raster_extent
 from misc_utils.raster_clip import clip_rasters
+from misc_utils.rio_utils import fill_internal_nodata
 from dem_utils.dem_derivatives import gdal_dem_derivative
 from dem_utils.dem_utils import difference_dems
 from dem_utils.wbt_med import wbt_med
 from dem_utils.wbt_curvature import wbt_curvature
 from dem_utils.wbt_sar import wbt_sar
 
+
 sys.path.append(Path(__file__).parent / "obia_utils")
 from obia_utils.otb_lsms import otb_lsms
-from obia_utils.otb_grm import otb_grm, create_outname
+# from obia_utils.otb_grm import otb_grm, create_outname
+import obia_utils.otb_grm as otb_grm
+import obia_utils.otb_edge_extraction as otb_ee
+# from obia_utils.otb_edge_extraction import otb_edge_extraction
 from obia_utils.cleanup_objects import cleanup_objects
 from obia_utils.calc_zonal_stats import calc_zonal_stats
 from obia_utils.ImageObjects import ImageObjects
@@ -42,8 +47,8 @@ from classify_rts import classify_rts, grow_rts_candidates, grow_rts_simple
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # External py scripts
-pansh_py = r'C:\code\imagery_utils\pgc_pansharpen.py'
-ndvi_py = r'C:\code\imagery_utils\pgc_ndvi.py'
+PANSH_PY = r'C:\code\imagery_utils\pgc_pansharpen.py'
+NDVI_PY = r'C:\code\imagery_utils\pgc_ndvi.py'
 
 # Config keys
 seg = 'seg'
@@ -60,6 +65,11 @@ x_space = 'x_space'
 y_space = 'y_space'
 grow = 'grow'
 buffer = 'buffer'
+DEM_DERIV = 'dem_deriv'
+MED = 'med'
+CURV = 'curv'
+IMG_DERIV = 'img_deriv'
+EDGE_EX = 'edge'
 
 # Config values
 grm = 'grm'
@@ -72,6 +82,7 @@ img_k = 'img'
 ndvi_k = 'ndvi'
 dem_k = 'dem'
 dem_prev_k = 'dem_prev'
+edge_k = 'edge'
 med_k = 'med'
 curv_k = 'curv'
 slope_k = 'slope'
@@ -93,6 +104,7 @@ pan = 'pan'
 ndvi = 'ndvi'
 dem_deriv = 'dem_deriv'
 clip_step = 'clip_step'
+edge_extraction = 'edge_extraction'
 hw_seg = 'hw_seg'
 hw_clean = 'hw_clean'
 hw_zs = 'hw_zs'
@@ -152,6 +164,7 @@ def main(image, dem, dem_prev, project_dir, config,
     project_config = config['project']
     EPSG = project_config['EPSG']
     aoi = Path(project_config['AOI'])
+    fill_nodata = project_config['fill_nodata']
 
    # Headwall and RTS config settings
     hw_config = config['headwall']
@@ -163,9 +176,11 @@ def main(image, dem, dem_prev, project_dir, config,
     BITDEPTH = pansh_config['t']
     STRETCH = pansh_config['c']
 
-    dem_deriv_config = config['dem_deriv']
-    med_config = dem_deriv_config['med']
-    curv_config = dem_deriv_config['curv']
+    dem_deriv_config = config[DEM_DERIV]
+    med_config = dem_deriv_config[MED]
+    curv_config = dem_deriv_config[CURV]
+    img_deriv_config = config[IMG_DERIV]
+    edge_config = img_deriv_config[EDGE_EX]
 
     # %% Build project directory structure
     logger.info('Creating project directory structure...')
@@ -197,8 +212,9 @@ def main(image, dem, dem_prev, project_dir, config,
     # Pansharpen
     if pan not in skip_steps:
         logger.info('Pansharpening: {}'.format(image.name))
-        pansh_cmd = '{} {} -p {} -d {} -t {} -c {} ' \
-                    '--skip-dem-overlap-check'.format(image,
+        pansh_cmd = '{} {} {} -p {} -d {} -t {} -c {} ' \
+                    '--skip-dem-overlap-check'.format(PANSH_PY,
+                                                      image,
                                                       PANSH_DIR,
                                                       EPSG,
                                                       dem,
@@ -215,10 +231,11 @@ def main(image, dem, dem_prev, project_dir, config,
     # NDVI
     if ndvi not in skip_steps:
         logger.info('Creating NDVI from: {}'.format(pansh_img.name))
-        ndvi_cmd = '{} {}'.format(ndvi_py, pansh_img, NDVI_DIR)
+        ndvi_cmd = '{} {}'.format(NDVI_PY, pansh_img, NDVI_DIR)
         run_subprocess(ndvi_cmd)
     # Determine NDVI name
     ndvi_img = NDVI_DIR / '{}_ndvi.tif'.format(pansh_img.stem)
+    # ndvi_img = NDVI_DIR / '{}_ndvi.tif'.format(image.stem)
 
     # %% Clip to AOI
     # Organize inputs
@@ -232,14 +249,33 @@ def main(image, dem, dem_prev, project_dir, config,
         for k, r in tqdm(inputs.items()):
             # out_path = r.parent / '{}{}{}'.format(r.stem, clip_sfx,
             #                                       r.suffix)
-            out_path = project_dir / k / '{}{}{}'.format(r.stem, clip_sfx,
-                                                  r.suffix)
+            out_path = project_dir / k / '{}{}{}'.format(r.stem,
+                                                         clip_sfx,
+                                                         r.suffix)
             if clip_step not in skip_steps:
                 logger.debug(
                     'Clipping input {} to AOI: {}'.format(k, aoi.name))
                 clip_rasters(str(aoi), str(r), out_path=str(out_path),
                              out_suffix='')
             inputs[k] = out_path
+    if fill_nodata:
+        logger.info('Filling internal NoData gaps in sources...')
+        for k, r in tqdm(inputs.items()):
+            # Only fill image no data
+            if k in [img_k, ndvi_k]:
+                filled = inputs[k].parent / '{}_filled{}'.format(inputs[k].stem,
+                                                                 inputs[k].suffix)
+                fill_internal_nodata(inputs[k], filled, aoi)
+                inputs[k] = filled
+
+    # %% EdgeExtraction
+    edge_config[img_k] = inputs[img_k]
+    edge_config[out_dir] = IMG_DIR
+    edge = otb_ee.create_outname(**edge_config)
+    if edge_extraction not in skip_steps:
+        logger.info('Creating EdgeExtraction')
+        otb_ee.otb_edge_extraction(**edge_config)
+    inputs[edge_k] = edge
 
     # %% DEM Derivatives
     if dem_deriv not in skip_steps:
@@ -289,10 +325,10 @@ def main(image, dem, dem_prev, project_dir, config,
     if hw_config[seg][alg] == grm:
         logger.info('Segmenting subobjects (headwalls)...')
         if hw_seg not in skip_steps:
-            hw_objects = otb_grm(**hw_config[seg][params])
+            hw_objects = otb_grm.otb_grm(**hw_config[seg][params])
         else:
-            hw_objects = create_outname(**hw_config[seg][params],
-                                        name_only=True)
+            hw_objects = otb_grm.create_outname(**hw_config[seg][params],
+                                                name_only=True)
             logger.debug('Using provided headwall segmentation: '
                          '{}'.format(Path(hw_objects).relative_to(project_dir)))
 
@@ -345,9 +381,9 @@ def main(image, dem, dem_prev, project_dir, config,
     if rts_config[seg][alg] == grm:
         logger.info('Segmenting superobjects (RTS)...')
         if rts_seg not in skip_steps:
-            rts_objects = otb_grm(**rts_config[seg][params])
+            rts_objects = otb_grm.otb_grm(**rts_config[seg][params])
         else:
-            rts_objects = create_outname(**rts_config[seg][params],
+            rts_objects = otb_grm.create_outname(**rts_config[seg][params],
                                          name_only=True)
             logger.debug('Using provided RTS seg: '
                         '{}'.format(Path(rts_objects).relative_to(project_dir)))
@@ -368,7 +404,7 @@ def main(image, dem, dem_prev, project_dir, config,
                                           **cleanup_params)
     else:
         logger.debug('Using provided cleaned RTS objects: '
-                    '{}'.format(Path(cleaned_objects_out).relative_to(project_dir)))
+                     '{}'.format(Path(cleaned_objects_out).relative_to(project_dir)))
         rts_objects = cleaned_objects_out
 
     # %% Zonal Stats
@@ -439,9 +475,9 @@ def main(image, dem, dem_prev, project_dir, config,
         #     logger.info('Writing grow segmentation to: '
         #                 '{}'.format(grow_out))
         #     write_gdf(grow, grow_out)
-        grow = otb_grm(**grow_config[seg][params])
+        grow = otb_grm.otb_grm(**grow_config[seg][params])
     else:
-        grow = create_outname(**grow_config[seg][params], name_only=True)
+        grow = otb_grm.create_outname(**grow_config[seg][params], name_only=True)
         logger.debug('Using provided grow objects: '
                      '{}'.format(Path(grow).relative_to(project_dir)))
 
@@ -504,7 +540,10 @@ def main(image, dem, dem_prev, project_dir, config,
     # rts_objects = ImageObjects(rts_objects)
     # grown = grow_rts_candidates(rts_objects, grow_objects)
 
-    grown = grow_rts_simple(grow_zs_out_path)
+    grown, grow_candidates = grow_rts_simple(grow_zs_out_path)
+
+    logger.info('Writing grow objects to file: {}'.format(CLASS_DIR / 'grow_candidates.shp'))
+    write_gdf(grow_candidates, CLASS_DIR / 'grow_candidates.shp')
 
     # n = datetime.now().strftime('%Y%b%d_%H%M%S').lower()
 
@@ -517,7 +556,7 @@ def main(image, dem, dem_prev, project_dir, config,
 
 if __name__ == '__main__':
     # Default arguments and choices
-    ARGDEF_SKIP_CHOICES = [pan, ndvi, dem_deriv, clip_step,
+    ARGDEF_SKIP_CHOICES = [pan, ndvi, dem_deriv, edge_extraction, clip_step,
                            hw_seg, hw_clean, hw_zs, hw_class,
                            rts_seg, rts_clean, rts_zs, rts_class,
                            grow_seg, grow_clean, grow_zs]
@@ -582,60 +621,28 @@ if __name__ == '__main__':
     #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
     #             ]
 
-    # prj_dir = r'E:\disbr007\umn\accuracy_assessment'
-    # psd = 'test_aoi2_mr'
-    # os.chdir(prj_dir)
-    # sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
-    #             '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
-    #                     r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
-    #                     r'500281124060_01_P001.tif',
-    #             '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
-    #                     r'\WV02_20140809_10300100348BE800_103001003542D300'
-    #                     r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
-    #             '-prev_dem', r'E:\disbr007\umn\2020sep27_eureka\dems\sel'
-    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_pca_WV02_20140809'
-    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_pca-DEM.tif',
-    #             '-pd', psd,
-    #             '-aoi', r'aois\test_aoi2.shp',
-    #             '--skip_steps',
-    #             pan,
-    #             ndvi,
-    #             hw_seg,
-    #             hw_clean,
-    #             hw_zs,
-    #             hw_class,
-    #             rts_seg,
-    #             rts_clean,
-    #             rts_zs,
-    #             rts_class,
-    #             grow_seg,
-    #             grow_clean,
-    #             # grow_zs,
-    #             # '--config',
-    #             # r'E:\disbr007\umn\accuracy_assessment\test_aoi2_mr\config.json',
-    #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
-    #             ]
-
-    # mj_ward1_n
     prj_dir = r'E:\disbr007\umn\accuracy_assessment'
-    psd = 'mj_ward_n_2014_2012'
+    psd = 'test_aoi2_mr_pansh_2021feb15'
     os.chdir(prj_dir)
     sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
                 '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
                         r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
                         r'500281124060_01_P001.tif',
+                # '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809_mr'
+                #         r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
+                #         r'500281124060_01_P001_u16mr3413.tif',
                 '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
                         r'\WV02_20140809_10300100348BE800_103001003542D300'
                         r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
-                '-prev_dem', r'E:\disbr007\umn\accuracy_assessment\mj_ward1\data\dems'
-                             r'\mj_ward1_n_2014_2012\WV02_20120814_103001001AA06400_'
-                             r'103001001A755100_2m_lsf_seg3_dem_masked_pca-DEM.tif',
+                '-prev_dem', r'E:\disbr007\umn\2020sep27_eureka\dems\sel'
+                             r'\WV02_20110811_103001000D198300_103001000C5D4600_pca_WV02_20140809'
+                             r'\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_pca-DEM.tif',
                 '-pd', psd,
-                '-aoi', r'aois\mj_ward_n.shp',
+                '-aoi', r'aois\test_aoi2.shp',
                 '--skip_steps',
                 pan,
                 ndvi,
-                hw_seg,
+                # hw_seg,
                 # hw_clean,
                 # hw_zs,
                 # hw_class,
@@ -646,8 +653,43 @@ if __name__ == '__main__':
                 # grow_seg,
                 # grow_clean,
                 # grow_zs,
+                # '--config',
+                # r'E:\disbr007\umn\accuracy_assessment\test_aoi2_mr\config.json',
                 '--logdir', os.path.join(prj_dir, psd, 'logs'),
                 ]
+
+    # mj_ward1_n
+    # prj_dir = r'E:\disbr007\umn\accuracy_assessment'
+    # psd = 'mj_ward_n_2014_2011'
+    # os.chdir(prj_dir)
+    # sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
+    #             '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
+    #                     r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
+    #                     r'500281124060_01_P001.tif',
+    #             '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
+    #                     r'\WV02_20140809_10300100348BE800_103001003542D300'
+    #                     r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
+    #             '-prev_dem', r'E:\disbr007\umn\accuracy_assessment\mj_ward1\data\dems'
+    #                          r'\mj_ward1_n_2014_2011'
+    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_pca-DEM.tif',
+    #             '-pd', psd,
+    #             '-aoi', r'aois\mj_ward_n.shp',
+    #             '--skip_steps',
+    #             pan,
+    #             ndvi,
+    #             hw_seg,
+    #             hw_clean,
+    #             hw_zs,
+    #             # hw_class,
+    #             rts_seg,
+    #             rts_clean,
+    #             rts_zs,
+    #             # rts_class,
+    #             grow_seg,
+    #             grow_clean,
+    #             # grow_zs,
+    #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
+    #             ]
 
 
     args = parser.parse_args()
@@ -664,13 +706,22 @@ if __name__ == '__main__':
     if logdir:
         if not os.path.exists(logdir):
             os.makedirs(logdir)
-        logger = create_logger(__name__, 'fh', 'DEBUG',
+        logger = create_logger('obia_utils.cleanup_objects', 'fh', 'INFO',
+                               create_logfile_path(Path(__file__).name,
+                                                   logdir))
+        logger = create_logger('obia_utils.otb_grm', 'fh', 'INFO',
+                               create_logfile_path(Path(__file__).name,
+                                                   logdir))
+        logger = create_logger('obia_utils.ImageObjects', 'fh', 'INFO',
                                create_logfile_path(Path(__file__).name,
                                                    logdir))
         logger = create_logger('classify_rts', 'fh', 'DEBUG',
                                create_logfile_path(Path(__file__).name,
                                                    logdir)
                                )
+        logger = create_logger(__name__, 'fh', 'DEBUG',
+                               create_logfile_path(Path(__file__).name,
+                                                   logdir))
 
     if not config:
         config = Path(project_dir) / 'config.json'

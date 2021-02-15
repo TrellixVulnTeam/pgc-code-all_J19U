@@ -168,6 +168,7 @@ class ImageObjects:
     """
     Designed to facilitate object-based-image-analysis
     classification.
+    TODO: Make a subclass of gpd.GeoDataFrame
     """
     def __init__(self, objects_path, value_fields=None):
         if isinstance(objects_path, gpd.GeoDataFrame):
@@ -572,6 +573,9 @@ class ImageObjects:
         max_iter : int
             Number of merges allowed for a given feature, if None,
             merging will only cease once no neighbor match criteria
+        # TODO: add sort by field argument (i.e. start with largest DEM diff
+        # TODO: add other 'stop' criteria other than max_iter, min object size,
+                min value in field, etc
         """
         logger.info('Beginning pseudo-merge to determine merges...')
         # Initiate count of merges per object

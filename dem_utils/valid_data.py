@@ -94,7 +94,9 @@ def valid_percent(gdal_ds, band_number=1, valid_value=None, write_valid=False, o
     return vp
 
 
-def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_path=None):
+def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False,
+                                out_path=None,
+                                burn_values=[1]):
     """
     Rasterize a ogr datasource to the extent, projection, resolution of a given
     gdal datasource object. Optionally write out the rasterized product.
@@ -155,7 +157,7 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds, write_rasterized=False, out_pat
     band.SetNoDataValue(dem_no_data_val) # fix to get no_data_val before(?) clipping rasters
     band.FlushCache()
     
-    gdal.RasterizeLayer(out_ds, [1], ogr_lyr, burn_values=[1])    
+    gdal.RasterizeLayer(out_ds, [1], ogr_lyr, burn_values=burn_values)
     
     # if write_rasterized is False:
     #     return out_ds

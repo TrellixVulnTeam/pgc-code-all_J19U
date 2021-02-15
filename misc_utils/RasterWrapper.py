@@ -24,6 +24,107 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 gdal.UseExceptions()
 
 
+# TODO: Move these functions to gdal_utils
+def same_srs(raster1, raster2):
+    """
+    Compare the spatial references of two rasters.
+
+    Parameters
+    ----------
+    raster1 : os.path.abspath
+        Path to the first raster.
+    raster2 : os.path.abspath
+        Path to the second raster.
+
+    Returns
+    -------
+    BOOL : True is match.
+
+    """
+    r1 = Raster(raster1)
+    r1_srs = r1.prj
+    # r1 = None
+
+    r2 = Raster(raster2)
+    r2_srs = r2.prj
+    # r2 = None
+
+    result = r1_srs.IsSame(r2_srs)
+    if result == 1:
+        same = True
+    elif result == 0:
+        same = False
+    else:
+        logger.error('Unknown return value from IsSame, expected 0 or 1: {}'.format(result))
+    return same
+
+
+def stack_rasters(rasters, minbb=True, rescale=False):
+    """
+    Stack single band rasters into a multiband raster.
+
+    Parameters
+    ----------
+    rasters : list
+        List of rasters to stack. Reference raster for NoData value, projection, etc.
+        is the first raster provided.
+    rescale : bool
+        True to rescale rasters to 0 to 1.
+
+    Returns
+    -------
+    np.array : path.abspath : path to write multiband raster to.
+
+    """
+    # TODO: Add default clipping to reference window
+    if minbb:
+        logger.info('Clipping to overlap area...')
+        rasters = clip_minbb(rasters, in_mem=True, out_format='vrt')
+
+    # Determine a raster to use for reference
+    ref = Raster(rasters[0])
+
+    # Check for SRS match between reference and other rasters
+    srs_matches = [same_srs(rasters[0], r) for r in rasters[1:]]
+    if not all(srs_matches):
+        logger.warning("""Spatial references do not match, match status between
+                          reference and rest:\n{}""".format('\n'.join(srs_matches)))
+
+    # Initialize the stacked array with just the reference array
+    if ref.depth > 1:
+        stacked = ref.GetBandAsArray(1, mask=True)
+        if rescale:
+            stacked = (stacked - stacked.min()) / (stacked.max() - stacked.min())
+
+        for i in range(ref.depth - 1):
+            band = ref.GetBandAsArray(i + 2, mask=True)
+            if rescale:
+                band = (band - band.min()) / (band.max() - band.min())
+            stacked = np.ma.dstack([stacked, band])
+
+    for i, rast in enumerate(rasters[1:]):
+        ma = Raster(rast).MaskedArray
+        if np.ma.isMaskedArray(ma):
+            if rescale:
+                # Rescale to between 0 and 1
+                ma = (ma - ma.min()) / (ma.max() - ma.min())
+            # Replace mask/nodata value in array with reference values
+            # ma_mask = ma.mask
+            # ma = np.ma.masked_where(ma_mask, ma)
+            # ma.set_fill_value(ref.nodata_val)
+            # ma = ma.filled(ma.fill_value)
+
+        stacked = np.ma.dstack([stacked, ma])
+
+        ma = None
+
+    # Revert to original NoData value (stacking changes)
+    # stacked.set_fill_value(ref.nodata_val)
+    ref = None
+
+    return stacked
+
+
 class Raster:
     """
     A class wrapper using GDAL to simplify working with rasters.
@@ -57,6 +158,9 @@ class Raster:
         self.x_origin = self.geotransform[0]
         self.y_origin = self.geotransform[3]
 
+        self.x_rot = self.geotransform[2]
+        self.y_rot = self.geotransform[4]
+
         self.pixel_width = self.geotransform[1]
         self.pixel_height = self.geotransform[5]
 
@@ -78,7 +182,6 @@ class Raster:
     # def Masked_Array(self):
     #     masked_array = ma.masked_array(self.Array, mask=self.Mask)
     #     masked_array = np.ma.set_fill_value(self.nodata_val, masked_array)
-
 
     def get_projwin(self):
         """Get projwin ordered."""
@@ -180,11 +283,27 @@ class Raster:
         """
         Convert geographic coordinates to pixel coordinates
         """
-
         py = int(np.around((geocoord[0] - self.geotransform[3]) / self.geotransform[5]))
         px = int(np.around((geocoord[1] - self.geotransform[0]) / self.geotransform[1]))
+        return py, px
 
-        return (py, px)
+    def pixel2geo(self, pixel_coord):
+        y, x = pixel_coord
+        gy = self.geotransform[4] * x + self.geotransform[5] * y + self.geotransform[4] * 0.5 + self.geotransform[5] * 0.5 + self.geotransform[3]
+        gx = self.geotransform[1] * x + self.geotransform[2] * y + self.geotransform[1] * 0.5 + self.geotransform[2] * 0.5 + self.geotransform[0]
+
+        return gy, gx
+
+    def pixel2coord(self, col, row, x_origin=None, y_origin=None):
+        """Returns global coordinates to pixel center using base-0 raster index"""
+        if x_origin is None:
+            x_origin = self.x_origin
+        if y_origin is None:
+            y_origin = self.y_origin
+        # c, self.pixel_width, self.x_rot, f, d, e = self.geotransform
+        xp = self.pixel_width * col + self.x_rot * row + self.pixel_width * 0.5 + self.x_rot * 0.5 + x_origin
+        yp = self.y_rot * col + self.pixel_height * row + self.y_rot * 0.5 + self.pixel_height * 0.5 + y_origin
+        return yp, xp
 
     def projWin2pixelWin(self, projWin):
         """
@@ -266,7 +385,7 @@ class Raster:
 
         # try:
         if dims == 3:
-            rows, cols, depth = array.shape
+            depth, rows, cols = array.shape
             stacked = True
         elif dims == 2:
         # except ValueError:
@@ -299,7 +418,10 @@ class Raster:
         # Loop through each layer of array and write as band
         for i in range(depth):
             if stacked:
-                lyr = array[:, :, i].filled()
+                if isinstance(array, np.ma.MaskedArray):
+                    lyr = array[i, :, :].filled()
+                else:
+                    lyr = array[i, :, :]
                 band = i + 1
                 dst_ds.GetRasterBand(band).WriteArray(lyr)
                 dst_ds.GetRasterBand(band).SetNoDataValue(nodata_val)
@@ -350,9 +472,9 @@ class Raster:
         for b in bands:
             b_arr = self.GetBandAsArray(b, mask=True)
             arrs.append(b_arr)
-        
+
         stacked = np.dstack([arrs])
-        
+
         self.WriteArray(stacked, out_path=out_path, stacked=True)
 
         return stacked
@@ -360,7 +482,7 @@ class Raster:
     def SamplePoint(self, point):
         '''
         Samples the current raster object at the given point. Must be the
-        sampe coordinate system used by the raster object.
+        same coordinate system used by the raster object.
         point: tuple of (y, x) in geocoordinates
         '''
         # Convert point geocoordinates to array coordinates
@@ -412,8 +534,9 @@ class Raster:
             return ymin, ymax, xmin, xmax
 
         # Convert center point geocoordinates to array coordinates
-        py = int(np.around((center_point[0] - self.geotransform[3]) / self.geotransform[5]))
-        px = int(np.around((center_point[1] - self.geotransform[0]) / self.geotransform[1]))
+        # py = int(np.around((center_point[0] - self.geotransform[3]) / self.geotransform[5]))
+        # px = int(np.around((center_point[1] - self.geotransform[0]) / self.geotransform[1]))
+        py, px = self.geo2pixel(center_point)
 
         # Handle window being out of raster bounds
         try:
@@ -421,7 +544,7 @@ class Raster:
             while growing:
                 ymin, ymax, xmin, xmax = window_bounds(window_size, py, px)
                 window = self.Array[ymin:ymax, xmin:xmax].astype(np.float32)
-                window = np.where(window == -9999.0, np.nan, window)
+                window = np.where(window == self.nodata_val, np.nan, window)
 
                 # Test for window with all nans to avoid getting 0's for all nans
                 # Returns an array of True/False where True is valid values
@@ -447,7 +570,7 @@ class Raster:
                         window_size = (window_size[0] + 2, window_size[1] + 2)
                     # If grow_window is False, return no data and exit while loop
                     else:
-                        window_agg = -9999
+                        window_agg = self.nodata_val
                         growing = False
 
         except IndexError as e:
@@ -457,102 +580,155 @@ class Raster:
 
         return window_agg
 
-
-def same_srs(raster1, raster2):
-    """
-    Compare the spatial references of two rasters.
-
-    Parameters
-    ----------
-    raster1 : os.path.abspath
-        Path to the first raster.
-    raster2 : os.path.abspath
-        Path to the second raster.
-
-    Returns
-    -------
-    BOOL : True is match.
-
-    """
-    r1 = Raster(raster1)
-    r1_srs = r1.prj
-    # r1 = None
-
-    r2 = Raster(raster2)
-    r2_srs = r2.prj
-    # r2 = None
-
-    result = r1_srs.IsSame(r2_srs)
-    if result == 1:
-        same = True
-    elif result == 0:
-        same = False
-    else:
-        logger.error('Unknown return value from IsSame, expected 0 or 1: {}'.format(result))
-    return same
+    def create_window(self, window_size, center):
+        window = RasterWindow(self, window_size, center)
+        return window
 
 
-def stack_rasters(rasters, minbb=True, rescale=False):
-    """
-    Stack single band rasters into a multiband raster.
+class RasterWindow:
+    def __init__(self, raster, window_size, center):
+        self.raster = raster
+        self.window_size = window_size  # x, y
+        self.center = center
+        self.py, self.px = raster.geo2pixel(center)
+        self.x_origin = center[1] - (window_size[1]/2)*self.raster.pixel_width
+        self.y_origin = center[0] - (window_size[0]/2)*self.raster.pixel_height
+        self._window = None
 
-    Parameters
-    ----------
-    rasters : list
-        List of rasters to stack. Reference raster for NoData value, projection, etc.
-        is the first raster provided.
-    rescale : bool
-        True to rescale rasters to 0 to 1.
+    @property
+    def window(self):
+        if self._window is None:
+            self._window = self.get_window()
+        return self._window
 
-    Returns
-    -------
-    np.array : path.abspath : path to write multiband raster to.
+    def window_bounds(self):
+        """
+        Returns the window bounds as ymin, ymax, xmin, xmax
+        window_size: tuple (3,3)
+        py: int 125
+        px: int 100
+        """
+        # Get window around center point
+        # Get size in y, x directions
+        y_sz = self.window_size[0]
+        y_step = int(y_sz / 2)
+        x_sz = self.window_size[1]
+        x_step = int(x_sz / 2)
 
-    """
-    # TODO: Add default clipping to reference window
-    if minbb:
-        logger.info('Clipping to overlap area...')
-        rasters = clip_minbb(rasters, in_mem=True, out_format='vrt')
+        # Get pixel locations of window bounds
+        ymin = self.py - y_step
+        ymax = self.py + y_step + 1  # slicing doesn't include stop val so add 1
+        xmin = self.px - x_step
+        xmax = self.px + x_step + 1
 
-    # Determine a raster to use for reference
-    ref = Raster(rasters[0])
+        return ymin, ymax, xmin, xmax
 
-    # Check for SRS match between reference and other rasters
-    srs_matches = [same_srs(rasters[0], r) for r in rasters[1:]]
-    if not all(srs_matches):
-        logger.warning("""Spatial references do not match, match status between
-                          reference and rest:\n{}""".format('\n'.join(srs_matches)))
+    def create_exceed_window(self, ymin, ymax, xmin, xmax):
+        # TODO Handle if both xmin and xmax are negative -
+        #  array will be wrong dimensions
+        neg_rows = None
+        neg_cols = None
+        # Handle negative ymin
+        if ymin < 0:
+            # Create array with NoData val for number of columns
+            neg_rows = np.array([np.array([self.raster.nodata_val
+                                  for j in range(self.window_size[1])])
+                        for i in range(abs(ymin))])
+            ymin = 0
+        # Handle negative xmin
+        if xmin < 0:
+            neg_cols = np.array([np.array([self.raster.nodata_val
+                                  for j in range(self.window_size[1])])
+                        for i in range(abs(xmin))])
+            xmin = 0
+        # TODO: Set type based on type of self.raster
+        window = self.raster.Array[ymin:ymax, xmin:xmax]
 
-    # Initialize the stacked array with just the reference array
-    if ref.depth > 1:
-        stacked = ref.GetBandAsArray(1, mask=True)
-        if rescale:
-            stacked = (stacked - stacked.min()) / (stacked.max() - stacked.min())
+        if neg_rows is not None:
+            # Insert negative rows (ymin)
+            window = np.insert(window, 0, neg_rows, 0)
+        if neg_cols is not None:
+            # Insert negative columns (xmin)
+            window = np.insert(window, 0, neg_rows, 0)
+        return window
 
-        for i in range(ref.depth-1):
-            band = ref.GetBandAsArray(i+2, mask=True)
-            if rescale:
-                band = (band - band.min()) / (band.max() - band.min())
-            stacked = np.ma.dstack([stacked, band])
 
-    for i, rast in enumerate(rasters[1:]):
-        ma = Raster(rast).MaskedArray
-        if np.ma.isMaskedArray(ma):
-            if rescale:
-                # Rescale to between 0 and 1
-                ma = (ma - ma.min())/ (ma.max() - ma.min())
-            # Replace mask/nodata value in array with reference values
-            # ma_mask = ma.mask
-            # ma = np.ma.masked_where(ma_mask, ma)
-            # ma.set_fill_value(ref.nodata_val)
-            # ma = ma.filled(ma.fill_value)
 
-        stacked = np.ma.dstack([stacked, ma])
+    def get_window(self, masked=True) -> np.ma.masked_array:
+        ymin, ymax, xmin, xmax = self.window_bounds()
+        if ymin < 0 or xmin < 0 or \
+                ymax > self.raster.Array.shape[0] or \
+                xmax > self.raster.Array.shape[1]:
+            # create array with nans
+            window = self.create_exceed_window(ymin, ymax, xmin, xmax)
+        else:
+            window = self.raster.Array[ymin:ymax, xmin:xmax].astype(np.float32)
+        if masked:
+            window = np.ma.masked_where(window == self.raster.nodata_val,
+                                        window)
+        return window
 
-        ma = None
+    def sample_window(self, agg='mean'):
+        window = self.get_window()
+        # Test for window with all nans to avoid getting 0's for all nans
+        # Returns an array of True/False where True is valid values
+        window_valid = window == window
 
-    # Revert to original NoData value (stacking changes)
-    # stacked.set_fill_value(ref.nodata_val)
-    ref = None
+        if True in window_valid:
+            # Window contains at least one valid value, do aggregration
+            agg_lut = {
+                'mean': np.nanmean(window),
+                'sum': np.nansum(window),
+                'min': np.nanmin(window),
+                'max': np.nanmax(window)
+            }
+            window_agg = agg_lut[agg]
 
-    return stacked
+        return window_agg
+
+    def locate_max(self):
+        indicies = np.unravel_index(np.argmax(self.get_window(), axis=None),
+                                    self.get_window().shape)
+        max_val = self.window[indicies]
+        coords = self.raster.pixel2coord(indicies[1], indicies[0],
+                                         x_origin=self.x_origin,
+                                         y_origin=self.y_origin)
+
+        return coords, max_val
+
+    def locate_min(self):
+        indicies = np.unravel_index(np.argmin(self.get_window(), axis=None),
+                                    self.get_window().shape)
+
+        coords = self.raster.pixel2coord(indicies[1], indicies[0],
+                                         x_origin=self.x_origin,
+                                         y_origin=self.y_origin)
+
+        return coords
+
+
+# p = r'E:\disbr007\test_data\N_20191001_concentration_v3_small.tif'
+# p = r'E:\disbr007\umn\accuracy_assessment\test_aoi2_mr2\img\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-500281124060_01_P001_u16mr3413_clip.tif'
+# pt = (937500.0, 387500.0)
+# r = Raster(p)
+#
+# # r.Array[3,3]= 9999
+# # r.nodata_val = 0
+# rw = r.create_window((3, 3), pt)
+# print(rw.window)
+# print(rw.y_origin, rw.x_origin)
+# mcs = rw.locate_max()
+# lcs = rw.locate_min()
+# print(mcs)
+# print(lcs)
+# arr = rw.get_window()
+# w = r.get_window()
+
+# import rasterio as rio
+#
+# n = 3
+# pt2 = -673731, -576165
+# with rio.open(p) as src:
+#     py, px = src.index(*pt)
+#     w = rio.windows.Window(px - n//2, py - n//2, n, n)
+#     a = src.read(window=w, masked=True)

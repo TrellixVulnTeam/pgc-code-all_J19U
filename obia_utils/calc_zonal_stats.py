@@ -105,7 +105,7 @@ def compute_stats(gdf, raster, name,
     """
     if stats is None:
         stats = ['mean', 'min', 'max', 'std']
-    logger.info('Computing {} on raster:\n{}'.format(' '.join(stats), raster))
+    logger.info('Computing {} on raster:\n\t{}'.format(' '.join(stats), raster))
     if renamer is None:
         renamer = {x: '{}_{}'.format(name, x) for x in stats}
 

@@ -28,6 +28,7 @@ med_mean = 'med_mean'
 cur_mean = 'curv_mean'
 ndvi_mean = 'ndvi_mean'
 slope_mean = 'slope_mean'
+edge_mean = 'edge_mean'
 rug_mean = 'ruggedness'
 sa_rat_mean = 'sar_mean'
 elev_mean = 'dem_mean'
@@ -55,6 +56,9 @@ grow_object = 'grow_object'
 
 # rts_simple_thresholds = 'rts_simple_threshold'
 contains_hw = 'contains_hw'
+contains_hw_gtr = 'cntghwelev'
+contains_hw_cent = 'cnthwcent'
+contains_hw_cent_gtr = 'cntghwcent'
 intersects_rts_cand = 'inters_rts'
 rts_candidate = 'rts_candidate'
 rts_cand_bool = 'rts_cand'
@@ -81,6 +85,7 @@ def classify_rts(sub_objects_path,
 
     #%% RULESET
     # Headwall Rules
+    logger.info('Setting up headwall candidate rules...')
     # Ruggedness
     r_ruggedness = create_rule(rule_type=threshold_rule,
                                in_field=rug_mean,
@@ -153,18 +158,24 @@ def classify_rts(sub_objects_path,
                                  threshold=-30,
                                  out_field=True)
     # Adjacent MED
-    # TODO: Change to adjacent to or IS low MED?
     r_adj_low_med = create_rule(rule_type=adj_or_is_rule,
                                 in_field=med_mean,
                                 op=operator.lt,
                                 threshold=-0.2,
                                 out_field=True)
+    # Adjacent or is high edge
+    # r_adh_high_edge = create_rule(rule_type=adj_or_is_rule,
+    #                               in_field=edge_mean,
+    #                               op=operator.gt,
+    #                               threshold=0.18,
+    #                               out_field=True)
     # All adjacent rules
     r_adj_rules = [r_adj_low_curv, r_adj_high_curv, r_adj_low_med]
 
 
 
     #%% RTS Rules
+    logger.info('Setting up RTS candidate rules...')
     r_rts_ndvi = create_rule(rule_type=threshold_rule,
                              in_field=ndvi_mean,
                              op=operator.lt,
@@ -174,14 +185,20 @@ def classify_rts(sub_objects_path,
     r_rts_med = create_rule(rule_type=threshold_rule,
                             in_field=med_mean,
                             op=operator.lt,
-                            threshold=0,
+                            threshold=0.1,
                             out_field=True)
 
-    r_rts_slope = create_rule(rule_type=threshold_rule,
-                              in_field=slope_mean,
-                              op=operator.gt,
-                              threshold=3,
-                              out_field=True)
+    r_rts_slope_low = create_rule(rule_type=threshold_rule,
+                                  in_field=slope_mean,
+                                  op=operator.gt,
+                                  threshold=3,
+                                  out_field=True)
+
+    r_rts_slope_high = create_rule(rule_type=threshold_rule,
+                                   in_field=slope_mean,
+                                   op=operator.lt,
+                                   threshold=20,
+                                   out_field=True)
 
     r_rts_delev = create_rule(rule_type=threshold_rule,
                               in_field=delev_mean,
@@ -197,12 +214,14 @@ def classify_rts(sub_objects_path,
 
     r_rts_simple_thresholds = [r_rts_ndvi,
                                r_rts_med,
-                               r_rts_slope,
+                               r_rts_slope_low,
+                               r_rts_slope_high,
                                r_rts_delev,
                                r_rts_conhw]
 
 
     #%% HEADWALL CANDIDATES
+    logger.info('Classifying headwall candidate objects...')
     #%% Load candidate headwall objects
     if not headwall_candidates_in:
         logger.info('Loading headwall candidate objects...')
@@ -248,7 +267,7 @@ def classify_rts(sub_objects_path,
 
     #%% Find objects that contain headwalls of a higher elevation than
     # themselves
-    so.objects[contains_hw] = so.objects.apply(
+    so.objects[contains_hw_gtr] = so.objects.apply(
         lambda x: overlay_any_objects(
             x.geometry,
             hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate],
@@ -256,6 +275,29 @@ def classify_rts(sub_objects_path,
             threshold=x[elev_mean],
             other_value_field=elev_mean,
             op=operator.gt),
+        axis=1)
+    so.objects[contains_hw] = so.objects.apply(
+        lambda x: overlay_any_objects(
+            x.geometry,
+            hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate],
+            predicate='contains',),
+        axis=1)
+    so.objects[contains_hw_cent] = so.objects.apply(
+        lambda x: overlay_any_objects(
+            x.geometry,
+            hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate],
+            predicate='contains',
+            others_centroid=True),
+        axis=1)
+    so.objects[contains_hw_gtr] = so.objects.apply(
+        lambda x: overlay_any_objects(
+            x.geometry,
+            hwc.objects[hwc.objects[hwc.class_fld] == hw_candidate],
+            predicate='contains',
+            threshold=x[elev_mean],
+            other_value_field=elev_mean,
+            op=operator.gt,
+            others_centroid=True),
         axis=1)
 
     #%% Classify
@@ -402,6 +444,7 @@ def grow_rts_candidates(candidates: ImageObjects,
 
 
 def grow_rts_simple(grow_objects: gpd.GeoDataFrame):
+    logger.info('Growing RTS candidates...')
     grow_objects = ImageObjects(grow_objects)
 
     # Subset grow objects to those that meet rules
@@ -423,7 +466,7 @@ def grow_rts_simple(grow_objects: gpd.GeoDataFrame):
     # Subset grow objects to RTS candidates
     rtscs = grow_objects.objects[grow_objects.objects[grow_objects.class_fld] == rts_candidate]
     mcs = grow_objects.objects[grow_objects.objects[grow_objects.class_fld] == merge_candidate]
-    grow_objects.write_objects(r'C:\temp\grow_objects2020feb08_2.shp')
+    # grow_objects.write_objects()
 
     mcs = dissolve_touching(mcs)
 
@@ -442,4 +485,4 @@ def grow_rts_simple(grow_objects: gpd.GeoDataFrame):
 
     logger.info('Located {:,} RTS features'.format(len(rts)))
 
-    return rts
+    return rts, mcs

@@ -52,7 +52,7 @@ def mask_objs(objs, mask_on, out_mask_img=None, out_mask_vec=None):
     # Select only objects in valid areas of mask
     logger.info('Removing objects in masked areas...')
     # TODO: use centroids for faster cleanup - Begin
-    objs_centroids = copy.deepcopy(objs).set_geometry(objs.geometry.centroid)
+    # objs_centroids = copy.deepcopy(objs).set_geometry(objs.geometry.centroid)
     # use centroids for faster cleanup - End
 
     keep_objs = gpd.overlay(objs, not_mask)
