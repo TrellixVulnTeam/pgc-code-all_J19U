@@ -9,12 +9,6 @@ dg_imagery_index_xtrack_cc20 = 'dg_imagery_index_xtrack_cc20'
 cid_col = 'catalogid'
 stp_col = 'stereopair'
 
-# where = "acqdate > '2019-06-01'"
-#
-# class Footprint():
-#     def __init__(self):
-#         self.db_name = 'danco.footprint'
-
 
 def get_stereo_ids(where=None):
     sql = "SELECT {}, {} FROM {}".format(cid_col, stp_col, dg_imagery_index_stereo)

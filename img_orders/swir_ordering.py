@@ -1,4 +1,6 @@
 import argparse
+import os
+
 import geopandas as gpd
 import pandas as pd
 
@@ -73,17 +75,6 @@ def swir_ordering(include_regions, out_ids):
 
     return selected_swir_noh
 
-# # %% Plotting
-# import matplotlib.pyplot as plt
-#
-# plt.style.use('pycharm_blank')
-#
-# fig, ax = plt.subplots(1,1)
-# # ed_region.plot(ax=ax, color='none', edgecolor='white')
-# swir.plot(ax=ax, markersize=0.5)
-# master_swir.plot(ax=ax, markersize=0.8)
-# uu.plot(ax=ax, color='none', edgecolor='white')
-# fig.show()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

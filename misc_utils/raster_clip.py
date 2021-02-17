@@ -6,16 +6,18 @@ Created on Tue Aug 27 15:36:40 2019
 Clip raster to shapefile extent. Must be in the same projection.
 """
 
+import argparse
+import os
+from pathlib import Path
 import shutil
 
 from osgeo import ogr, gdal
-import os, logging, argparse
-
 import geopandas as gpd
 # import shapely
 
 from misc_utils.gdal_tools import check_sr, ogr_reproject, get_raster_sr, \
-    remove_shp
+    remove_shp, detect_ogr_driver
+from misc_utils.gpd_utils import read_vec
 from misc_utils.id_parse_utils import read_ids
 from misc_utils.logging_utils import create_logger
 
@@ -23,9 +25,7 @@ from misc_utils.logging_utils import create_logger
 gdal.UseExceptions()
 ogr.UseExceptions()
 
-
 logger = create_logger(__name__, 'sh', 'INFO')
-# sublogger = create_logger('misc_utils.gdal_tools', 'sh', 'INFO')
 
 
 def move_meta_files(raster_p, out_dir, raster_ext=None):
@@ -56,6 +56,7 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
     """
     # TODO: Fix permission error if out_prj_shp not supplied -- create in-mem
     #  OGR?
+    # TODO: Add support for other vector formats -- create read_vec()??
     # Use in memory directory if specified
     if out_dir is None:
         in_mem = True
@@ -82,7 +83,9 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
                                   to_sr=get_raster_sr(check_raster),
                                   output_shp=out_prj_shp)
 
-    shp = gpd.read_file(shp_p)
+    # shp = gpd.read_file(shp_p)
+    _shp_driver, shp_layer = detect_ogr_driver(shp_p)
+    shp = read_vec(shp_p)
     if len(shp) > 1:
         logger.debug('Dissolving clipping shape with multiple features...')
         shp['dissolve'] = 1
@@ -120,11 +123,19 @@ def clip_rasters(shp_p, rasters, out_path=None, out_dir=None, out_suffix='_clip'
             raster_ds = gdal.Open(raster_p, gdal.GA_ReadOnly)
             x_res = raster_ds.GetGeoTransform()[1]
             y_res = raster_ds.GetGeoTransform()[5]
-            warp_options = gdal.WarpOptions(cutlineDSName=shp_p,
-                                            cropToCutline=True,
-                                            targetAlignedPixels=True,
-                                            xRes=x_res,
-                                            yRes=y_res)
+            if shp_layer is not None:
+                warp_options = gdal.WarpOptions(cutlineDSName=Path(shp_p).parent,
+                                                cutlineLayer=shp_layer,
+                                                cropToCutline=True,
+                                                targetAlignedPixels=True,
+                                                xRes=x_res,
+                                                yRes=y_res)
+            else:
+                warp_options = gdal.WarpOptions(cutlineDSName=shp_p,
+                                                cropToCutline=True,
+                                                targetAlignedPixels=True,
+                                                xRes=x_res,
+                                                yRes=y_res)
             gdal.Warp(raster_out_path, raster_ds, options=warp_options)
             # Close the raster
             raster_ds = None

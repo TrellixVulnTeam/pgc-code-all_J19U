@@ -13,8 +13,10 @@ import subprocess
 from subprocess import PIPE
 
 from misc_utils.logging_utils import create_logger, create_logfile_path
-from misc_utils.gdal_tools import gdal_polygonize
-# from cleanup_objects import mask_objs
+from misc_utils.gdal_tools import gdal_polygonize, detect_ogr_driver
+from misc_utils.gpd_utils import write_gdf
+from misc_utils.rio_utils import rio_polygonize
+from .cleanup_objects import remove_small_objects
 # from misc_utils.RasterWrapper import Raster
 
 
@@ -69,7 +71,8 @@ def otb_grm(img,
             speed=0,
             spectral=0.5,
             spatial=0.5,
-            init_otb_env=True):
+            init_otb_env=True,
+            drop_smaller=None):
     """
     Run the Orfeo Toolbox GenericRegionMerging command via the command line.
     Requires that OTB environment is activated
@@ -94,6 +97,10 @@ def otb_grm(img,
         How much to consider spatial similarity, i.e. shape. The default is 0.5.
     out_format : str
         Format to write segmentation out as {raster, vector}
+    init_otb_env: bool
+        Call OTB environment activating .bat script before running.
+    drop_smaller: float
+        If not None, drop resulting segments smaller than this size.
 
     Returns
     -------
@@ -112,11 +119,22 @@ def otb_grm(img,
                                  spectral=spectral,
                                  spatial=spatial)
 
-    out_seg_parent = Path(out_seg).parent
-    if not out_seg_parent.exists():
-        logger.info('Creating directory for output:\n '
-                    '{}'.format(out_seg_parent))
-        os.makedirs(out_seg_parent)
+    if out_format == 'vector':
+        driver, layer = detect_ogr_driver(out_seg)
+        if layer is not None:
+            out_img = str(Path(out_seg).parent.parent / \
+                      '{}.tif'.format(Path(out_seg).parent.stem))
+        else:
+            out_img = Path(out_seg).parent / \
+                      '{}.tif'.format(Path(out_seg).stem)
+
+    out_img_parent = Path(out_img).parent
+    # out_seg_parent = Path(out_seg).parent
+    for p in [out_img_parent]:  #, out_seg_parent]:
+        if not p.exists():
+            logger.info('Creating directory for output:\n '
+                        '{}'.format(p))
+            os.makedirs(p)
 
     # Log input image information
     logger.info("""Running OTB Generic Region Merging...
@@ -127,7 +145,7 @@ def otb_grm(img,
                     Threshold:   {}
                     # Iterate:   {}
                     Spectral:    {}
-                    Spatial:     {}""".format(img, out_seg, out_format,
+                    Spatial:     {}""".format(img, out_img, out_format,
                                               criterion, threshold,
                                               niter, spectral, spatial))
     # Build the command
@@ -138,7 +156,7 @@ def otb_grm(img,
              -threshold {}
              -niter {}
              -cw {}
-             -sw {}""".format(img, out_seg,
+             -sw {}""".format(img, out_img,
                               criterion,
                               threshold,
                               niter,
@@ -169,12 +187,22 @@ def otb_grm(img,
     
     if out_format == 'vector':
         logger.info('Vectorizing...')
-        vec_seg = out_seg.replace('tif', 'shp')
-        gdal_polygonize(img=out_seg, out_vec=vec_seg, fieldname='label')
-        logger.info('Segmentation created at: {}'.format(vec_seg))
+        # vec_seg = out_seg.replace('tif', 'shp')
+        # gdal_polygonize(img=out_img, out_vec=out_seg, fieldname='label')
+        objects = rio_polygonize(img=out_img)
+
+        if drop_smaller is not None:
+            objects = remove_small_objects(objects=objects, min_size=drop_smaller)
+
+        write_gdf(objects, out_seg)
+        logger.info('Segmentation created at: {}'.format(out_seg))
+
         logger.debug('Removing raster segmentation...')
-        os.remove(out_seg)
-        out_seg = vec_seg # For returning path to segments
+        try:
+            os.remove(out_img)
+        except:
+            logger.warning('Could not remove segmentation image: '
+                           '{}'.format(out_img))
 
     return out_seg
 
@@ -227,6 +255,9 @@ if __name__ == "__main__":
                         default=0.5,
                         help='How much to consider spatial similarity, i.e. '
                              'shape')
+    parser.add_argument('--drop_smaller', type=float,
+                        help='Drop objects smaller than this size before writing '
+                             'to file.')
     parser.add_argument('-l', '--log_file',
                         type=os.path.abspath,
                         default='otb_grm.log',
@@ -248,6 +279,7 @@ if __name__ == "__main__":
     speed = args.speed
     spectral = args.spectral
     spatial = args.spatial
+    drop_smaller = args.drop_smaller
 
     # Set up logger
     handler_level = 'INFO'
@@ -273,4 +305,5 @@ if __name__ == "__main__":
             speed=speed,
             spectral=spectral,
             spatial=spatial,
-            out_dir=out_dir)
+            out_dir=out_dir,
+            drop_smaller=drop_smaller)

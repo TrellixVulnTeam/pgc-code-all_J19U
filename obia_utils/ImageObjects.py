@@ -10,7 +10,7 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from misc_utils.logging_utils import create_logger
-from misc_utils.gpd_utils import write_gdf
+from misc_utils.gpd_utils import read_vec, write_gdf
 # from misc_utils.RasterWrapper import Raster
 
 import matplotlib.pyplot as plt
@@ -176,7 +176,7 @@ class ImageObjects:
             self.objects_path = None
         else:
             self.objects_path = objects_path
-            self.objects = gpd.read_file(objects_path)
+            self.objects = read_vec(objects_path)
 
         logger.info('Loaded {:,} objects.'.format(len(self.objects)))
 

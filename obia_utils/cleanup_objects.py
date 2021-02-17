@@ -7,7 +7,7 @@ from osgeo import gdal
 import pandas as pd
 import geopandas as gpd
 
-from misc_utils.gpd_utils import write_gdf
+from misc_utils.gpd_utils import read_vec, write_gdf
 from misc_utils.RasterWrapper import Raster
 from misc_utils.logging_utils import create_logger
 
@@ -23,7 +23,8 @@ def load_objs(objects):
     # Load objects
     # TODO: Read in chunks, parallelize, recombine and write
     logger.info('Reading in objects...')
-    objs = gpd.read_file(objects)
+    # objs = gpd.read_file(objects)
+    objs = read_vec(objects)
     logger.info('Objects found: {:,}'.format(len(objs)))
 
     return objs
@@ -46,7 +47,8 @@ def mask_objs(objs, mask_on, out_mask_img=None, out_mask_vec=None):
     # Write mask vector (and raster if desired)
     logger.info('Creating mask from raster: {}'.format(mask_on))
     Raster(mask_on).WriteMaskVector(out_vec=out_mask_vec, out_mask_img=out_mask_img)
-    mask = gpd.read_file(out_mask_vec)
+    # mask = gpd.read_file(out_mask_vec)
+    mask = read_vec(out_mask_vec)
     not_mask = mask[mask.iloc[:, 0] != '1']
 
     # Select only objects in valid areas of mask
@@ -100,7 +102,7 @@ def cleanup_objects(input_objects,
     if out_objects:
         logger.info('Writing kept objects ({:,}) to: {}'.format(len(keep_objs),
                                                                 out_objects))
-        keep_objs.to_file(out_objects)
+        # keep_objs.to_file(out_objects)
         write_gdf(keep_objs, out_objects, overwrite=overwrite)
 
     return out_objects

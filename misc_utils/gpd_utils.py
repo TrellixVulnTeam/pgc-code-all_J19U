@@ -22,10 +22,17 @@ from tqdm import tqdm
 import multiprocessing
 
 from misc_utils.logging_utils import create_logger
-
+from misc_utils.gdal_tools import detect_ogr_driver
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
+# CONSTANTS
+# Drivers
+ESRI_SHAPEFILE = 'ESRI Shapefile'
+GEOJSON = 'GeoJSON'
+GPKG = 'GPKG'
+OPEN_FILE_GDB = 'OpenFileGDB'
+FILE_GBD = 'FileGDB'
 
 def multiprocess_gdf(fxn, gdf, *args, num_cores=None, **kwargs):
     from joblib import Parallel, delayed
@@ -255,8 +262,12 @@ def coords2gdf(xs, ys, epsg=4326):
 
 
 def remove_unused_geometries(df):
-    """Remove all geometry columns that aren't being used. Useful for writing to shapefiles"""
-    remove = [x for x in list(df.select_dtypes(include='geometry')) if x != df.geometry.name]
+    """
+    Remove all geometry columns that aren't being used. Useful for
+    writing to shapefiles
+    """
+    remove = [x for x in list(df.select_dtypes(include='geometry'))
+              if x != df.geometry.name]
 
     return df.drop(columns=remove)
 
@@ -337,39 +348,27 @@ def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
 
 
 def write_gdf(src_gdf, out_footprint, to_str_cols=None,
-              out_format=None, date_format=None,
+              out_format=None,
+              date_format=None,
               nan_to=None,
+              precision=None,
               overwrite=True,
               **kwargs):
+    """
+    Handles common issues with writing GeoDataFrames to a variety of formats,
+    including removing datetimes, converting list/dict columns to strings,
+    handling NaNs.
+    date_format : str
+        Use to convert datetime fields to string fields, using format provided
+    TODO: Add different handling for different formats, e.g. does gpkg allow datetime/NaN?
+    """
     gdf = copy.deepcopy(src_gdf)
 
     if not isinstance(out_footprint, pathlib.PurePath):
         out_footprint = Path(out_footprint)
 
-    # convert NaNs to empty string
-    if nan_to:
-        gdf = gdf.replace(np.nan, nan_to, regex=True)
-
-    # remove datetime - specifiy datetime if desired format
-    if not gdf.select_dtypes(include=['datetime64']).columns.empty:
-        datetime2str_df(gdf, date_format=date_format)
-
-    # convert columns that store lists to strings
-    if to_str_cols:
-        for col in to_str_cols:
-            logger.debug('Converting to string field: {}'.format(col))
-            gdf[col] = [','.join(map(str, l)) if isinstance(l, (dict, list))
-                        and len(l) > 0 else '' for l in gdf[col]]
-
-    logger.debug('Writing to file: {}'.format(out_footprint))
-    if not out_format:
-        out_format = out_footprint.suffix.replace('.', '')
-        if not out_format:
-            # if still no extension, check if gpkg (package.gpkg/layer)
-            out_format = out_footprint.parent.suffix
-            if not out_format:
-                logger.error('Could not recognize out format from file extension: {}'.format(out_footprint))
-
+    # Format agnostic functions
+    # Remove if exists and overwrite
     if out_footprint.exists():
         if overwrite:
             logger.warning('Overwriting existing file: '
@@ -380,21 +379,44 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
                            'skipping writing.')
             return None
 
-    # write out in format specified
-    if out_format == 'shp':
-        gdf.to_file(out_footprint, **kwargs)
-    elif out_format == 'geojson':
-        if gdf.crs != 4326:
-            logger.warning('Attempting to write GeoDataFrame with non-WGS84 '
-                           'CRS to GeoJSON. Reprojecting to WGS84.')
-            gdf = gdf.to_crs('epsg:4326')
-        gdf.to_file(out_footprint,
-                    driver='GeoJSON', **kwargs)
-    elif out_format == 'gpkg':
-        gdf.to_file(out_footprint.parent, layer=out_footprint.stem,
-                    driver='GPKG', **kwargs)
+    # Convert datetime if requested
+    if date_format:
+        if not gdf.select_dtypes(include=['datetime64']).columns.empty:
+            datetime2str_df(gdf, date_format=date_format)
+
+    # Round if precision
+    if precision:
+        gdf = gdf.round(decimals=precision)
+    logger.debug('Writing to file: {}'.format(out_footprint))
+
+    # Get driver and layer name. Layer will be none for non database formats
+    driver, layer = detect_ogr_driver(out_footprint, name_only=True)
+    if driver == ESRI_SHAPEFILE:
+        # convert NaNs to empty string
+        if nan_to:
+            gdf = gdf.replace(np.nan, nan_to, regex=True)
+
+    # Convert columns that store lists to strings
+    if to_str_cols:
+        for col in to_str_cols:
+            logger.debug('Converting to string field: {}'.format(col))
+            gdf[col] = [','.join(map(str, l)) if isinstance(l, (dict, list))
+                        and len(l) > 0 else '' for l in gdf[col]]
+
+    # Write out in format specified
+    if driver in [ESRI_SHAPEFILE, GEOJSON]:
+        if driver == GEOJSON:
+            if gdf.crs != 4326:
+                logger.warning('Attempting to write GeoDataFrame with non-WGS84 '
+                               'CRS to GeoJSON. Reprojecting to WGS84.')
+                gdf = gdf.to_crs('epsg:4326')
+        gdf.to_file(out_footprint, driver=driver, **kwargs)
+
+    elif driver in [GPKG, OPEN_FILE_GDB, FILE_GBD]:
+        gdf.to_file(str(out_footprint.parent), layer=layer, driver=driver, **kwargs)
+
     else:
-        logger.error('Unrecognized format: {}'.format(out_format))
+        logger.error('Unsupported driver: {}'.format(driver))
 
 
 def dissolve_touching(gdf: gpd.GeoDataFrame):
@@ -408,3 +430,16 @@ def dissolve_touching(gdf: gpd.GeoDataFrame):
     dissolved = gdf.dissolve(by=dg)
 
     return dissolved
+
+
+def read_vec(vec_path: str, **kwargs) -> gpd.GeoDataFrame:
+    """
+    Read any valid vector format into a GeoDataFrame
+    """
+    driver, layer = detect_ogr_driver(vec_path, name_only=True)
+    if layer is not None:
+        gdf = gpd.read_file(Path(vec_path).parent, layer=layer, driver=driver, **kwargs)
+    else:
+        gdf = gpd.read_file(vec_path, driver=driver, **kwargs)
+
+    return gdf

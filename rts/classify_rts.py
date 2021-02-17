@@ -14,7 +14,7 @@ import pandas as pd
 import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger
-from misc_utils.gpd_utils import select_in_aoi, dissolve_touching
+from misc_utils.gpd_utils import select_in_aoi, dissolve_touching, read_vec
 from obia_utils.ImageObjects import ImageObjects, create_rule, overlay_any_objects
 from archive_analysis.archive_analysis_utils import grid_aoi
 
@@ -29,7 +29,7 @@ cur_mean = 'curv_mean'
 ndvi_mean = 'ndvi_mean'
 slope_mean = 'slope_mean'
 edge_mean = 'edge_mean'
-rug_mean = 'ruggedness'
+rug_mean = 'ruggedness_mean'
 sa_rat_mean = 'sar_mean'
 elev_mean = 'dem_mean'
 img_mean = 'img_mean'
@@ -56,9 +56,9 @@ grow_object = 'grow_object'
 
 # rts_simple_thresholds = 'rts_simple_threshold'
 contains_hw = 'contains_hw'
-contains_hw_gtr = 'cntghwelev'
-contains_hw_cent = 'cnthwcent'
-contains_hw_cent_gtr = 'cntghwcent'
+contains_hw_gtr = 'contains_hw_gtr_elev'
+contains_hw_cent = 'contains_hw_cent'
+contains_hw_cent_gtr = 'contains_hw_cent_gtr_elev'
 intersects_rts_cand = 'inters_rts'
 rts_candidate = 'rts_candidate'
 rts_cand_bool = 'rts_cand'
@@ -155,7 +155,7 @@ def classify_rts(sub_objects_path,
     r_adj_low_curv = create_rule(rule_type=adj_or_is_rule,
                                  in_field=cur_mean,
                                  op=operator.lt,
-                                 threshold=-30,
+                                 threshold=-15,  # -30
                                  out_field=True)
     # Adjacent MED
     r_adj_low_med = create_rule(rule_type=adj_or_is_rule,
@@ -226,9 +226,10 @@ def classify_rts(sub_objects_path,
     if not headwall_candidates_in:
         logger.info('Loading headwall candidate objects...')
         if aoi_path:
-            aoi = gpd.read_file(aoi_path)
+            # aoi = gpd.read_file(aoi_path)
+            aoi = read_vec(aoi_path)
             logger.info('Subsetting objects to AOI...')
-            gdf = select_in_aoi(gpd.read_file(sub_objects_path), aoi, centroid=True)
+            gdf = select_in_aoi(read_vec(sub_objects_path), aoi, centroid=True)
             hwc = ImageObjects(objects_path=gdf, value_fields=value_fields)
         else:
             hwc = ImageObjects(objects_path=sub_objects_path, value_fields=value_fields)
@@ -456,7 +457,7 @@ def grow_rts_simple(grow_objects: gpd.GeoDataFrame):
     ndvi_rule = create_rule(rule_type=threshold_rule,
                             in_field=ndvi_mean,
                             op=operator.lt,
-                            threshold=-0.03,
+                            threshold=-0.01,
                             out_field=True)
 
     merge_candidate = 'merge_candidate'
@@ -474,7 +475,7 @@ def grow_rts_simple(grow_objects: gpd.GeoDataFrame):
     mcs['touches_cand'] = mcs.apply(lambda x: any([x.geometry.touches(r) for r in rtscs.geometry]), axis=1)
 
     grow_objects.objects[(grow_objects.objects[class_fld] == rts_candidate) |
-                         (grow_objects.objects.index.isin(mcs[mcs['touches_cand']==True].index))]
+                         (grow_objects.objects.index.isin(mcs[mcs['touches_cand'] == True].index))]
 
     grow_objects.objects[(grow_objects.objects[class_fld] == rts_candidate) |
                          (grow_objects.objects.index.isin(mcs[mcs['touches_cand'] == True].index))
@@ -485,4 +486,6 @@ def grow_rts_simple(grow_objects: gpd.GeoDataFrame):
 
     logger.info('Located {:,} RTS features'.format(len(rts)))
 
-    return rts, mcs
+    # TODO: Confirm whether this returns gdf or ImageObjects and add docstring and
+    #  type hints
+    return rts, grow_objects

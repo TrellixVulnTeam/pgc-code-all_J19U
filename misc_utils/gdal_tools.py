@@ -8,9 +8,10 @@ import os
 import glob
 import logging
 import posixpath
-from pathlib import Path
+from pathlib import Path, PurePath
 import subprocess
 from subprocess import PIPE
+import typing
 
 from osgeo import gdal, ogr, osr
 
@@ -221,8 +222,8 @@ def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'],
 
 def auto_detect_ogr_driver(ogr_ds, name_only=False):
     """
+    ***DEPRECIATED -- USE detect_ogr_driver()
     Autodetect the appropriate driver for an OGR datasource.
-
 
     Parameters
     ----------
@@ -231,14 +232,20 @@ def auto_detect_ogr_driver(ogr_ds, name_only=False):
 
     Returns
     -------
-    OGR driver.
+    OGR driver OR
+    OGR driver, layer name
+
     """
+    logger.warning('auto_detect_ogr_driver() depreciated, use detect_ogr_driver()')
     # OGR driver lookup table
+    GPKG = '.gpkg'
     driver_lut = {'.geojson': 'GeoJSON',
                   '.shp' : 'ESRI Shapefile',
+                  GPKG: 'GPKG'
                   # TODO: Add more
                   }
 
+    layer = None
     # Check if in-memory datasource
     if isinstance(ogr_ds, ogr.DataSource):
         driver_name = 'Memory'
@@ -248,8 +255,12 @@ def auto_detect_ogr_driver(ogr_ds, name_only=False):
     else:
         # Check if extension in look up table
         try:
-            # ext = os.path.basename(ogr_ds).split('.')[1]
-            ext = Path(ogr_ds).suffix
+            if GPKG in ogr_ds:
+                ext = GPKG
+                layer = ogr_ds.name
+            else:
+                ext = Path(ogr_ds).suffix
+
             if ext in driver_lut.keys():
                 driver_name = driver_lut[ext]
             else:
@@ -259,8 +270,12 @@ def auto_detect_ogr_driver(ogr_ds, name_only=False):
         except:
             logger.info('Unable to locate OGR driver for {}'.format(ogr_ds))
             driver_name = None
+
     if name_only:
-        return driver_name
+        if layer:
+            return driver_name, layer
+        else:
+            return driver_name
     else:
         try:
             driver = ogr.GetDriverByName(driver_name)
@@ -272,6 +287,86 @@ def auto_detect_ogr_driver(ogr_ds, name_only=False):
         logger.debug('Driver autodetected: {}'.format(driver_name))
 
         return driver
+
+
+def detect_ogr_driver(ogr_ds: str, name_only: bool = False) -> typing.Tuple[gdal.Driver, str]:
+    """
+    Autodetect the appropriate driver for an OGR datasource.
+
+    Parameters
+    ----------
+    ogr_ds : OGR datasource
+        Path to OGR datasource.
+    name_only : bool
+        True to return the name of the driver, else the ogr.Driver object will
+        be return
+    Returns
+    -------
+    OGR driver OR
+    OGR driver, layer name
+
+    """
+    # Driver names
+    FileGDB = 'FileGDB'
+    OpenFileGDB = 'OpenFileGDB'
+    # Suffixes
+    GPKG = '.gpkg'
+    SHP = '.shp'
+    GEOJSON = '.geojson'
+    GDB = '.gdb'
+
+    supported_drivers = [gdal.GetDriver(i).GetDescription()
+                         for i in range(gdal.GetDriverCount())]
+    if FileGDB in supported_drivers:
+        gdb_driver = FileGDB
+    else:
+        gdb_driver = OpenFileGDB
+
+    # OGR driver lookup table
+    driver_lut = {
+        GEOJSON: 'GeoJSON',
+        SHP: 'ESRI Shapefile',
+        GPKG: 'GPKG',
+        GDB: gdb_driver
+                  }
+    layer = None
+
+    # Check if in-memory datasource
+    if isinstance(ogr_ds, PurePath):
+        ogr_ds = str(ogr_ds)
+    if isinstance(ogr_ds, ogr.DataSource):
+        driver = 'Memory'
+    elif 'vsimem' in ogr_ds:
+        driver = 'ESRI Shapefile'
+    else:
+        # Check if extension in look up table
+        if GPKG in ogr_ds:
+            drv_sfx = GPKG
+            layer = Path(ogr_ds).name
+        elif GDB in ogr_ds:
+            drv_sfx = GDB
+            layer = Path(ogr_ds).name
+        else:
+            drv_sfx = Path(ogr_ds).suffix
+
+        if drv_sfx in driver_lut.keys():
+            driver = driver_lut[drv_sfx]
+        else:
+            logger.warning("""Unsupported driver extension {}
+                            Defaulting to 'ESRI Shapefile'""".format(drv_sfx))
+            driver = driver_lut[SHP]
+
+    logger.debug('Driver autodetected: {}'.format(driver))
+
+    if not name_only:
+        try:
+            driver = ogr.GetDriverByName(driver)
+        except ValueError as e:
+           logger.error('ValueError with driver_name: {}'.format(driver))
+           logger.error('OGR DS: {}'.format(ogr_ds))
+           raise e
+
+    return driver, layer
 
 
 def remove_shp(shp):
@@ -420,23 +515,46 @@ def gdal_polygonize(img, out_vec, band=1, fieldname='label', overwrite=True):
         vec_files.append(out_vec)
         logger.debug('Removing existing vector files: {}'.format('\n'.join(vec_files)))
         _del_files = [os.remove(f) for f in vec_files]
+
     # Open raster, get band and coordinate reference
     logger.debug('Opening raster for vectorization: {}'.format(img))
+    # with gdal.Open(img) as src_ds:
     src_ds = gdal.Open(img)
     src_band = src_ds.GetRasterBand(band)
 
     src_srs = get_raster_sr(img)
+
     logger.debug('Raster SRS: {}'.format(src_srs.GetAuthorityCode(src_srs.ExportToWkt())))
+
     # Create vector
     logger.debug('Creating vector layer: {}'.format(out_vec))
-    dst_driver = auto_detect_ogr_driver(out_vec)
-    dst_ds = dst_driver.CreateDataSource(out_vec)
-    # Drop extension for layer name
-    lyr_name = os.path.basename(os.path.splitext(out_vec)[0])
+    dst_driver, lyr_name = detect_ogr_driver(out_vec)
+    if lyr_name is not None:
+        db = str(Path(out_vec).parent)
+        if not Path(db).exists():
+            dst_ds = dst_driver.CreateDataSource(db)
+        else:
+            dst_ds = ogr.Open(db, update=True) # try opening without update
+            existing_lyrs = [dst_ds.GetLayer(i).GetName()
+                             for i in range(dst_ds.GetLayerCount())]
+            if lyr_name in existing_lyrs:
+                logger.debug('Removing existing layer: {}'.format(Path(db) / lyr_name))
+                dst_ds.DeleteLayer(lyr_name)
+
+    else:
+        dst_ds = dst_driver.CreateDataSource(out_vec)
+        # Drop extension for layer name
+        lyr_name = os.path.basename(os.path.splitext(out_vec)[0])
+    # if overwrite:
+    #     options = ['OVERWRITE=YES']
+    # else:
+    #     options = None
     dst_lyr = dst_ds.CreateLayer(lyr_name, srs=src_srs)
+
     logger.debug('Vector layer SRS: {}'.format(dst_lyr.GetSpatialRef().ExportToWkt()))
     field_dfn = ogr.FieldDefn(fieldname, ogr.OFTString)
     dst_lyr.CreateField(field_dfn)
+
     # Polygonize
     logger.debug('Vectorizing...')
     status = gdal.Polygonize(src_band, None, dst_lyr, 0, [], callback=None)
@@ -444,6 +562,8 @@ def gdal_polygonize(img, out_vec, band=1, fieldname='label', overwrite=True):
     if status == -1:
         logger.error('Error during vectorization.')
         logger.error('GDAL exit code: {}'.format(status))
+
+    src_ds = None
 
     return status
 
@@ -638,14 +758,3 @@ def rasterize_shp2raster_extent(ogr_ds, gdal_ds,
     out_ds = None
 
     return out_path
-
-
-# v = r'E:\disbr007\umn\2020sep27_eureka\rts_test2021jan18\classified\rts_class_out.shp'
-# rs = r'E:\disbr007\umn\2020sep27_eureka\dems\sel' \
-#      r'\WV02_20140703_1030010033A84300_1030010032B54F00_test_aoi' \
-#      r'\WV02_20140703_1030010033A84300_1030010032B54F00_2m_lsf_seg1_dem_masked_test_aoi.tif'
-# r = r'C:\temp\rasterized.tif'
-# att = 'contains_h'
-#
-# rasterize_shp2raster_extent(v, rs, attribute=att, write_rasterized=True,
-#                             out_path=r)

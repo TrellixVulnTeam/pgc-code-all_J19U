@@ -4,9 +4,11 @@ Created on Mon Feb  4 12:54:01 2019
 
 @author: disbr007
 """
+from datetime import datetime
 import logging
 import re
 import os
+from pathlib import Path
 import sys
 
 # import tqdm
@@ -24,16 +26,18 @@ logger = create_logger(__name__, 'sh', 'INFO')
 
 # Globals
 # Path to write list of ordered IDs to
-ordered_path = r'C:\code\pgc-code-all\config\ordered_ids.txt'
+ORDERED_PATH = r'C:\code\pgc-code-all\config\ordered_ids.txt'
+ORDERED_PKL = r'C:\code\pgc-code-all\config\ordered_locs.pkl'
 # Directory holding order sheets
 ordered_directory = r'E:\disbr007\imagery_orders'
 # Offline IDs path
 offline_ids_path = r'E:\pgc_index\pgcImageryIndexV6_2020nov23_offline_ids.txt'
 
+
 def type_parser(filepath):
     '''
     takes a file path (or dataframe) in and determines whether it is a dbf, 
-    excel, txt, csv (or df), ADD SUPPORT FOR SHP****
+    excel, txt, csv (or df)****
     '''
     if type(filepath) == str:
         ext = os.path.splitext(filepath)[1]
@@ -240,17 +244,23 @@ def compare_ids(ids1_path, ids2_path, write_path=False):
     if isinstance(ids1_path, str):
         # Get names for printing
         ids1_name = os.path.basename(ids1_path)
+        ids1 = set(read_ids(ids1_path))
     else:
         ids1_name = 'ids1'
+        if not isinstance(ids1_path, set):
+            ids1_path = set(ids1_path)
+        ids1 = ids1_path
 
     if isinstance(ids2_path, str):
         ids2_name = os.path.basename(ids2_path)
+        ids2 = set(read_ids(ids2_path))
     else:
         ids2_name = 'ids2'
+        if not isinstance(ids2_path, set):
+            ids2_path = set(ids2_path)
+        ids2 = ids2_path
 
     # Read in both ids as sets
-    ids1 = set(read_ids(ids1_path))
-    ids2 = set(read_ids(ids2_path))
     for id_list in [(ids1_name, ids1), (ids2_name, ids2)]:
         print('IDs in {}: {:,}'.format(id_list[0], len(id_list[1])))
     
@@ -429,9 +439,11 @@ def locate_ids(df, cat_id_field):
 
     # df['location'] = df[cat_id_field].apply(lambda x: locate_id(x, pgc_ids, nasa_ids, ordered_ids))
 
+
 def get_offline_ids():
     offline_ids = set(read_ids(offline_ids_path))
     return offline_ids
+
 
 def mfp_ids(online=False):
     """
@@ -450,11 +462,10 @@ def ordered_ids(update=False):
     """
     Returns all catalogids that are in order sheets.
     """
-    global ordered_path
     if update:
         # Read all IDs in order sheets and rewrite txt file
         update_ordered()
-    ordered = list(set(read_ids(ordered_path)))
+    ordered = list(set(read_ids(ORDERED_PATH)))
     ordered = set([o for o in ordered if o != ''])
 
     return ordered
@@ -681,20 +692,32 @@ def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA'),
     """Update the text file of ordered IDs by reading from order sheets"""
     from tqdm import tqdm
 
+    # Determine location of ordered IDs
     if not ordered_loc:
         # global ordered_p
-        ordered_loc = ordered_path
+        ordered_loc = ORDERED_PATH
     if not ordered_dir:
         # global ordered_directory
         ordered_dir = ordered_directory
 
-    # Get last modified time for ordered list
-    last_update = os.path.getmtime(ordered_loc)
-
     # List for all IDs
-    logger.info('Reading existing list of ordered ids...')
-    ordered = read_ids(ordered_loc)
-    logger.info('Ordered IDs found: {:,}'.format(len(ordered)))
+    if Path(ordered_loc).exists():
+        # Get last modified time for ordered list
+        last_update = os.path.getmtime(ordered_loc)
+        logger.info('Reading existing list of ordered ids...')
+        ordered = read_ids(ordered_loc)
+        logger.info('Ordered IDs found: {:,}'.format(len(ordered)))
+    else:
+        ordered = list()
+        last_update = 0
+
+    # Load PKL
+    if Path(ORDERED_PKL).exists() and not new_only:
+        df = pd.read_pickle(ORDERED_PKL)
+    else:
+        df = pd.DataFrame()
+
+    ordered_locations = []
 
     # Progress bar set up
     total_len = sum([len(files) for r, d, files in os.walk(ordered_dir)])
@@ -721,6 +744,9 @@ def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA'),
                         # logger.info('Reading; {}'.format(f))
                         sheet_ids = read_ids(f_path)
                         ordered.extend(sheet_ids)
+                        # Add (id, filename, date)
+                        date = datetime.fromtimestamp(os.path.getmtime(f_path)).strftime('%Y-%m-%d')
+                        ordered_locations.extend([(i, f, date) for i in sheet_ids])
                     except Exception as e:
                         print('failed to read: {}'.format(f))
                         logger.error(e)
@@ -728,7 +754,17 @@ def update_ordered(ordered_dir=None, ordered_loc=None, exclude=('NASA'),
                 pbar.update(1)
                 last_dir = cur_dir
 
-
     ordered = list(set(ordered))
     logger.info('Writing {:,} ordered IDs to: {}'.format(len(ordered), ordered_loc))
     write_ids(ordered, ordered_loc)
+
+    new_df = pd.DataFrame.from_records(ordered_locations,
+                                       columns=['catalog_id', 'loc', 'date'])
+
+    df = pd.concat([df, new_df])
+    df.sort_values(by='date', inplace=True)
+    df.drop_duplicates(subset='catalog_id', keep='first')
+    df.to_pickle(ORDERED_PKL)
+
+    return df
+

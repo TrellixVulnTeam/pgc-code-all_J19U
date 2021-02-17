@@ -22,6 +22,7 @@ from selection_utils.db import Postgres, generate_sql, intersect_aoi_where
 # from selection_utils.query_danco import query_footprint
 from misc_utils.id_parse_utils import read_ids, write_ids
 from misc_utils.logging_utils import create_logger
+from misc_utils.gpd_utils import read_vec, write_gdf
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
@@ -294,11 +295,12 @@ def dem_selector(AOI_PATH=None,
     
     # If only certain months requested, reduce to those
     if MONTHS:
+        logger.debug('Selecting by month...')
         dems['temp_date'] = pd.to_datetime(dems[fields['DATE_COL']])
         dems[MONTH_COL] = dems['temp_date'].dt.month
         dems.drop(columns=['temp_date'], inplace=True)
         dems = dems[dems[MONTH_COL].isin(MONTHS)]
-
+        logger.info('DEMS remaining after months: {:,}'.format(len(dems)))
 
     logger.info('DEMs found matching specifications: {:,}'.format(len(dems)))
     if len(dems) == 0:
@@ -337,10 +339,6 @@ def dem_selector(AOI_PATH=None,
             dems = dems[dems[VALID_PERC] > VALID_THRESH]
 
     #### WRITE FOOTPRINT AND TXT OF MATCHES ####
-    # Write footprint out
-    if OUT_DEM_FP:
-        logger.info('Writing DEMs footprint to file: {}'.format(OUT_DEM_FP))
-        dems.to_file(OUT_DEM_FP)
     # Write list of IDs out
     if OUT_ID_LIST:
         logger.info('Writing list of DEM catalogids to file: '
@@ -356,6 +354,11 @@ def dem_selector(AOI_PATH=None,
             if BOTH_IDS:
                 dem_ids += list(dems[fields['CATALOGID2']])
         write_ids(dem_ids, OUT_ID_LIST)
+    # Write footprint out
+    if OUT_DEM_FP:
+        logger.info('Writing DEMs footprint to file: {}'.format(OUT_DEM_FP))
+        # dems.to_file(OUT_DEM_FP)
+        write_gdf(dems, OUT_DEM_FP)
     # Write list of filepaths to DEMs
     if OUT_FILEPATH_LIST:
         logger.info('Writing selected DEM system filepaths to: '

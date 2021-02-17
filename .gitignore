@@ -141,6 +141,7 @@ config/danco.footprint.json
 config/sandwich-pool.dem.json
 config/sandwich-pool.dgarchive.json
 config/*
+selection_utils/config.json
 
 # development files
 scratch/*

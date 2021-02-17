@@ -20,7 +20,7 @@ from skimage.feature import greycomatrix, greycoprops
 
 from misc_utils.logging_utils import create_logger
 from misc_utils.gdal_tools import auto_detect_ogr_driver
-from misc_utils.gpd_utils import write_gdf
+from misc_utils.gpd_utils import read_vec, write_gdf
 
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -174,7 +174,7 @@ def calc_zonal_stats(shp, rasters,
         seg = shp
     else:
         logger.info('Reading in segments from: {}...'.format(shp))
-        seg = gpd.read_file(shp)
+        seg = read_vec(shp)
     logger.info('Segments found: {:,}'.format(len(seg)))
 
     # Determine rasters input type

@@ -10,10 +10,10 @@ import logging
 import os, tqdm, argparse, datetime
 import pandas as pd
 
-from id_parse_utils import read_ids, write_ids, date_words
+from misc_utils.id_parse_utils import read_ids, write_ids, date_words
 
 
-#### Logging setup
+# Logging setup
 # create logger
 logger = logging.getLogger('ahap_upload')
 logger.setLevel(logging.DEBUG)
@@ -99,7 +99,6 @@ def lookup_id_order(txt_file, all_orders=None, write_missing=False):
         write_ids(missing, os.path.join(os.path.dirname(txt_file), 'not_in_order.txt'))
     
     return ids_loc
-
 
 
 if __name__ == '__main__':

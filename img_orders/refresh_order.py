@@ -5,15 +5,13 @@ Created on Fri Apr 12 09:10:58 2019
 @author: disbr007
 Creates a shapefile that is a refresh in the region selected 
 """
-
-import logging
-# import pandas_profiling
-import geopandas as gpd
-import argparse, os
+import argparse
 import datetime
+import os
+
+import geopandas as gpd
 
 from selection_utils.query_danco import query_footprint, mono_noh, stereo_noh, generate_rough_aoi_where
-# from img_orders.img_order_sheets import create_sheets
 from misc_utils.id_parse_utils import date_words, remove_onhand, onhand_ids
 from misc_utils.logging_utils import create_logger
 from misc_utils.gpd_utils import select_in_aoi
@@ -22,8 +20,8 @@ from misc_utils.gpd_utils import select_in_aoi
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # Params
-# loc_name_fld = 'loc_name'  # Field in regions layer to select regions based on
 loc_name_fld = 'project'
+
 
 def refresh_region_lut(refresh_region='polar_hma_above'):
     '''
