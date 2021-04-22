@@ -15,6 +15,7 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from misc_utils.logging_utils import create_logger
+from misc_utils.gpd_utils import read_vec
 # from dem_utils import get_filepath_field, get_dem_path
 from dem_utils import get_filepath_field, get_dem_path
 
@@ -30,9 +31,11 @@ def mnt2v(filepath):
 
     return filepath
 
+
 def get_footprint_dems(footprint_path, filepath=get_filepath_field(),
-                       dem_name='dem_name', dem_path_fld='dem_path',
-                       dem_exist_fld='dem_exist', location=None):
+                       dem_name='DEM_NAME', dem_path_fld='dem_path',
+                       dem_exist_fld='dem_exist', location=None,
+                       use_terrranova=False):
     """Load Footprint - Check for existence of DEMs"""
     logger.debug('Footprint type: {}'.format(type(footprint_path)))
     if isinstance(footprint_path, list):
@@ -48,7 +51,8 @@ def get_footprint_dems(footprint_path, filepath=get_filepath_field(),
             else:
                 # Load footprint
                 logger.info('Loading DEM footprint...')
-                fp = gpd.read_file(footprint_path)
+                # fp = gpd.read_file(footprint_path)
+                fp = read_vec(footprint_path)
         # Vector file of footprints with path field
         elif isinstance(footprint_path, gpd.GeoDataFrame):
             fp = footprint_path
@@ -59,6 +63,9 @@ def get_footprint_dems(footprint_path, filepath=get_filepath_field(),
         if platform.system() == 'Windows':
             fp[dem_path_fld] = fp[dem_path_fld].apply(lambda x: mnt2v(x))
 
+    if use_terranova:
+        fp[dem_path_fld] = fp[dem_path_fld].apply(lambda x: x.replace(r"pgc\data\elev",
+                                                                      r"pgc\terrnva_data\elev"))
     num_fps = len(fp)
     logger.info('Records found: {:,}'.format(num_fps))
 
@@ -100,7 +107,8 @@ def create_copy_list(dem_paths, dest_parent_dir, meta_file_sfx, flat=False):
 
 def copy_dems(footprint_path, output_directory, location=None,
               dems_only=False, skip_ortho=False,
-              flat=False, use_symlinks=True, dryrun=False):
+              flat=False, use_symlinks=True, use_terranova=False,
+              dryrun=False):
     """Copy DEMs and metadata files given a footprint with paths and output directory."""
     if dems_only:
         logger.debug('Copying DEMs only.')
@@ -186,19 +194,21 @@ if __name__ == '__main__':
                         help='Use to skip ortho files, but copy all other meta files.')
     parser.add_argument('-f', '--flat', action='store_true',
                         help='Use to not create DEM subdirectories, just copy to destination directory.')
+    parser.add_argument('--use_terranova', action='store_true')
     parser.add_argument('--use_symlinks', action='store_true')
     parser.add_argument('-dr', '--dryrun', action='store_true',
                         help='Use to check for DEMs existence but do not copy.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Set logger to DEBUG.')
 
-    import sys
-    sys.argv = [r'C:\code\pgc-code-all\dem_utils\copy_dems.py',
-                '-i',
-                r'E:\disbr007\umn\accuracy_assessment\footprints\additional_dem_fps.shp',
-                '-o',
-                r'E:\disbr007\umn\accuracy_assessment\mj_ward1\data\dems\raw_addtl',
-                '-lf', 'LOCATION']
+    # import sys
+    # sys.argv = [__file__,
+    #             '-i',
+    #             r'E:\disbr007\umn\accuracy_assessment\banks\banks2\footprints\banks2_dems.gpkg\banks2_dems_selection',
+    #             '-o',
+    #             r'E:\disbr007\umn\accuracy_assessment\banks\banks2\dems',
+    #             '-lf', 'LOCATION',
+    #             '--use_terranova']
 
     args = parser.parse_args()
 
@@ -208,10 +218,12 @@ if __name__ == '__main__':
     dems_only = args.dems_only
     skip_ortho = args.skip_ortho
     flat = args.flat
+    use_terranova = args.use_terranova
     use_symlinks = args.use_symlinks
     dryrun = args.dryrun
     verbose = args.verbose
 
     copy_dems(footprint_path, output_directory, location=location_field,
               dems_only=dems_only, skip_ortho=skip_ortho,
-              flat=flat, use_symlinks=use_symlinks, dryrun=dryrun)
+              flat=flat, use_terranova=use_terranova,
+              use_symlinks=use_symlinks, dryrun=dryrun)

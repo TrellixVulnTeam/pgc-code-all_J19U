@@ -5,7 +5,7 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-otb_max_ram_hint = 1024
+otb_max_ram_hint = 4096
 otb_env_loc = r"C:\OTB-7.1.0-Win64\OTB-7.1.0-Win64\otbenv.bat"
 
 

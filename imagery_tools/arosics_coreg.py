@@ -16,13 +16,13 @@ warnings.filterwarnings("ignore", message="You will likely lose important "
 
 
 def add_suffix(path, suffix):
-    # TODO: Move to a "lib" module
+    # TODO: Move to a "selection_utils" module
     with_suffix = path.parent / '{}{}{}'.format(path.stem, suffix, path.suffix)
     return with_suffix
 
 
 def make_paths(*path_strs):
-    # TODO: Move to a "lib" module
+    # TODO: Move to a "selection_utils" module
     out_paths = []
     for p in path_strs:
         out_paths.append(Path(p))

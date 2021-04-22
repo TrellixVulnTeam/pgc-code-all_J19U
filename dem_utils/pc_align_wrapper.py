@@ -72,7 +72,7 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
 
     """
     # PARAMETERS
-    if not os.path  .exists(out_dir):
+    if not os.path.exists(out_dir):
         logger.info('Creating out_dir:\n{}'.format(out_dir))
         os.makedirs(out_dir)
     if use_long_names:
@@ -233,7 +233,8 @@ def pca_p2d(dem1, dem2, out_dir, max_diff_pca=10, max_diff_rmse=None,
     if not os.path.exists(misc_dir):
         os.makedirs(misc_dir)
 
-    print('Misc_files:\n{}'.format('\n'.join(misc_files)))
+    logger.debug('Moving misc files to {}:\n{}'.format(misc_dir,
+                                                       '\n'.join(misc_files)))
     for f in misc_files:
         shutil.move(f, misc_dir)
 

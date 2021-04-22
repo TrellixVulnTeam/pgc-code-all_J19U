@@ -10,6 +10,7 @@ from misc_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
+
 def fill_internal_nodata(img:str , out: str, aoi: str) -> None:
     """
     Fills internal NoData gaps by interpolating across them.
@@ -37,7 +38,12 @@ def fill_internal_nodata(img:str , out: str, aoi: str) -> None:
     gdf = read_vec(aoi)
     shapes = gdf.geometry.values
 
+    # Warn if not same CRS
+
     with rio.open(temp_filled) as src:
+        if gdf.crs.to_wkt() != src.crs.to_wkt():
+            logger.warning('AOI and raster to-be-filled do not have matching'
+                           'CRS:\nAOI:{}\nRaster:{}'.format(gdf.crs, src.crs))
         out_img, out_trans = rasterio.mask.mask(src, shapes)
         with rio.open(out, 'w', **profile) as dst:
             dst.write(out_img)

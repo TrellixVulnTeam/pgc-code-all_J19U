@@ -169,7 +169,6 @@ def otb_grm(img,
     # Add environment init before calling segmentation
     if init_otb_env:
         cmd = '{} && {}'.format(otb_init, cmd)
-
     # Run command
     logger.debug(cmd)
     # If run too quickly, check OTB env is active

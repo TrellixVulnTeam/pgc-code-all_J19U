@@ -32,6 +32,9 @@ acan_sde = r'\\files.umn.edu\pgc\trident\db\danco\acan.sde'
 ant_placename_tbl = 'ant_gnis_pt'
 ant_placename_tbl_abs = os.path.join(acan_sde, ant_placename_tbl)
 
+# Constants
+CATALOG_ID = 'catalog_id'
+
 
 def pgc_index_path(ids=False):
     """
@@ -43,7 +46,7 @@ def pgc_index_path(ids=False):
     if not ids:
         index_path = content[0].strip('\n')
     if ids:
-        index_path = content[1].strip   ('\n')
+        index_path = content[1].strip('\n')
     logger.debug('PGC index path loaded: {}'.format(index_path))
 
     return index_path
@@ -224,7 +227,7 @@ def create_points(coords, shp_path):
 
 
 def select_footprints(selector, input_type, imagery_index, join_field=None,
-                      overlap_type=None, search_distance=None, id_field=None,
+                      overlap_type=None, search_distance=None, id_field=CATALOG_ID,
                       selector_field=None, sjoin=False, where=None):
     """Select footprints from MFP given criteria"""
     if input_type == 'location' and not selector_field:
@@ -518,8 +521,8 @@ if __name__ == '__main__':
                          argdef_min_year=argdef_min_year, argdef_max_year=argdef_max_year,
                          argdef_months=argdef_months)
 
-    logger.warning(where[:250])
-    logger.warning(where[-250:])
+    # logger.warning(where[:250])
+    # logger.warning(where[-250:])
     selection = select_footprints(selector=selector, input_type=input_type,
                                   imagery_index=imagery_index, join_field=join_field,
                                   selector_field=selector_field,

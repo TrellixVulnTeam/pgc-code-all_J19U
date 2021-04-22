@@ -59,6 +59,7 @@ out_dir = 'out_dir'
 out_seg = 'out_seg'
 mask_on = 'mask_on'
 zonal_stats = 'zonal_stats'
+bands_k = 'bands'
 zs_stats = 'stats'
 zs_rasters = 'rasters'
 x_space = 'x_space'
@@ -103,6 +104,7 @@ rts_candidate = 'rts_candidate'
 pan = 'pan'
 ndvi = 'ndvi'
 dem_deriv = 'dem_deriv'
+fill_step = 'fill_step'
 clip_step = 'clip_step'
 edge_extraction = 'edge_extraction'
 hw_seg = 'hw_seg'
@@ -150,10 +152,15 @@ def run_subprocess(command):
     logger.debug('Err: {}'.format(error.decode()))
 
 
-def main(image, dem, dem_prev, project_dir, config,
-         skip_steps=None, ):
+def main(dem, dem_prev,
+         project_dir, config,
+         aoi=None,
+         image=None,
+         pansh_img=None,
+         skip_steps=None,):
     # Convert to path objects
-    image = Path(image)
+    if image is not None:
+        image = Path(image)
     dem = Path(dem)
     dem_prev = Path(dem_prev)
 
@@ -163,7 +170,10 @@ def main(image, dem, dem_prev, project_dir, config,
     # Project config settings
     project_config = config['project']
     EPSG = project_config['EPSG']
-    aoi = Path(project_config['AOI'])
+    if aoi is None:
+        aoi = Path(project_config['AOI'])
+    else:
+        aoi = Path(aoi)
     fill_nodata = project_config['fill_nodata']
 
    # Headwall and RTS config settings
@@ -217,23 +227,27 @@ def main(image, dem, dem_prev, project_dir, config,
     # %% Imagery Preprocessing
     logger.info('\n\n***PREPROCESSING***')
     # Pansharpen
-    if pan not in skip_steps:
-        logger.info('Pansharpening: {}'.format(image.name))
-        pansh_cmd = '{} {} {} -p {} -d {} -t {} -c {} ' \
-                    '--skip-dem-overlap-check'.format(PANSH_PY,
-                                                      image,
-                                                      PANSH_DIR,
-                                                      EPSG,
-                                                      dem,
-                                                      BITDEPTH,
-                                                      STRETCH)
-        run_subprocess(pansh_cmd)
-    # Determine output name
-    pansh_img = PANSH_DIR / '{}_{}{}{}_pansh.tif'.format(image.stem,
-                                                         bitdepth_lut[
-                                                             BITDEPTH],
-                                                         STRETCH,
-                                                         EPSG)
+    if pansh_img is None:
+        if pan not in skip_steps:
+            logger.info('Pansharpening: {}'.format(image.name))
+            pansh_cmd = '{} {} {} -p {} -d {} -t {} -c {} ' \
+                        '--skip-dem-overlap-check'.format(PANSH_PY,
+                                                          image,
+                                                          PANSH_DIR,
+                                                          EPSG,
+                                                          dem,
+                                                          BITDEPTH,
+                                                          STRETCH)
+            run_subprocess(pansh_cmd)
+
+        # Determine output name
+        pansh_img = PANSH_DIR / '{}_{}{}{}_pansh.tif'.format(image.stem,
+                                                             bitdepth_lut[
+                                                                 BITDEPTH],
+                                                             STRETCH,
+                                                             EPSG)
+    else:
+        pansh_img = Path(pansh_img)
 
     # NDVI
     if ndvi not in skip_steps:
@@ -272,7 +286,8 @@ def main(image, dem, dem_prev, project_dir, config,
             if k in [img_k, ndvi_k]:
                 filled = inputs[k].parent / '{}_filled{}'.format(inputs[k].stem,
                                                                  inputs[k].suffix)
-                fill_internal_nodata(inputs[k], filled, str(aoi))
+                if fill_step not in skip_steps:
+                    fill_internal_nodata(inputs[k], filled, str(aoi))
                 inputs[k] = filled
 
     # %% EdgeExtraction
@@ -288,6 +303,8 @@ def main(image, dem, dem_prev, project_dir, config,
     if dem_deriv not in skip_steps:
         # DEM Diff
         logger.info('Creating DEM Difference...')
+        logger.info('DEM1: {}'.format(inputs[dem_k]))
+        logger.info('DEM2: {}'.format(inputs[dem_prev_k]))
         diff = DEM_DERIV_DIR / 'dem_diff.tif'
         difference_dems(str(inputs[dem_k]), str(inputs[dem_prev_k]),
                         out_dem=str(diff))
@@ -376,6 +393,8 @@ def main(image, dem, dem_prev, project_dir, config,
                                   'stats': hw_config[zonal_stats][zs_stats]}
                               for k, v in inputs.items()
                               if k in hw_config[zonal_stats][zs_rasters]}
+        if bands_k in hw_config[zonal_stats].keys():
+            zonal_stats_inputs[img_k][bands_k] = hw_config[zonal_stats][bands_k]
         hw_objects = calc_zonal_stats(shp=cleaned_objects_out,
                                       rasters=zonal_stats_inputs,
                                       out_path=hw_zs_out)
@@ -592,7 +611,8 @@ def main(image, dem, dem_prev, project_dir, config,
 
 if __name__ == '__main__':
     # Default arguments and choices
-    ARGDEF_SKIP_CHOICES = [pan, ndvi, dem_deriv, edge_extraction, clip_step,
+    ARGDEF_SKIP_CHOICES = [pan, ndvi, dem_deriv, fill_step,
+                           edge_extraction, clip_step,
                            hw_seg, hw_clean, hw_zs, hw_class,
                            rts_seg, rts_clean, rts_zs, rts_class,
                            grow_seg, grow_clean, grow_zs]
@@ -608,6 +628,9 @@ if __name__ == '__main__':
     parser.add_argument('-prev_dem', '--previous_dem', type=os.path.abspath,
                         help='The path to a DEM from a previous year to use '
                              'to compute change metrics.')
+    parser.add_argument('-pansh_img', '--pansharpened_img', type=os.path.abspath,
+                        help='Path to arleady pansharpened image. Pansharpening '
+                             'will be skipped.')
     parser.add_argument('-pd', '--project_dir', type=os.path.abspath,
                         help='Path to directory underwhich to create project '
                              'files.')
@@ -621,41 +644,41 @@ if __name__ == '__main__':
                              'must exist as computed by previous steps.')
     parser.add_argument('--logdir', type=os.path.abspath)
 
-    prj_dir = r'E:\disbr007\umn\accuracy_assessment'
-    # psd = 'test_aoi2_mr_pansh_2021feb15'
-    psd = 'tiny_aoi'
-    os.chdir(prj_dir)
-    sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
-                '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
-                        r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
-                        r'500281124060_01_P001.tif',
-                # '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809_mr'
-                #         r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
-                #         r'500281124060_01_P001_u16mr3413.tif',
-                '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
-                        r'\WV02_20140809_10300100348BE800_103001003542D300'
-                        r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
-                '-prev_dem', r'E:\disbr007\umn\2020sep27_eureka\dems\sel'
-                             r'\WV02_20110811_103001000D198300_103001000C5D4600_pca_WV02_20140809'
-                             r'\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_pca-DEM.tif',
-                '-pd', psd,
-                # '-aoi', r'aois\test_aoi2.shp',
-                '--skip_steps',
-                pan,
-                ndvi,
-                hw_seg,
-                hw_clean,
-                hw_zs,
-                # hw_class,
-                rts_seg,
-                rts_clean,
-                rts_zs,
-                # rts_class,
-                grow_seg,
-                grow_clean,
-                grow_zs,
-                '--logdir', os.path.join(prj_dir, psd, 'logs'),
-                ]
+    # prj_dir = r'E:\disbr007\umn\accuracy_assessment'
+    # # psd = 'test_aoi2_mr_pansh_2021feb15'
+    # psd = 'tiny_aoi'
+    # os.chdir(prj_dir)
+    # sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
+    #             '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
+    #                     r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
+    #                     r'500281124060_01_P001.tif',
+    #             # '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809_mr'
+    #             #         r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
+    #             #         r'500281124060_01_P001_u16mr3413.tif',
+    #             '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
+    #                     r'\WV02_20140809_10300100348BE800_103001003542D300'
+    #                     r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
+    #             '-prev_dem', r'E:\disbr007\umn\2020sep27_eureka\dems\sel'
+    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_pca_WV02_20140809'
+    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_pca-DEM.tif',
+    #             '-pd', psd,
+    #             # '-aoi', r'aois\test_aoi2.shp',
+    #             '--skip_steps',
+    #             pan,
+    #             ndvi,
+    #             hw_seg,
+    #             hw_clean,
+    #             hw_zs,
+    #             # hw_class,
+    #             rts_seg,
+    #             rts_clean,
+    #             rts_zs,
+    #             # rts_class,
+    #             grow_seg,
+    #             grow_clean,
+    #             grow_zs,
+    #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
+    #             ]
 
     # mj_ward1_n
     # prj_dir = r'E:\disbr007\umn\accuracy_assessment'
@@ -689,7 +712,39 @@ if __name__ == '__main__':
     #             # grow_zs,
     #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
     #             ]
-
+    #
+    # os.chdir(r'E:\disbr007\umn\accuracy_assessment\banks\banks1')
+    # sys.argv = [__file__,
+    #             '-pansh_img',
+    #             r'img\pansh\WV03_20150831211544_10400100107EC700_15AUG31211544-M1BS-500445901040_01_P002_u16mr3413_pansh.tif',
+    #             '-aoi',
+    #             r'..\..\aois\lewk_banks1.shp',
+    #             '--config',
+    #             'config.json',
+    #             '--skip_steps',
+    #             pan, ndvi,
+    #             # edge_extraction,
+    #             # clip_step,
+    #             # fill_step,
+    #             '-dem',
+    #             r'dems\WV03_20150831_10400100107EC700_1040010010AF3100_2m_lsf_v030001'
+    #             r'\WV03_20150831_10400100107EC700_1040010010AF3100_2m_lsf_seg1_dem_masked.tif',
+    #             '-prev_dem',
+    #             r'dems\WV02_20140915_1030010036612F00_10300100355D4E00_2m_lsf_v030001'
+    #             r'\WV02_20140915_1030010036612F00_10300100355D4E00_2m_lsf_seg1_dem_masked.tif'
+    #             ]
+    # os.chdir(r'E:\disbr007\umn\accuracy_assessment\banks\banks1')
+    # sys.argv = [__file__,
+    #             '-pansh_img',
+    #             r'img\pansh\WV03_20150831211544_10400100107EC700_15AUG31211544-M1BS-500445901040_01_P002_u16mr3413_pansh.tif',
+    #             '-aoi', r'..\..\aois_3413\lewk_banks1.shp',
+    #             '--config', 'config.json',
+    #             '--skip_steps', 'pan', 'ndvi', 'hw_seg', 'rts_seg', hw_zs,
+    #             'grow_seg', 'hw_clean', 'rts_clean', 'grow_clean', 'fill_step',
+    #             'edge_extraction',
+    #             '-dem', r'dems\WV03_20150831_10400100107EC700_1040010010AF3100_2m_lsf_v030001\WV03_20150831_10400100107EC700_'
+    #                     r'1040010010AF3100_2m_lsf_seg1_dem_masked.tif',
+    #             '-prev_dem', r'E:/disbr007/umn/accuracy_assessment/banks/banks1/scratch/WV02_20140915_pca_zonly.tif']
 
     args = parser.parse_args()
 
@@ -697,8 +752,9 @@ if __name__ == '__main__':
     dem = args.dem_input
     dem_prev = args.previous_dem
     project_dir = args.project_dir
-    # aoi = args.aoi
+    aoi = args.aoi
     config = args.config
+    pansh_img = args.pansharpened_img
     skip_steps = args.skip_steps
     logdir = args.logdir
 
@@ -725,6 +781,9 @@ if __name__ == '__main__':
     if not config:
         config = Path(project_dir) / 'config.json'
 
+    if not project_dir:
+        project_dir = os.getcwd()
+
     logger.info('Beginning Retrogressive Thaw Slump OBIA Classification.')
     logger.info('Project directory: {}'.format(project_dir))
 
@@ -733,8 +792,9 @@ if __name__ == '__main__':
          dem=dem,
          dem_prev=dem_prev,
          project_dir=project_dir,
-         # aoi=aoi,
+         aoi=aoi,
          config=config,
+         pansh_img=pansh_img,
          skip_steps=skip_steps)
     end = datetime.now()
 

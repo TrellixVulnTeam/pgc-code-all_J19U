@@ -342,10 +342,10 @@ def detect_ogr_driver(ogr_ds: str, name_only: bool = False) -> typing.Tuple[gdal
         # Check if extension in look up table
         if GPKG in ogr_ds:
             drv_sfx = GPKG
-            layer = Path(ogr_ds).name
+            layer = Path(ogr_ds).stem
         elif GDB in ogr_ds:
             drv_sfx = GDB
-            layer = Path(ogr_ds).name
+            layer = Path(ogr_ds).stem
         else:
             drv_sfx = Path(ogr_ds).suffix
 

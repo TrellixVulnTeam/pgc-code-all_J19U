@@ -284,6 +284,7 @@ def get_dem_image1_id(meta_path):
 
 
 def difference_dems(dem1, dem2, out_dem=None, in_mem=False):
+    logger.debug('Difference DEMs:\nDEM1: {}\nDEM2:{}'.format(dem1, dem2))
     clipped = clip_minbb([dem1, dem2], in_mem=True)
     dem1_clipped = Raster(clipped[0])
     dem2_clipped = Raster(clipped[1])
@@ -291,18 +292,7 @@ def difference_dems(dem1, dem2, out_dem=None, in_mem=False):
     diff = dem1_clipped.MaskedArray - dem2_clipped.MaskedArray
 
     if out_dem:
+        logger.debug('Writing difference to: {}'.format(out_dem))
         dem1_clipped.WriteArray(diff, out_path=out_dem)
 
     return out_dem
-
-# dem1 = r'E:\disbr007\umn\2020sep27_eureka\dems\sel' \
-#        r'\WV02_20140703_1030010033A84300_1030010032B54F00' \
-#        r'\WV02_20140703_1030010033A84300_1030010032B54F00' \
-#        r'_2m_lsf_seg1_dem_masked.tif'
-# dem2 = r'E:\disbr007\umn\2020sep27_eureka\dems\sel' \
-#        r'\WV02_20110811_103001000D198300_103001000C5D4600' \
-#        r'\WV02_20110811_103001000D198300_103001000C5D4600' \
-#        r'_2m_lsf_seg1_dem_masked.tif'
-# out = r'C:\temp\diff2.tif'
-#
-# difference_dems(dem1, dem2, out_dem=out)

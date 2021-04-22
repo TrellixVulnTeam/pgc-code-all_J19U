@@ -353,7 +353,7 @@ if __name__ == '__main__':
     parser.add_argument("--keep_swir", action='store_true', 
                         help="Use flag to write a list of SWIR IDs")
 
-    # sys.argv = [r'C:\code\pgc-code-all\img_orders\img_order_sheets.py',
+    # sys.argv = [r'C:\code\pgc-code-all\img_orders\create_order_sheets.py',
     #             '-i',
     #             r'E:\disbr007\imagery_orders\NASA_order_2020dec17_adapt_replenish'
     #             '\SSAr2.2_all_zones_missing_ntflist_ids.txt',

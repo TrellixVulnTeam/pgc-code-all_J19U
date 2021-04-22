@@ -34,6 +34,7 @@ GPKG = 'GPKG'
 OPEN_FILE_GDB = 'OpenFileGDB'
 FILE_GBD = 'FileGDB'
 
+
 def multiprocess_gdf(fxn, gdf, *args, num_cores=None, **kwargs):
     from joblib import Parallel, delayed
     num_cores = num_cores if num_cores else multiprocessing.cpu_count() - 2
@@ -411,10 +412,8 @@ def write_gdf(src_gdf, out_footprint, to_str_cols=None,
                                'CRS to GeoJSON. Reprojecting to WGS84.')
                 gdf = gdf.to_crs('epsg:4326')
         gdf.to_file(out_footprint, driver=driver, **kwargs)
-
     elif driver in [GPKG, OPEN_FILE_GDB, FILE_GBD]:
         gdf.to_file(str(out_footprint.parent), layer=layer, driver=driver, **kwargs)
-
     else:
         logger.error('Unsupported driver: {}'.format(driver))
 

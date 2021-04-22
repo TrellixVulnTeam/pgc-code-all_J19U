@@ -10,6 +10,7 @@ import logging.config
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 
 import pandas as pd
 import geopandas as gpd
@@ -79,7 +80,7 @@ def apply_roundness(gdf, out_field='roundness'):
     return gdf
 
 
-def compute_stats(gdf, raster, name,
+def compute_stats(gdf, raster, name=None,
                   stats=None,
                   custom_stats=None, band=None,
                   renamer=None):
@@ -94,7 +95,7 @@ def compute_stats(gdf, raster, name,
         GeoDataFrame of polygons to compute statistics over.
     raster : os.path.abspath | rasterio.raster
         Raster to compute statistics from.
-    stats_dict : DICT
+    stats_dict : dict
         Dictionary of stat:renamed_col pairs.
         Stats must be one of: min, max, median, sum, std,
                               unique, range, percentile_<q>
@@ -233,7 +234,8 @@ def calc_zonal_stats(shp, rasters,
             for b in bs:
                 stats_dict = {x: '{}b{}_{}'.format(n, b, x) for x in s}
                 seg = compute_stats(gdf=seg, raster=r,
-                                    stats=stats_acc,
+                                    stats=stats_dict,
+                                    renamer=stats_dict,
                                     band=b)
 
     # Area recording
@@ -254,7 +256,7 @@ def calc_zonal_stats(shp, rasters,
     if not os.path.exists(os.path.dirname(out_path)):
         os.makedirs(os.path.dirname(out_path))
     logger.info('Writing segments with statistics to: {}'.format(out_path))
-    driver = auto_detect_ogr_driver(out_path, name_only=True)
+    # driver = auto_detect_ogr_driver(out_path, name_only=True)
     # seg.to_file(out_path, driver=driver)
     write_gdf(seg, out_path)
 
@@ -301,6 +303,12 @@ if __name__ == '__main__':
     parser.add_argument('-rd', '--roundness',
                         action='store_true',
                         help='Use to compute a roundness field.')
+
+    os.chdir(r'E:\disbr007\umn\accuracy_assessment\banks\banks1')
+    sys.argv = [r'C:\code\pgc-code-all\obia_utils\calc_zonal_stats.py',
+                '-i', r'seg\rts.gpkg\rts_seg',
+                '-o', r'scratch\rts_bands_zs.gpkg',
+                '-r', r'E:\disbr007\umn\accuracy_assessment\banks\banks1\scratch\test_zs.json']
 
     args = parser.parse_args()
 

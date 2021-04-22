@@ -6,12 +6,9 @@ Created on Wed Apr 24 12:03:31 2019
 """
 import copy
 import math
-import numpy as np
 
 import geopandas as gpd
 import pandas as pd
-import tqdm
-from fiona.crs import from_epsg, from_string
 
 from misc_utils.logging_utils import create_logger
 
@@ -47,7 +44,6 @@ def area_calc(geodataframe, area_col='area_sqkm', units='sqkm', polar=True):
     gdf_area = gdf_area[src_cols]
 
     return gdf_area
-
 
 
 def find_epsg(point):

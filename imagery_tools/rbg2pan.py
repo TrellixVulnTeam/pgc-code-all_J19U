@@ -1,6 +1,6 @@
 import os, string, sys, re, glob, argparse, subprocess, logging
 from osgeo import gdal, gdalconst
-from lib import taskhandler
+from selection_utils import taskhandler
 
 #### Create Logger
 logger = logging.getLogger("logger")

@@ -25,7 +25,7 @@ if __name__ == '__main__':
     dems = args.dems
     out_txt = args.out_txt
     append_ids = args.append_ids
-    dem_sfx = args.dem_sfxgrid
+    dem_sfx = args.dem_sfx
 
     # Get DEMs
     logger.info('Locating DEMs...')
@@ -55,6 +55,8 @@ if __name__ == '__main__':
 
     logger.info('Image1 IDs:\n{}'.format('\n'.join(image1_ids)))
     if out_txt:
+        if not Path(out_txt).parent.exists():
+            os.makedirs(Path(out_txt).parent)
         out_txt = Path(out_txt)
         if out_txt.exists() and append_ids:
             write_mode = 'a'
