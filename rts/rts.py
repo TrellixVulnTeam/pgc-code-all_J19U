@@ -513,12 +513,6 @@ def main(dem, dem_prev,
     grow_seg_out = grow_config[seg][params][out_seg] = str(GROW_SEG_GPKG / 'grow')
 
     if grow_seg not in skip_steps:
-        # grow = grid_aoi(aoi, x_space=grow_config[seg][x_space],
-        #                       y_space=grow_config[seg][y_space], poly=True)
-        # if grow_out:
-        #     logger.info('Writing grow segmentation to: '
-        #                 '{}'.format(grow_out))
-        #     write_gdf(grow, grow_out)
         grow = otb_grm.otb_grm(drop_smaller=0.5,
                                **grow_config[seg][params])
     else:
@@ -540,9 +534,6 @@ def main(dem, dem_prev,
                                            out_objects=cleaned_grow_out,
                                            **cleanup_params)
 
-    # cleaned_grow = Path(cleaned_grow)
-    # grow_zs_out_path = cleaned_grow.parent / '{}_zs{}'.format(cleaned_grow.stem,
-    #                                                           cleaned_grow.suffix)
     grow_zs_out = cleaned_grow_out + '_zs'
     if grow_zs not in skip_steps:
         logger.info('Merging RTS candidates into grow objects...')
