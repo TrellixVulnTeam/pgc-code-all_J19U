@@ -189,7 +189,7 @@ def check_sr(shp_p, raster_p):
 
 
 def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'],
-                     username=get_creds()[0], password=get_creds()[1]):
+                     username=None, password=None):
     """
     Load a table from danco.pgc.umn.edu. The reference to the connection datasource
     must be return or the Layer becomes NULL.
@@ -202,6 +202,11 @@ def load_danco_table(db_name, db_tbl, where='1=1', load_fields=['*'],
 
     returns osgeo.ogr.Layer, osgeo.ogr.DataSource
     """
+    if username is None:
+        username = get_creds()[0]
+    if password is None:
+        password = get_creds()[1]
+
     db_server = 'danco.pgc.umn.edu'
     conn_str = "PG: host={} dbname={} user={} password={}".format(db_server, db_name, username, password)
 
