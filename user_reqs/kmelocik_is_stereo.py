@@ -26,7 +26,7 @@ dg_stereo_selection = selection[selection['catalog_id'].isin(dg_stereo)]
 logger.info('Stereo scenes found: {}'.format(len(dg_stereo_selection)))
 
 import matplotlib.pyplot as plt
-plt.style.use('pycharm')
+plt.style.use('ggplot')
 
 fig, ax = plt.subplots(1,1)
 selection[selection['cloudcover']>=0].hist(column='cloudcover', ax=ax)

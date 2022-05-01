@@ -8,7 +8,7 @@ from misc_utils.utm_area_calc import area_calc
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-plt.style.use('pycharm')
+plt.style.use('ggplot')
 
 logger.debug('Loading coastline...')
 coast_p = r'E:\disbr007\general\coastline\countries_dissolve_lines.shp'

@@ -8,12 +8,13 @@ import platform
 import subprocess
 from subprocess import PIPE
 import sys
+import yaml
 
 from tqdm import tqdm
 import geopandas as gpd
 import pandas as pd
 
-from archive_analysis.archive_analysis_utils import grid_aoi
+# from archive_analysis.archive_analysis_utils import grid_aoi
 from misc_utils.logging_utils import create_logger, create_logfile_path
 from misc_utils.gpd_utils import read_vec, write_gdf
 from misc_utils.gdal_tools import rasterize_shp2raster_extent
@@ -46,8 +47,8 @@ from classify_rts import classify_rts, grow_rts_candidates, grow_rts_simple
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # External py scripts
-PANSH_PY = r'C:\code\imagery_utils\pgc_pansharpen.py'
-NDVI_PY = r'C:\code\imagery_utils\pgc_ndvi.py'
+PANSH_PY = r'home/jeff/code/pgc_pansharpen.py'
+NDVI_PY = r'home/jeff/code/imagery_utils/pgc_ndvi.py'
 
 # Config keys
 seg = 'seg'
@@ -125,13 +126,16 @@ clean_sfx = '_cln'
 
 
 def get_config(config_file, param=None):
+    if Path(config_file).suffix.startswith('y'):
+        with open(config_file, 'r') as stream:
+            config_params = yaml.safe_load()
     config_params = json.load(open(config_file))
     if param is not None:
         try:
             config = config_params[param]
         except KeyError:
             print('Config parameter not found: {}'.format(param))
-            print('Available configs:\n{}'.format('\n'.join(config.keys())))
+            print('Available configs:\n{}'.format('\n'.join(config_params.keys())))
     else:
         config = config_params
 
@@ -176,7 +180,7 @@ def main(dem, dem_prev,
         aoi = Path(aoi)
     fill_nodata = project_config['fill_nodata']
 
-   # Headwall and RTS config settings
+    # Headwall and RTS config settings
     hw_config = config['headwall']
     rts_config = config['rts']
     grow_config = config['grow']
@@ -279,6 +283,10 @@ def main(dem, dem_prev,
                 clip_rasters(str(aoi), str(r), out_path=str(out_path),
                              out_suffix='', skip_srs_check=True)
             inputs[k] = out_path
+    else:
+        # Clip to min extent of DEMs - warn if large - create temp shapefile
+        pass
+    
     if fill_nodata:
         logger.info('Filling internal NoData gaps in sources...')
         for k, r in tqdm(inputs.items()):
@@ -623,7 +631,7 @@ if __name__ == '__main__':
                         help='Path to arleady pansharpened image. Pansharpening '
                              'will be skipped.')
     parser.add_argument('-pd', '--project_dir', type=os.path.abspath,
-                        help='Path to directory underwhich to create project '
+                        help='Path to directory under which to create project '
                              'files.')
     parser.add_argument('-aoi', type=os.path.abspath,
                         help='Path to AOI to restrict analysis to.')
@@ -635,107 +643,18 @@ if __name__ == '__main__':
                              'must exist as computed by previous steps.')
     parser.add_argument('--logdir', type=os.path.abspath)
 
-    # prj_dir = r'E:\disbr007\umn\accuracy_assessment'
-    # # psd = 'test_aoi2_mr_pansh_2021feb15'
-    # psd = 'tiny_aoi'
-    # os.chdir(prj_dir)
-    # sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
-    #             '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
-    #                     r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
-    #                     r'500281124060_01_P001.tif',
-    #             # '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809_mr'
-    #             #         r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
-    #             #         r'500281124060_01_P001_u16mr3413.tif',
-    #             '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
-    #                     r'\WV02_20140809_10300100348BE800_103001003542D300'
-    #                     r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
-    #             '-prev_dem', r'E:\disbr007\umn\2020sep27_eureka\dems\sel'
-    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_pca_WV02_20140809'
-    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_pca-DEM.tif',
-    #             '-pd', psd,
-    #             # '-aoi', r'aois\test_aoi2.shp',
-    #             '--skip_steps',
-    #             pan,
-    #             ndvi,
-    #             hw_seg,
-    #             hw_clean,
-    #             hw_zs,
-    #             # hw_class,
-    #             rts_seg,
-    #             rts_clean,
-    #             rts_zs,
-    #             # rts_class,
-    #             grow_seg,
-    #             grow_clean,
-    #             grow_zs,
-    #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
-    #             ]
+    # DEBUGGING
+    logger.warning('\n\n******* USING DEBUG ARGS *******\n')
+    import sys, shlex
+    os.chdir('/home/jeff/ms/pgc-hilgardite/2022jan16/')
+    args_str = ('-aoi /home/jeff/ms/pgc-hilgardite/2022jan16/2022jan16_aoi.shp'
+                '-dem home/jeff/ms/pgc-hilgardite/2020sep27_eureka/dems/all/WV02_20110602_103001000B3D3D00_103001000B28C600/WV02_20110602_103001000B3D3D00_103001000B28C600.tif'
+                '-prev_dem')
+    cli_args = shlex.split(args_str)
+    sys.argv = [__file__]
+    sys.argv.extend(cli_args)
 
-    # mj_ward1_n
-    # prj_dir = r'E:\disbr007\umn\accuracy_assessment'
-    # psd = 'mj_ward_n_2014_2011'
-    # os.chdir(prj_dir)
-    # sys.argv = [r'C:\code\pgc-code-all\rts\rts.py',
-    #             '-img', r'E:\disbr007\umn\2020sep27_eureka\img\ortho_WV02_20140809'
-    #                     r'\WV02_20140809235614_10300100348BE800_14AUG09235614-M1BS-'
-    #                     r'500281124060_01_P001.tif',
-    #             '-dem', r'E:\disbr007\umn\2020sep27_eureka\dems\all'
-    #                     r'\WV02_20140809_10300100348BE800_103001003542D300'
-    #                     r'\WV02_20140809_10300100348BE800_103001003542D300_2m_lsf_seg2_dem_masked.tif',
-    #             '-prev_dem', r'E:\disbr007\umn\accuracy_assessment\mj_ward1\data\dems'
-    #                          r'\mj_ward1_n_2014_2011'
-    #                          r'\WV02_20110811_103001000D198300_103001000C5D4600_2m_lsf_seg1_dem_masked_pca-DEM.tif',
-    #             '-pd', psd,
-    #             '-aoi', r'aois\mj_ward_n.shp',
-    #             '--skip_steps',
-    #             pan,
-    #             ndvi,
-    #             hw_seg,
-    #             hw_clean,
-    #             hw_zs,
-    #             # hw_class,
-    #             rts_seg,
-    #             rts_clean,
-    #             rts_zs,
-    #             # rts_class,
-    #             grow_seg,
-    #             grow_clean,
-    #             # grow_zs,
-    #             '--logdir', os.path.join(prj_dir, psd, 'logs'),
-    #             ]
-    #
-    # os.chdir(r'E:\disbr007\umn\accuracy_assessment\banks\banks1')
-    # sys.argv = [__file__,
-    #             '-pansh_img',
-    #             r'img\pansh\WV03_20150831211544_10400100107EC700_15AUG31211544-M1BS-500445901040_01_P002_u16mr3413_pansh.tif',
-    #             '-aoi',
-    #             r'..\..\aois\lewk_banks1.shp',
-    #             '--config',
-    #             'config.json',
-    #             '--skip_steps',
-    #             pan, ndvi,
-    #             # edge_extraction,
-    #             # clip_step,
-    #             # fill_step,
-    #             '-dem',
-    #             r'dems\WV03_20150831_10400100107EC700_1040010010AF3100_2m_lsf_v030001'
-    #             r'\WV03_20150831_10400100107EC700_1040010010AF3100_2m_lsf_seg1_dem_masked.tif',
-    #             '-prev_dem',
-    #             r'dems\WV02_20140915_1030010036612F00_10300100355D4E00_2m_lsf_v030001'
-    #             r'\WV02_20140915_1030010036612F00_10300100355D4E00_2m_lsf_seg1_dem_masked.tif'
-    #             ]
-    # os.chdir(r'E:\disbr007\umn\accuracy_assessment\banks\banks1')
-    # sys.argv = [__file__,
-    #             '-pansh_img',
-    #             r'img\pansh\WV03_20150831211544_10400100107EC700_15AUG31211544-M1BS-500445901040_01_P002_u16mr3413_pansh.tif',
-    #             '-aoi', r'..\..\aois_3413\lewk_banks1.shp',
-    #             '--config', 'config.json',
-    #             '--skip_steps', 'pan', 'ndvi', 'hw_seg', 'rts_seg', hw_zs,
-    #             'grow_seg', 'hw_clean', 'rts_clean', 'grow_clean', 'fill_step',
-    #             'edge_extraction',
-    #             '-dem', r'dems\WV03_20150831_10400100107EC700_1040010010AF3100_2m_lsf_v030001\WV03_20150831_10400100107EC700_'
-    #                     r'1040010010AF3100_2m_lsf_seg1_dem_masked.tif',
-    #             '-prev_dem', r'E:/disbr007/umn/accuracy_assessment/banks/banks1/scratch/WV02_20140915_pca_zonly.tif']
+    
 
     args = parser.parse_args()
 

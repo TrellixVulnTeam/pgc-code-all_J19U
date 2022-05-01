@@ -173,7 +173,6 @@ def classify_rts(sub_objects_path,
     r_adj_rules = [r_adj_low_curv, r_adj_high_curv, r_adj_low_med]
 
 
-
     #%% RTS Rules
     logger.info('Setting up RTS candidate rules...')
     r_rts_ndvi = create_rule(rule_type=threshold_rule,

@@ -17,7 +17,7 @@ from shapely.geometry import Point, Polygon, box
 import geopandas as gpd
 import pandas as pd
 
-from selection_utils.query_danco import query_footprint
+# from selection_utils.query_danco import query_footprint
 # from misc_utils.get_bounding_box import get_bounding_box
 # from range_creation import range_tuples
 from misc_utils.logging_utils import create_logger

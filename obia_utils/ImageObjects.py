@@ -14,7 +14,7 @@ from misc_utils.gpd_utils import read_vec, write_gdf
 # from misc_utils.RasterWrapper import Raster
 
 import matplotlib.pyplot as plt
-plt.style.use('pycharm')
+plt.style.use('ggplot')
 
 # TODO: Make Rule a class
 

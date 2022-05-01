@@ -10,7 +10,7 @@ from misc_utils.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # Params
-wbt = 'whitebox_tools.exe'
+wbt = 'whitebox_tools'
 edge_density = 'EdgeDensity'
 
 

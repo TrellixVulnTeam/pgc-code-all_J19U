@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://E:/disbr007/umn/accuracy_assessment/.idea/accuracy_assessment.iml" filepath="E:/disbr007/umn/accuracy_assessment/.idea/accuracy_assessment.iml" />
-      <module fileurl="file://$PROJECT_DIR$/../db_utils/.idea/db_utils.iml" filepath="$PROJECT_DIR$/../db_utils/.idea/db_utils.iml" />
-      <module fileurl="file://$PROJECT_DIR$/../imagery_orders/.idea/imagery_orders.iml" filepath="$PROJECT_DIR$/../imagery_orders/.idea/imagery_orders.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/rts.iml" filepath="$PROJECT_DIR$/.idea/rts.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/pgc-code-all.iml" filepath="$PROJECT_DIR$/.idea/pgc-code-all.iml" />
     </modules>
   </component>
 </project>

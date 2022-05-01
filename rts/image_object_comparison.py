@@ -4,7 +4,7 @@ from pathlib import Path
 from shapely.geometry import Polygon, box
 import geopandas as gpd
 
-plt.style.use('pycharm')
+plt.style.use('ggplot')
 #%% Paths
 project_path = Path(r'E:\disbr007\umn\2020sep27_eureka')
 objects_path = project_path / (r'seg\zs\WV02_20140703013631_1030010032B54F00_'

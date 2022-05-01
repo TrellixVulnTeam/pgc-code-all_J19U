@@ -8,7 +8,7 @@ from misc_utils.logging_utils import create_logger
 
 # TODO: Convert to generic wbt_multiscale_tool(tool, out_mag, out_scale, min_scale, max_scale, step)
 # Params
-wbt = 'whitebox_tools.exe'
+wbt = 'whitebox_tools'
 mr = 'MultiscaleRoughness'
 
 

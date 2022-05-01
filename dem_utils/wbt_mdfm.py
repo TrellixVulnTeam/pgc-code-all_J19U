@@ -8,7 +8,7 @@ from misc_utils.logging_utils import create_logger
 
 
 # Params
-wbt = 'whitebox_tools.exe'
+wbt = 'whitebox_tools'
 mdfm = 'MaxDifferenceFromMean'
 
 

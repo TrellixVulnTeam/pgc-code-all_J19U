@@ -18,7 +18,7 @@ import geopandas as gpd
 from misc_utils.gdal_tools import check_sr, ogr_reproject, get_raster_sr, \
     remove_shp, detect_ogr_driver
 from misc_utils.gpd_utils import read_vec
-from misc_utils.id_parse_utils import read_ids
+# from misc_utils.id_parse_utils import read_ids
 from misc_utils.logging_utils import create_logger
 
 
@@ -197,7 +197,8 @@ if __name__ == '__main__':
             logger.error('No rasters provided.')
             raise Exception
     elif rasters[0].endswith('.txt'):
-        rasters = read_ids(rasters[0])
+        # rasters = read_ids(rasters[0])
+        pass
     # If list passed as args, no need to parse paths
 
 
